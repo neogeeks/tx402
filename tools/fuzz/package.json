@@ -1,0 +1,7 @@
+{
+  "name": "@tx402-dev/fuzz",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Seeded property and fuzz harness for the SPEC §12.1 fuzz layer — decoder, money, URL/domain, route determinism."
+}

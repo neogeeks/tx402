@@ -1,0 +1,276 @@
+---
+title: Error reference
+description: Every tx402 error code, what it carries, whether it is retryable, and the CLI exit code it maps to.
+sidebar:
+  order: 2
+---
+
+{/*
+  GENERATED FILE — DO NOT EDIT.
+
+  Emitted by `node tools/docs-gen/index.js build` from the shipped source named in each
+  section. Edit the source and regenerate; `pnpm docs:check` fails if this file is stale.
+*/}
+
+tx402 raises **15 typed errors** and the CLI reports them
+through **9 exit codes**. Both tables below are
+generated from the shipped source — `TX402_ERROR_TAXONOMY` and `EXIT_CODE_BY_ERROR` — so a
+code documented here is a code the binary actually returns.
+
+Every error is an instance of `Tx402Error` (TypeScript) or `Tx402Error` (Python) and answers
+to `isTx402Error` / `is_tx402_error`. Catch by class when you want one, by predicate when you
+want all of them.
+
+## At a glance
+
+<div class="exit-codes">
+
+| Code                             | Class                         | Exit | Retryable |
+| -------------------------------- | ----------------------------- | ---- | --------- |
+| `TX402_CONFIG_INVALID`           | `ConfigurationError`          | 2    | no        |
+| `TX402_RESERVED_HEADER`          | `ReservedHeaderError`         | 2    | no        |
+| `TX402_NON_REPLAYABLE`           | `NonReplayableRequestError`   | 2    | no        |
+| `TX402_PROTOCOL_UNSUPPORTED`     | `UnsupportedProtocolError`    | 5    | no        |
+| `TX402_SCHEME_UNSUPPORTED`       | `UnsupportedSchemeError`      | 5    | no        |
+| `TX402_PAYMENT_REQUIRED_INVALID` | `InvalidPaymentRequiredError` | 5    | no        |
+| `TX402_POLICY_BUDGET`            | `BudgetExceededError`         | 3    | no        |
+| `TX402_POLICY_DOMAIN`            | `DomainNotAllowedError`       | 3    | no        |
+| `TX402_LIQUIDITY`                | `InsufficientLiquidityError`  | 4    | no        |
+| `TX402_SIGNER`                   | `SignerError`                 | 6    | no        |
+| `TX402_CLOCK_SKEW`               | `ClockSkewError`              | 5    | no        |
+| `TX402_PAYMENT_AMBIGUOUS`        | `AmbiguousPaymentError`       | 8    | no        |
+| `TX402_RESOURCE_DELIVERY`        | `ResourceDeliveryError`       | 9    | no        |
+| `TX402_REDIRECT_BLOCKED`         | `PaidRedirectBlockedError`    | 8    | no        |
+| `TX402_TRANSPORT`                | `TransportError`              | 7    | yes       |
+
+</div>
+
+## Exit codes
+
+A shell script's `if [ $? -eq 3 ]` is a public API, so this mapping is stable and changing a
+row is a breaking change. The grouping principle is **what the operator has to change to make
+it work** — not error severity, and not which layer raised it.
+
+Exit `1` is deliberately never used: it is the runtime's own crash code, and conflating "tx402
+refused" with "the interpreter died" would make a script unable to tell them apart.
+
+<div class="exit-codes">
+
+| Exit | Meaning           | What to do                                                                                                                                                                            |
+| ---- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0    | success           | The call completed. Under `--json`, `ok` may still be `false` if the merchant answered non-2xx.                                                                                       |
+| 2    | usage / config    | The invocation or the environment is wrong. Fix the command.                                                                                                                          |
+| 3    | policy            | tx402's own guardrail refused. Raise the cap or accept the refusal.                                                                                                                   |
+| 4    | liquidity         | The wallet cannot cover it. Fund it.                                                                                                                                                  |
+| 5    | protocol          | This client and this merchant cannot agree on the challenge. Nothing local helps.                                                                                                     |
+| 6    | signer            | The key or the signing device failed.                                                                                                                                                 |
+| 7    | transport         | The network failed. Retryable under caller policy.                                                                                                                                    |
+| 8    | ambiguous payment | Money may have moved and tx402 cannot tell. **Never retry blindly.**                                                                                                                  |
+| 9    | resource failure  | The resource was not delivered. Read `context.paid` — it is `false` when the merchant refused the settlement and no money moved, and `true` when it settled and delivery then failed. |
+
+</div>
+
+Grouped the other way — which errors produce which code:
+
+- **2** — `TX402_CONFIG_INVALID`, `TX402_RESERVED_HEADER`, `TX402_NON_REPLAYABLE`
+- **3** — `TX402_POLICY_BUDGET`, `TX402_POLICY_DOMAIN`
+- **4** — `TX402_LIQUIDITY`
+- **5** — `TX402_PROTOCOL_UNSUPPORTED`, `TX402_SCHEME_UNSUPPORTED`, `TX402_PAYMENT_REQUIRED_INVALID`, `TX402_CLOCK_SKEW`
+- **6** — `TX402_SIGNER`
+- **7** — `TX402_TRANSPORT`
+- **8** — `TX402_PAYMENT_AMBIGUOUS`, `TX402_REDIRECT_BLOCKED`
+- **9** — `TX402_RESOURCE_DELIVERY`
+
+:::caution[Exit 8 is the one to handle specially]
+Exit 8 means the signature reached the merchant and tx402 could not determine the outcome. Two
+codes produce it, and they are exactly the two that can only be reached **after** a signature
+was transmitted: `TX402_PAYMENT_AMBIGUOUS` — a timeout, a 5xx, a connection reset, a
+same-origin redirect it declined to follow, or a `PAYMENT-RESPONSE` that is present and does
+not decode — and `TX402_REDIRECT_BLOCKED`, a cross-origin redirect refused after the merchant
+already had the signature. In both cases the budget reservation
+is deliberately **retained** until its TTL rather than released, so the same money cannot be
+spent twice against the hourly cap. Retrying without reconciling against the merchant can pay
+twice.
+:::
+
+## Every error in detail
+
+### `TX402_CONFIG_INVALID`
+
+`ConfigurationError` · exit **2** (usage / config) · `retryable: false`
+
+**Retryability:** `no` — Never. The condition will not change on its own.
+
+**Always carries**: `configPath`, `reason`
+
+These keys are guaranteed present in `error.details`, so a handler can read them without
+an existence check. Everything in `details` is redaction-safe by construction: identifiers,
+atomic amounts, and categories, never a signature, a key, or an authorization payload.
+
+### `TX402_RESERVED_HEADER`
+
+`ReservedHeaderError` · exit **2** (usage / config) · `retryable: false`
+
+**Retryability:** `no` — Never. The condition will not change on its own.
+
+**Always carries**: `headerName`
+
+These keys are guaranteed present in `error.details`, so a handler can read them without
+an existence check. Everything in `details` is redaction-safe by construction: identifiers,
+atomic amounts, and categories, never a signature, a key, or an authorization payload.
+
+### `TX402_NON_REPLAYABLE`
+
+`NonReplayableRequestError` · exit **2** (usage / config) · `retryable: false`
+
+**Retryability:** `no` — Never. The condition will not change on its own.
+
+**Always carries**: `reason`
+
+These keys are guaranteed present in `error.details`, so a handler can read them without
+an existence check. Everything in `details` is redaction-safe by construction: identifiers,
+atomic amounts, and categories, never a signature, a key, or an authorization payload.
+
+### `TX402_PROTOCOL_UNSUPPORTED`
+
+`UnsupportedProtocolError` · exit **5** (protocol) · `retryable: false`
+
+**Retryability:** `no` — Never. The condition will not change on its own.
+
+**Always carries**: `observedVersion`, `supportedVersions`
+
+These keys are guaranteed present in `error.details`, so a handler can read them without
+an existence check. Everything in `details` is redaction-safe by construction: identifiers,
+atomic amounts, and categories, never a signature, a key, or an authorization payload.
+
+### `TX402_SCHEME_UNSUPPORTED`
+
+`UnsupportedSchemeError` · exit **5** (protocol) · `retryable: false`
+
+**Retryability:** `no` — Never. The condition will not change on its own.
+
+**Always carries**: `offeredSchemes`, `offeredNetworks`
+
+These keys are guaranteed present in `error.details`, so a handler can read them without
+an existence check. Everything in `details` is redaction-safe by construction: identifiers,
+atomic amounts, and categories, never a signature, a key, or an authorization payload.
+
+### `TX402_PAYMENT_REQUIRED_INVALID`
+
+`InvalidPaymentRequiredError` · exit **5** (protocol) · `retryable: false`
+
+**Retryability:** `no` — Never. The condition will not change on its own.
+
+**Always carries**: `reason`, `schemaPath`
+
+These keys are guaranteed present in `error.details`, so a handler can read them without
+an existence check. Everything in `details` is redaction-safe by construction: identifiers,
+atomic amounts, and categories, never a signature, a key, or an authorization payload.
+
+### `TX402_POLICY_BUDGET`
+
+`BudgetExceededError` · exit **3** (policy) · `retryable: false`
+
+**Retryability:** `no` — Never. The condition will not change on its own.
+
+**Always carries**: `requestedAtomic`, `capAtomic`, `committedAtomic`, `reservedAtomic`, `capKind`
+
+These keys are guaranteed present in `error.details`, so a handler can read them without
+an existence check. Everything in `details` is redaction-safe by construction: identifiers,
+atomic amounts, and categories, never a signature, a key, or an authorization payload.
+
+### `TX402_POLICY_DOMAIN`
+
+`DomainNotAllowedError` · exit **3** (policy) · `retryable: false`
+
+**Retryability:** `no` — Never. The condition will not change on its own.
+
+**Always carries**: `normalizedHost`
+
+These keys are guaranteed present in `error.details`, so a handler can read them without
+an existence check. Everything in `details` is redaction-safe by construction: identifiers,
+atomic amounts, and categories, never a signature, a key, or an authorization payload.
+
+### `TX402_LIQUIDITY`
+
+`InsufficientLiquidityError` · exit **4** (liquidity) · `retryable: false`
+
+**Retryability:** `conditional` — Only after the underlying condition changes — fund the wallet, fix the signer.
+
+**Always carries**: `deficits`
+
+These keys are guaranteed present in `error.details`, so a handler can read them without
+an existence check. Everything in `details` is redaction-safe by construction: identifiers,
+atomic amounts, and categories, never a signature, a key, or an authorization payload.
+
+### `TX402_SIGNER`
+
+`SignerError` · exit **6** (signer) · `retryable: false`
+
+**Retryability:** `conditional` — Only after the underlying condition changes — fund the wallet, fix the signer.
+
+**Always carries**: `signerKind`, `causeCategory`
+
+These keys are guaranteed present in `error.details`, so a handler can read them without
+an existence check. Everything in `details` is redaction-safe by construction: identifiers,
+atomic amounts, and categories, never a signature, a key, or an authorization payload.
+
+### `TX402_CLOCK_SKEW`
+
+`ClockSkewError` · exit **5** (protocol) · `retryable: false`
+
+**Retryability:** `after-correction` — Only after the clock is corrected. tx402 never adjusts the system clock.
+
+**Always carries**: `observedSkewMs`, `thresholdMs`
+
+These keys are guaranteed present in `error.details`, so a handler can read them without
+an existence check. Everything in `details` is redaction-safe by construction: identifiers,
+atomic amounts, and categories, never a signature, a key, or an authorization payload.
+
+### `TX402_PAYMENT_AMBIGUOUS`
+
+`AmbiguousPaymentError` · exit **8** (ambiguous payment) · `retryable: false`
+
+**Retryability:** `no-automatic-retry` — **Never automatically.** Money may have moved. Reconcile with the merchant first.
+
+**Always carries**: `reservationExpiresAtEpochMs`, `causeCategory`
+
+These keys are guaranteed present in `error.details`, so a handler can read them without
+an existence check. Everything in `details` is redaction-safe by construction: identifiers,
+atomic amounts, and categories, never a signature, a key, or an authorization payload.
+
+### `TX402_RESOURCE_DELIVERY`
+
+`ResourceDeliveryError` · exit **9** (resource failure) · `retryable: false`
+
+**Retryability:** `app-dependent` — The caller decides; tx402 has no way to know whether the resource is idempotent.
+
+**Always carries**: `status`, `reason`
+
+These keys are guaranteed present in `error.details`, so a handler can read them without
+an existence check. Everything in `details` is redaction-safe by construction: identifiers,
+atomic amounts, and categories, never a signature, a key, or an authorization payload.
+
+### `TX402_REDIRECT_BLOCKED`
+
+`PaidRedirectBlockedError` · exit **8** (ambiguous payment) · `retryable: false`
+
+**Retryability:** `no` — Never. The condition will not change on its own.
+
+**Always carries**: `fromOrigin`, `toOrigin`
+
+These keys are guaranteed present in `error.details`, so a handler can read them without
+an existence check. Everything in `details` is redaction-safe by construction: identifiers,
+atomic amounts, and categories, never a signature, a key, or an authorization payload.
+
+### `TX402_TRANSPORT`
+
+`TransportError` · exit **7** (transport) · `retryable: true`
+
+**Retryability:** `caller-policy` — Yes, under the caller's own backoff policy. This is the only `retryable: true` row.
+
+**Always carries**: `causeCategory`
+
+These keys are guaranteed present in `error.details`, so a handler can read them without
+an existence check. Everything in `details` is redaction-safe by construction: identifiers,
+atomic amounts, and categories, never a signature, a key, or an authorization payload.

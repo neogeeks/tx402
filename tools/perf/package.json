@@ -1,0 +1,10 @@
+{
+  "name": "@tx402-dev/perf",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Performance gates for SPEC §12.3 — non-402 overhead, decision overhead, budget rejection, memory stability.",
+  "dependencies": {
+    "@x402/core": "~2.20.0"
+  }
+}

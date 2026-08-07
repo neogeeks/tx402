@@ -1,0 +1,60 @@
+{
+  "$schema": "https://tx402.dev/schemas/v1/conformance-vector.schema.json",
+  "id": "completion.paid-attempt.malformed-settlement-metadata-is-never-evidence",
+  "kind": "completion.paid-attempt",
+  "milestone": "M6",
+  "title": "A present PAYMENT-RESPONSE that does not decode neither commits nor releases",
+  "description": "SPEC §6.7 makes a 2xx paid-success 'only when any required upstream PAYMENT-RESPONSE parses successfully', and forgives *missing* metadata because the pinned protocol marks the header optional. A header that is present and does not decode is neither: it is a protocol violation, and it is evidence in no direction at all. It cannot commit, because parsing is a precondition of paid-success; it cannot release, because a merchant that plainly attempted to report a settlement has not told us there was none. Retention is the only disposition left, and it holds on every status — the 200 case is the one that used to return the resource as a paid success, which the audit filed as O53. Contrast the absent-settlement-evidence-commits vector: the same call with no header at all commits and delivers, which is why the two evidence values had to stop being one.",
+  "spec": ["SPEC §6.7", "SPEC §6.2"],
+  "input": {
+    "maxPaidAttempts": 2,
+    "attempts": [
+      {
+        "attempt": 1,
+        "result": {
+          "kind": "response",
+          "status": 200,
+          "settlement": "malformed"
+        }
+      },
+      {
+        "attempt": 1,
+        "result": {
+          "kind": "response",
+          "status": 403,
+          "settlement": "malformed"
+        }
+      },
+      {
+        "attempt": 1,
+        "result": {
+          "kind": "response",
+          "status": 402,
+          "settlement": "malformed"
+        }
+      }
+    ]
+  },
+  "expected": {
+    "dispositions": [
+      {
+        "kind": "ambiguous",
+        "reservation": "retained",
+        "errorCode": "TX402_PAYMENT_AMBIGUOUS",
+        "causeCategory": "settlement-metadata-unparseable"
+      },
+      {
+        "kind": "ambiguous",
+        "reservation": "retained",
+        "errorCode": "TX402_PAYMENT_AMBIGUOUS",
+        "causeCategory": "settlement-metadata-unparseable"
+      },
+      {
+        "kind": "ambiguous",
+        "reservation": "retained",
+        "errorCode": "TX402_PAYMENT_AMBIGUOUS",
+        "causeCategory": "settlement-metadata-unparseable"
+      }
+    ]
+  }
+}

@@ -1,0 +1,124 @@
+{
+  "$schema": "../../../schemas/conformance-vector.schema.json",
+  "id": "errors.taxonomy.frozen",
+  "kind": "errors.taxonomy",
+  "milestone": "M0",
+  "title": "The complete SPEC §8 error taxonomy, frozen",
+  "description": "Fifteen rows, in specification order. Each SDK exposes its own taxonomy table and this vector compares it field for field, so a rename, a reordering, a dropped required-detail key, or a changed retryability classification fails in both languages at once.\n\nThe `retryable` boolean is stated alongside `retryability` deliberately. It is derived — true only for `caller-policy` — and stating both here means a change to the derivation rule cannot slip through unnoticed on the grounds that the classification was left alone (ADR-011).",
+  "spec": ["SPEC §8", "SPEC §4.2", "ADR-005", "ADR-011"],
+  "expected": {
+    "entries": [
+      {
+        "code": "TX402_CONFIG_INVALID",
+        "className": "ConfigurationError",
+        "retryability": "no",
+        "retryable": false,
+        "requiredDetails": ["configPath", "reason"]
+      },
+      {
+        "code": "TX402_RESERVED_HEADER",
+        "className": "ReservedHeaderError",
+        "retryability": "no",
+        "retryable": false,
+        "requiredDetails": ["headerName"]
+      },
+      {
+        "code": "TX402_NON_REPLAYABLE",
+        "className": "NonReplayableRequestError",
+        "retryability": "no",
+        "retryable": false,
+        "requiredDetails": ["reason"]
+      },
+      {
+        "code": "TX402_PROTOCOL_UNSUPPORTED",
+        "className": "UnsupportedProtocolError",
+        "retryability": "no",
+        "retryable": false,
+        "requiredDetails": ["observedVersion", "supportedVersions"]
+      },
+      {
+        "code": "TX402_SCHEME_UNSUPPORTED",
+        "className": "UnsupportedSchemeError",
+        "retryability": "no",
+        "retryable": false,
+        "requiredDetails": ["offeredSchemes", "offeredNetworks"]
+      },
+      {
+        "code": "TX402_PAYMENT_REQUIRED_INVALID",
+        "className": "InvalidPaymentRequiredError",
+        "retryability": "no",
+        "retryable": false,
+        "requiredDetails": ["reason", "schemaPath"]
+      },
+      {
+        "code": "TX402_POLICY_BUDGET",
+        "className": "BudgetExceededError",
+        "retryability": "no",
+        "retryable": false,
+        "requiredDetails": [
+          "requestedAtomic",
+          "capAtomic",
+          "committedAtomic",
+          "reservedAtomic",
+          "capKind"
+        ]
+      },
+      {
+        "code": "TX402_POLICY_DOMAIN",
+        "className": "DomainNotAllowedError",
+        "retryability": "no",
+        "retryable": false,
+        "requiredDetails": ["normalizedHost"]
+      },
+      {
+        "code": "TX402_LIQUIDITY",
+        "className": "InsufficientLiquidityError",
+        "retryability": "conditional",
+        "retryable": false,
+        "requiredDetails": ["deficits"]
+      },
+      {
+        "code": "TX402_SIGNER",
+        "className": "SignerError",
+        "retryability": "conditional",
+        "retryable": false,
+        "requiredDetails": ["signerKind", "causeCategory"]
+      },
+      {
+        "code": "TX402_CLOCK_SKEW",
+        "className": "ClockSkewError",
+        "retryability": "after-correction",
+        "retryable": false,
+        "requiredDetails": ["observedSkewMs", "thresholdMs"]
+      },
+      {
+        "code": "TX402_PAYMENT_AMBIGUOUS",
+        "className": "AmbiguousPaymentError",
+        "retryability": "no-automatic-retry",
+        "retryable": false,
+        "requiredDetails": ["reservationExpiresAtEpochMs", "causeCategory"]
+      },
+      {
+        "code": "TX402_RESOURCE_DELIVERY",
+        "className": "ResourceDeliveryError",
+        "retryability": "app-dependent",
+        "retryable": false,
+        "requiredDetails": ["status", "reason"]
+      },
+      {
+        "code": "TX402_REDIRECT_BLOCKED",
+        "className": "PaidRedirectBlockedError",
+        "retryability": "no",
+        "retryable": false,
+        "requiredDetails": ["fromOrigin", "toOrigin"]
+      },
+      {
+        "code": "TX402_TRANSPORT",
+        "className": "TransportError",
+        "retryability": "caller-policy",
+        "retryable": true,
+        "requiredDetails": ["causeCategory"]
+      }
+    ]
+  }
+}

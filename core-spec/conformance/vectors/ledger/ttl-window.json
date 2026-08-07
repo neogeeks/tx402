@@ -1,0 +1,79 @@
+{
+  "$schema": "https://tx402.dev/schemas/v1/conformance-vector.schema.json",
+  "id": "spend-ledger.behavior.ttl-window",
+  "kind": "spend-ledger.behavior",
+  "milestone": "M2",
+  "title": "Reservation expires at 120 seconds and capacity becomes reusable",
+  "spec": ["SPEC §5.3", "ADR-007"],
+  "input": {
+    "operations": [
+      {
+        "action": "reserve",
+        "reservationId": "00000000-0000-7000-8000-000000000021",
+        "requestId": "request-21",
+        "policyScope": "scope-1",
+        "requestFingerprint": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+        "assetId": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "amountAtomic": "10",
+        "maxPerHourAtomic": "10",
+        "nowEpochMs": 1785715200000
+      },
+      {
+        "action": "snapshot",
+        "policyScope": "scope-1",
+        "assetId": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "nowEpochMs": 1785715319999
+      },
+      {
+        "action": "snapshot",
+        "policyScope": "scope-1",
+        "assetId": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "nowEpochMs": 1785715320000
+      },
+      {
+        "action": "reserve",
+        "reservationId": "00000000-0000-7000-8000-000000000022",
+        "requestId": "request-22",
+        "policyScope": "scope-1",
+        "requestFingerprint": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+        "assetId": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "amountAtomic": "10",
+        "maxPerHourAtomic": "10",
+        "nowEpochMs": 1785715320000
+      },
+      {
+        "action": "snapshot",
+        "policyScope": "scope-1",
+        "assetId": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "nowEpochMs": 1785715320000
+      }
+    ]
+  },
+  "expected": {
+    "outcomes": [
+      { "outcome": "reserved", "state": "reserved" },
+      {
+        "outcome": "snapshot",
+        "committedAtomic": "0",
+        "reservedAtomic": "10",
+        "reservationStates": ["reserved"],
+        "entryCount": 0
+      },
+      {
+        "outcome": "snapshot",
+        "committedAtomic": "0",
+        "reservedAtomic": "0",
+        "reservationStates": ["expired"],
+        "entryCount": 0
+      },
+      { "outcome": "reserved", "state": "reserved" },
+      {
+        "outcome": "snapshot",
+        "committedAtomic": "0",
+        "reservedAtomic": "10",
+        "reservationStates": ["expired", "reserved"],
+        "entryCount": 0
+      }
+    ]
+  }
+}

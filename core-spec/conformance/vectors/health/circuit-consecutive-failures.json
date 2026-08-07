@@ -1,0 +1,130 @@
+{
+  "$schema": "https://tx402.dev/schemas/v1/conformance-vector.schema.json",
+  "id": "health.circuit.consecutive-failures",
+  "kind": "health.circuit",
+  "milestone": "M5",
+  "title": "Five consecutive failures open the circuit; one probe closes it",
+  "description": "Pins the whole SPEC \u00a76.5 lifecycle on one endpoint: the success EWMA decaying from the 0.80 seed, the fifth consecutive failure opening the circuit, the open state holding for exactly 30 000 ms and not 29 999, the single half-open probe being handed out once, and a successful probe both closing the circuit and discarding the failure history that opened it. Health scores are rounded to four decimal places half-away-from-zero so the two languages produce identical numbers rather than merely close ones (SPEC \u00a76.4 step 19).",
+  "spec": ["SPEC \u00a76.5", "SPEC \u00a76.4", "SPEC T-008"],
+  "input": {
+    "endpointId": "eip155:8453|rpc.example.com",
+    "operations": [
+      {
+        "action": "inspect",
+        "nowEpochMs": 1785715200000
+      },
+      {
+        "action": "failure",
+        "nowEpochMs": 1785715200000
+      },
+      {
+        "action": "failure",
+        "nowEpochMs": 1785715200001
+      },
+      {
+        "action": "failure",
+        "nowEpochMs": 1785715200002
+      },
+      {
+        "action": "failure",
+        "nowEpochMs": 1785715200003
+      },
+      {
+        "action": "failure",
+        "nowEpochMs": 1785715200004
+      },
+      {
+        "action": "inspect",
+        "nowEpochMs": 1785715230003
+      },
+      {
+        "action": "inspect",
+        "nowEpochMs": 1785715230004
+      },
+      {
+        "action": "admit",
+        "nowEpochMs": 1785715230004
+      },
+      {
+        "action": "success",
+        "latencyMs": 60,
+        "nowEpochMs": 1785715230004
+      },
+      {
+        "action": "inspect",
+        "nowEpochMs": 1785715230004
+      }
+    ]
+  },
+  "expected": {
+    "observations": [
+      {
+        "circuitState": "closed",
+        "healthScore": 0.8,
+        "consecutiveFailures": 0,
+        "sampleCount": 0
+      },
+      {
+        "circuitState": "closed",
+        "healthScore": 0.64,
+        "consecutiveFailures": 1,
+        "sampleCount": 1
+      },
+      {
+        "circuitState": "closed",
+        "healthScore": 0.512,
+        "consecutiveFailures": 2,
+        "sampleCount": 2
+      },
+      {
+        "circuitState": "closed",
+        "healthScore": 0.4096,
+        "consecutiveFailures": 3,
+        "sampleCount": 3
+      },
+      {
+        "circuitState": "closed",
+        "healthScore": 0.3277,
+        "consecutiveFailures": 4,
+        "sampleCount": 4
+      },
+      {
+        "circuitState": "open",
+        "healthScore": 0.0262,
+        "consecutiveFailures": 5,
+        "sampleCount": 5
+      },
+      {
+        "circuitState": "open",
+        "healthScore": 0.0262,
+        "consecutiveFailures": 5,
+        "sampleCount": 5
+      },
+      {
+        "circuitState": "half-open",
+        "healthScore": 0.1311,
+        "consecutiveFailures": 5,
+        "sampleCount": 5
+      },
+      {
+        "circuitState": "half-open",
+        "healthScore": 0.1311,
+        "consecutiveFailures": 5,
+        "sampleCount": 5,
+        "admission": "half-open"
+      },
+      {
+        "circuitState": "closed",
+        "healthScore": 0.3897,
+        "consecutiveFailures": 0,
+        "sampleCount": 1
+      },
+      {
+        "circuitState": "closed",
+        "healthScore": 0.3897,
+        "consecutiveFailures": 0,
+        "sampleCount": 1
+      }
+    ]
+  }
+}

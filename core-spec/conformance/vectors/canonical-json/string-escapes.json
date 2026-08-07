@@ -1,0 +1,25 @@
+{
+  "$schema": "../../../schemas/conformance-vector.schema.json",
+  "id": "canonical-json.string-escapes",
+  "kind": "canonical-json",
+  "milestone": "M0",
+  "title": "Every character outside printable ASCII is escaped, including U+007F and astral planes",
+  "description": "Canonical output is always pure ASCII, which is what removes any encoding question before the bytes reach a hash or a signature. Astral characters are escaped as UTF-16 surrogate pairs — iterating by code point instead would produce a different, equally plausible, incompatible answer.",
+  "spec": ["ADR-012"],
+  "input": {
+    "document": {
+      "quote": "he said \"hi\"",
+      "backslash": "C:\\path",
+      "controls": "\b\t\n\f\r",
+      "lowControl": "\u0001\u001f",
+      "del": "",
+      "latin": "café",
+      "astral": "😀",
+      "empty": ""
+    }
+  },
+  "expected": {
+    "canonical": "{\"astral\":\"\\ud83d\\ude00\",\"backslash\":\"C:\\\\path\",\"controls\":\"\\b\\t\\n\\f\\r\",\"del\":\"\\u007f\",\"empty\":\"\",\"latin\":\"caf\\u00e9\",\"lowControl\":\"\\u0001\\u001f\",\"quote\":\"he said \\\"hi\\\"\"}",
+    "sha256": "sha256:7c04c69460edde88eabe735542006194f04d39ab2e691f43d627a47029a0ba8c"
+  }
+}

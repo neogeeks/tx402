@@ -1,0 +1,17 @@
+{
+  "$schema": "../../../schemas/conformance-vector.schema.json",
+  "id": "canonical-json.rejects-unsafe-integer",
+  "kind": "canonical-json",
+  "milestone": "M0",
+  "title": "An integer beyond 2^53 - 1 is rejected",
+  "description": "Python's integers are unbounded and JavaScript's are not, so the narrower language sets the limit. Without this bound a document could canonicalize in Python and silently round in TypeScript, producing a signature the other side cannot reproduce.",
+  "spec": ["ADR-012"],
+  "input": {
+    "document": {
+      "tooBig": 9007199254740992
+    }
+  },
+  "expected": {
+    "error": "number-out-of-safe-range"
+  }
+}

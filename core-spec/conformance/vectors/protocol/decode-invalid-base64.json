@@ -1,0 +1,20 @@
+{
+  "$schema": "../../../schemas/conformance-vector.schema.json",
+  "id": "protocol.decode-payment-required.invalid-base64",
+  "kind": "protocol.decode-payment-required",
+  "milestone": "M1",
+  "title": "A header outside the strict base64 alphabet is rejected",
+  "description": "`-` and `_` are the URL-safe alphabet. Upstream's own guard is `^[A-Za-z0-9+/]*={0,2}$`, and tx402 matches it rather than being more permissive — accepting both alphabets would mean two distinct byte strings decode to the same challenge, and headerHash could then differ for the same payment.",
+  "spec": ["SPEC §6.2", "SEC-006"],
+  "input": {
+    "requestUrl": "https://api.example.com/v1/completions",
+    "requestMethod": "POST",
+    "header": "eyJ4NDAyVmVyc2lvbiI6Mn0-_",
+    "clockEpochMs": 1785711360000
+  },
+  "expected": {
+    "outcome": "invalid",
+    "errorCode": "TX402_PAYMENT_REQUIRED_INVALID",
+    "reason": "invalid-base64"
+  }
+}

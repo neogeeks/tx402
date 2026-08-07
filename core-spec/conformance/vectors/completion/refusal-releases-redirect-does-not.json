@@ -1,0 +1,60 @@
+{
+  "$schema": "https://tx402.dev/schemas/v1/conformance-vector.schema.json",
+  "id": "completion.paid-attempt.refusal-releases-redirect-does-not",
+  "kind": "completion.paid-attempt",
+  "milestone": "M6",
+  "title": "A refusal releases; a same-origin redirect does not",
+  "description": "Three answers an implementation is tempted to collapse into one non-2xx branch. A 403 is the merchant declining the request outright, which is a statement that it did not settle, so the reservation is released. A 200 whose own PAYMENT-RESPONSE reports success:false is the merchant contradicting its status line; tx402 believes the payment metadata and releases. A 307 is neither: v0.1 does not follow it, but the merchant may well have settled and be pointing at the delivered resource, so releasing would hand back budget for money that moved. Only the redirect retains.",
+  "spec": ["SPEC \u00a76.7", "SPEC \u00a76.1", "SPEC \u00a75.3"],
+  "input": {
+    "maxPaidAttempts": 3,
+    "attempts": [
+      {
+        "attempt": 1,
+        "result": {
+          "kind": "response",
+          "status": 403,
+          "settlement": "absent"
+        }
+      },
+      {
+        "attempt": 1,
+        "result": {
+          "kind": "response",
+          "status": 200,
+          "settlement": "unsuccessful"
+        }
+      },
+      {
+        "attempt": 1,
+        "result": {
+          "kind": "response",
+          "status": 307,
+          "settlement": "absent"
+        }
+      }
+    ]
+  },
+  "expected": {
+    "dispositions": [
+      {
+        "kind": "failed",
+        "reservation": "released",
+        "errorCode": "TX402_RESOURCE_DELIVERY",
+        "reason": "paid-request-rejected"
+      },
+      {
+        "kind": "failed",
+        "reservation": "released",
+        "errorCode": "TX402_RESOURCE_DELIVERY",
+        "reason": "settlement-unsuccessful"
+      },
+      {
+        "kind": "ambiguous",
+        "reservation": "retained",
+        "errorCode": "TX402_PAYMENT_AMBIGUOUS",
+        "causeCategory": "redirect-not-followed"
+      }
+    ]
+  }
+}

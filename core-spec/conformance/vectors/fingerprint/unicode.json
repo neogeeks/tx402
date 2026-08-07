@@ -1,0 +1,19 @@
+{
+  "$schema": "https://tx402.dev/schemas/v1/conformance-vector.schema.json",
+  "id": "request.fingerprint.unicode",
+  "kind": "request.fingerprint",
+  "milestone": "M2",
+  "title": "Fingerprint normalizes an IDN URL and hashes UTF-8 body bytes",
+  "spec": ["SPEC SEC-009", "ADR-005"],
+  "input": {
+    "method": "PATCH",
+    "url": "https://bücher.example/über",
+    "body": "π",
+    "challengeHash": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+  },
+  "expected": {
+    "normalizedUrl": "https://xn--bcher-kva.example/%C3%BCber",
+    "bodyHash": "sha256:2617fcb92baa83a96341de050f07a3186657090881eae6b833f66a035600f35a",
+    "fingerprint": "sha256:796e1b677a518f89c296c43ad2076d766001411c165a1136c79a541aa4ea8a5b"
+  }
+}

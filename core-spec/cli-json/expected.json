@@ -1,0 +1,714 @@
+{
+  "unpaid-200": {
+    "exitCode": 0,
+    "json": {
+      "schemaVersion": 1,
+      "ok": true,
+      "exitCode": 0,
+      "dryRun": false,
+      "inspection": null,
+      "route": null,
+      "status": 200,
+      "body": "<normalized>",
+      "settlement": null,
+      "timings": {
+        "elapsedMs": "<normalized>",
+        "events": 1
+      },
+      "error": null
+    }
+  },
+  "pay-once": {
+    "exitCode": 0,
+    "json": {
+      "schemaVersion": 1,
+      "ok": true,
+      "exitCode": 0,
+      "dryRun": false,
+      "inspection": {
+        "requirementCount": 1,
+        "headerHash": "<normalized>"
+      },
+      "route": {
+        "network": "eip155:8453",
+        "scheme": "exact",
+        "healthScore": "<normalized>",
+        "rank": 1,
+        "candidateCount": 1
+      },
+      "status": 200,
+      "body": "<normalized>",
+      "settlement": {
+        "status": "committed",
+        "transaction": "0xtestmerchantsettlement000000000000000000000000000000000000000000",
+        "payer": "0x56262F1779298D9c7C22f5273ee254C3d8e4fA4F"
+      },
+      "timings": {
+        "elapsedMs": "<normalized>",
+        "events": 9
+      },
+      "error": null
+    }
+  },
+  "always-402": {
+    "exitCode": 9,
+    "json": {
+      "schemaVersion": 1,
+      "ok": false,
+      "exitCode": 9,
+      "dryRun": false,
+      "inspection": {
+        "requirementCount": 1,
+        "headerHash": "<normalized>"
+      },
+      "route": {
+        "network": "eip155:8453",
+        "scheme": "exact",
+        "healthScore": "<normalized>",
+        "rank": 1,
+        "candidateCount": 1
+      },
+      "settlement": null,
+      "timings": {
+        "elapsedMs": "<normalized>",
+        "events": 16
+      },
+      "error": {
+        "name": "ResourceDeliveryError",
+        "code": "TX402_RESOURCE_DELIVERY",
+        "message": "Merchant re-challenged every one of the 2 permitted paid attempts",
+        "retryable": false,
+        "retryability": "app-dependent",
+        "context": {
+          "requestId": "<normalized>",
+          "phase": "retry",
+          "network": "eip155:8453",
+          "scheme": "exact",
+          "amountAtomic": "50000",
+          "assetId": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "reservationId": "<normalized>",
+          "paid": false
+        },
+        "details": {
+          "status": 402,
+          "reason": "max-paid-attempts-exhausted",
+          "attempt": 2,
+          "maxPaidAttempts": 2
+        }
+      }
+    }
+  },
+  "rechallenge-once": {
+    "exitCode": 0,
+    "json": {
+      "schemaVersion": 1,
+      "ok": true,
+      "exitCode": 0,
+      "dryRun": false,
+      "inspection": {
+        "requirementCount": 1,
+        "headerHash": "<normalized>"
+      },
+      "route": {
+        "network": "eip155:8453",
+        "scheme": "exact",
+        "healthScore": "<normalized>",
+        "rank": 1,
+        "candidateCount": 1
+      },
+      "status": 200,
+      "body": "<normalized>",
+      "settlement": {
+        "status": "committed",
+        "transaction": null,
+        "payer": "0x56262F1779298D9c7C22f5273ee254C3d8e4fA4F"
+      },
+      "timings": {
+        "elapsedMs": "<normalized>",
+        "events": 16
+      },
+      "error": null
+    }
+  },
+  "rechallenge-malformed": {
+    "exitCode": 9,
+    "json": {
+      "schemaVersion": 1,
+      "ok": false,
+      "exitCode": 9,
+      "dryRun": false,
+      "inspection": {
+        "requirementCount": 1,
+        "headerHash": "<normalized>"
+      },
+      "route": {
+        "network": "eip155:8453",
+        "scheme": "exact",
+        "healthScore": "<normalized>",
+        "rank": 1,
+        "candidateCount": 1
+      },
+      "settlement": null,
+      "timings": {
+        "elapsedMs": "<normalized>",
+        "events": 9
+      },
+      "error": {
+        "name": "ResourceDeliveryError",
+        "code": "TX402_RESOURCE_DELIVERY",
+        "message": "Merchant re-challenged undecodably",
+        "retryable": false,
+        "retryability": "app-dependent",
+        "context": {
+          "requestId": "<normalized>",
+          "phase": "complete",
+          "network": "eip155:8453",
+          "scheme": "exact",
+          "amountAtomic": "50000",
+          "assetId": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "reservationId": "<normalized>",
+          "paid": false
+        },
+        "details": {
+          "reason": "rechallenge-undecodable",
+          "schemaPath": "/",
+          "status": 402
+        }
+      }
+    }
+  },
+  "malformed-challenge": {
+    "exitCode": 5,
+    "json": {
+      "schemaVersion": 1,
+      "ok": false,
+      "exitCode": 5,
+      "dryRun": false,
+      "inspection": null,
+      "route": null,
+      "settlement": null,
+      "timings": {
+        "elapsedMs": "<normalized>",
+        "events": 2
+      },
+      "error": {
+        "name": "InvalidPaymentRequiredError",
+        "code": "TX402_PAYMENT_REQUIRED_INVALID",
+        "message": "Invalid PAYMENT-REQUIRED challenge: invalid-base64",
+        "retryable": false,
+        "retryability": "no",
+        "context": {
+          "requestId": "<normalized>",
+          "phase": "parse"
+        },
+        "details": {
+          "reason": "invalid-base64",
+          "schemaPath": "/"
+        }
+      }
+    }
+  },
+  "missing-payment-response": {
+    "exitCode": 0,
+    "json": {
+      "schemaVersion": 1,
+      "ok": true,
+      "exitCode": 0,
+      "dryRun": false,
+      "inspection": {
+        "requirementCount": 1,
+        "headerHash": "<normalized>"
+      },
+      "route": {
+        "network": "eip155:8453",
+        "scheme": "exact",
+        "healthScore": "<normalized>",
+        "rank": 1,
+        "candidateCount": 1
+      },
+      "status": 200,
+      "body": "<normalized>",
+      "settlement": {
+        "status": "committed",
+        "transaction": null,
+        "payer": "0x56262F1779298D9c7C22f5273ee254C3d8e4fA4F"
+      },
+      "timings": {
+        "elapsedMs": "<normalized>",
+        "events": 9
+      },
+      "error": null
+    }
+  },
+  "corrupt-payment-response": {
+    "exitCode": 8,
+    "json": {
+      "schemaVersion": 1,
+      "ok": false,
+      "exitCode": 8,
+      "dryRun": false,
+      "inspection": {
+        "requirementCount": 1,
+        "headerHash": "<normalized>"
+      },
+      "route": {
+        "network": "eip155:8453",
+        "scheme": "exact",
+        "healthScore": "<normalized>",
+        "rank": 1,
+        "candidateCount": 1
+      },
+      "settlement": {
+        "status": "unknown",
+        "transaction": null,
+        "payer": "0x56262F1779298D9c7C22f5273ee254C3d8e4fA4F"
+      },
+      "timings": {
+        "elapsedMs": "<normalized>",
+        "events": 10
+      },
+      "error": {
+        "name": "AmbiguousPaymentError",
+        "code": "TX402_PAYMENT_AMBIGUOUS",
+        "message": "The payment was transmitted but its outcome is unknown",
+        "retryable": false,
+        "retryability": "no-automatic-retry",
+        "context": {
+          "requestId": "<normalized>",
+          "phase": "retry",
+          "network": "eip155:8453",
+          "scheme": "exact",
+          "amountAtomic": "50000",
+          "assetId": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "reservationId": "<normalized>",
+          "paid": "unknown"
+        },
+        "details": {
+          "reservationExpiresAtEpochMs": "<normalized>",
+          "causeCategory": "settlement-metadata-unparseable"
+        }
+      }
+    }
+  },
+  "unsuccessful-settlement": {
+    "exitCode": 9,
+    "json": {
+      "schemaVersion": 1,
+      "ok": false,
+      "exitCode": 9,
+      "dryRun": false,
+      "inspection": {
+        "requirementCount": 1,
+        "headerHash": "<normalized>"
+      },
+      "route": {
+        "network": "eip155:8453",
+        "scheme": "exact",
+        "healthScore": "<normalized>",
+        "rank": 1,
+        "candidateCount": 1
+      },
+      "settlement": null,
+      "timings": {
+        "elapsedMs": "<normalized>",
+        "events": 9
+      },
+      "error": {
+        "name": "ResourceDeliveryError",
+        "code": "TX402_RESOURCE_DELIVERY",
+        "message": "Merchant did not deliver the paid resource",
+        "retryable": false,
+        "retryability": "app-dependent",
+        "context": {
+          "requestId": "<normalized>",
+          "phase": "complete",
+          "network": "eip155:8453",
+          "scheme": "exact",
+          "amountAtomic": "50000",
+          "assetId": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "reservationId": "<normalized>",
+          "paid": false
+        },
+        "details": {
+          "status": 200,
+          "reason": "settlement-unsuccessful",
+          "attempt": 1,
+          "maxPaidAttempts": 2
+        }
+      }
+    }
+  },
+  "error-after-signature": {
+    "exitCode": 8,
+    "json": {
+      "schemaVersion": 1,
+      "ok": false,
+      "exitCode": 8,
+      "dryRun": false,
+      "inspection": {
+        "requirementCount": 1,
+        "headerHash": "<normalized>"
+      },
+      "route": {
+        "network": "eip155:8453",
+        "scheme": "exact",
+        "healthScore": "<normalized>",
+        "rank": 1,
+        "candidateCount": 1
+      },
+      "settlement": {
+        "status": "unknown",
+        "transaction": null,
+        "payer": "0x56262F1779298D9c7C22f5273ee254C3d8e4fA4F"
+      },
+      "timings": {
+        "elapsedMs": "<normalized>",
+        "events": 9
+      },
+      "error": {
+        "name": "AmbiguousPaymentError",
+        "code": "TX402_PAYMENT_AMBIGUOUS",
+        "message": "The payment was transmitted but its outcome is unknown",
+        "retryable": false,
+        "retryability": "no-automatic-retry",
+        "context": {
+          "requestId": "<normalized>",
+          "phase": "retry",
+          "network": "eip155:8453",
+          "scheme": "exact",
+          "amountAtomic": "50000",
+          "assetId": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "reservationId": "<normalized>",
+          "paid": "unknown"
+        },
+        "details": {
+          "reservationExpiresAtEpochMs": "<normalized>",
+          "causeCategory": "server-error"
+        }
+      }
+    }
+  },
+  "refused-after-signature": {
+    "exitCode": 9,
+    "json": {
+      "schemaVersion": 1,
+      "ok": false,
+      "exitCode": 9,
+      "dryRun": false,
+      "inspection": {
+        "requirementCount": 1,
+        "headerHash": "<normalized>"
+      },
+      "route": {
+        "network": "eip155:8453",
+        "scheme": "exact",
+        "healthScore": "<normalized>",
+        "rank": 1,
+        "candidateCount": 1
+      },
+      "settlement": null,
+      "timings": {
+        "elapsedMs": "<normalized>",
+        "events": 9
+      },
+      "error": {
+        "name": "ResourceDeliveryError",
+        "code": "TX402_RESOURCE_DELIVERY",
+        "message": "Merchant did not deliver the paid resource",
+        "retryable": false,
+        "retryability": "app-dependent",
+        "context": {
+          "requestId": "<normalized>",
+          "phase": "retry",
+          "network": "eip155:8453",
+          "scheme": "exact",
+          "amountAtomic": "50000",
+          "assetId": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "reservationId": "<normalized>",
+          "paid": false
+        },
+        "details": {
+          "status": 403,
+          "reason": "paid-request-rejected",
+          "attempt": 1,
+          "maxPaidAttempts": 2
+        }
+      }
+    }
+  },
+  "settled-but-refused": {
+    "exitCode": 9,
+    "json": {
+      "schemaVersion": 1,
+      "ok": false,
+      "exitCode": 9,
+      "dryRun": false,
+      "inspection": {
+        "requirementCount": 1,
+        "headerHash": "<normalized>"
+      },
+      "route": {
+        "network": "eip155:8453",
+        "scheme": "exact",
+        "healthScore": "<normalized>",
+        "rank": 1,
+        "candidateCount": 1
+      },
+      "settlement": {
+        "status": "committed",
+        "transaction": "0xtestmerchantsettlement000000000000000000000000000000000000000000",
+        "payer": "0x56262F1779298D9c7C22f5273ee254C3d8e4fA4F"
+      },
+      "timings": {
+        "elapsedMs": "<normalized>",
+        "events": 10
+      },
+      "error": {
+        "name": "ResourceDeliveryError",
+        "code": "TX402_RESOURCE_DELIVERY",
+        "message": "The merchant reported a successful settlement but did not deliver the resource",
+        "retryable": false,
+        "retryability": "app-dependent",
+        "context": {
+          "requestId": "<normalized>",
+          "phase": "complete",
+          "network": "eip155:8453",
+          "scheme": "exact",
+          "amountAtomic": "50000",
+          "assetId": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "reservationId": "<normalized>",
+          "paid": true
+        },
+        "details": {
+          "status": 403,
+          "reason": "settlement-succeeded-resource-unusable",
+          "attempt": 1,
+          "maxPaidAttempts": 2
+        }
+      }
+    }
+  },
+  "settled-but-rechallenged": {
+    "exitCode": 9,
+    "json": {
+      "schemaVersion": 1,
+      "ok": false,
+      "exitCode": 9,
+      "dryRun": false,
+      "inspection": {
+        "requirementCount": 1,
+        "headerHash": "<normalized>"
+      },
+      "route": {
+        "network": "eip155:8453",
+        "scheme": "exact",
+        "healthScore": "<normalized>",
+        "rank": 1,
+        "candidateCount": 1
+      },
+      "settlement": {
+        "status": "committed",
+        "transaction": "0xtestmerchantsettlement000000000000000000000000000000000000000000",
+        "payer": "0x56262F1779298D9c7C22f5273ee254C3d8e4fA4F"
+      },
+      "timings": {
+        "elapsedMs": "<normalized>",
+        "events": 10
+      },
+      "error": {
+        "name": "ResourceDeliveryError",
+        "code": "TX402_RESOURCE_DELIVERY",
+        "message": "The merchant reported a successful settlement but did not deliver the resource",
+        "retryable": false,
+        "retryability": "app-dependent",
+        "context": {
+          "requestId": "<normalized>",
+          "phase": "complete",
+          "network": "eip155:8453",
+          "scheme": "exact",
+          "amountAtomic": "50000",
+          "assetId": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "reservationId": "<normalized>",
+          "paid": true
+        },
+        "details": {
+          "status": 402,
+          "reason": "settlement-succeeded-resource-unusable",
+          "attempt": 1,
+          "maxPaidAttempts": 2
+        }
+      }
+    }
+  },
+  "hang-after-signature": {
+    "exitCode": 8,
+    "json": {
+      "schemaVersion": 1,
+      "ok": false,
+      "exitCode": 8,
+      "dryRun": false,
+      "inspection": {
+        "requirementCount": 1,
+        "headerHash": "<normalized>"
+      },
+      "route": {
+        "network": "eip155:8453",
+        "scheme": "exact",
+        "healthScore": "<normalized>",
+        "rank": 1,
+        "candidateCount": 1
+      },
+      "settlement": {
+        "status": "unknown",
+        "transaction": null,
+        "payer": "0x56262F1779298D9c7C22f5273ee254C3d8e4fA4F"
+      },
+      "timings": {
+        "elapsedMs": "<normalized>",
+        "events": 9
+      },
+      "error": {
+        "name": "AmbiguousPaymentError",
+        "code": "TX402_PAYMENT_AMBIGUOUS",
+        "message": "The payment was transmitted but its outcome is unknown",
+        "retryable": false,
+        "retryability": "no-automatic-retry",
+        "context": {
+          "requestId": "<normalized>",
+          "phase": "retry",
+          "network": "eip155:8453",
+          "scheme": "exact",
+          "amountAtomic": "50000",
+          "assetId": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "reservationId": "<normalized>",
+          "paid": "unknown"
+        },
+        "details": {
+          "reservationExpiresAtEpochMs": "<normalized>",
+          "causeCategory": "transport-after-signature"
+        }
+      }
+    }
+  },
+  "cross-origin-redirect": {
+    "exitCode": 8,
+    "json": {
+      "schemaVersion": 1,
+      "ok": false,
+      "exitCode": 8,
+      "dryRun": false,
+      "inspection": {
+        "requirementCount": 1,
+        "headerHash": "<normalized>"
+      },
+      "route": {
+        "network": "eip155:8453",
+        "scheme": "exact",
+        "healthScore": "<normalized>",
+        "rank": 1,
+        "candidateCount": 1
+      },
+      "settlement": {
+        "status": "unknown",
+        "transaction": null,
+        "payer": "0x56262F1779298D9c7C22f5273ee254C3d8e4fA4F"
+      },
+      "timings": {
+        "elapsedMs": "<normalized>",
+        "events": 9
+      },
+      "error": {
+        "name": "PaidRedirectBlockedError",
+        "code": "TX402_REDIRECT_BLOCKED",
+        "message": "Paid retry redirect crossed origins after the signature had been transmitted",
+        "retryable": false,
+        "retryability": "no",
+        "context": {
+          "requestId": "<normalized>",
+          "phase": "retry",
+          "network": "eip155:8453",
+          "scheme": "exact",
+          "amountAtomic": "50000",
+          "assetId": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "reservationId": "<normalized>",
+          "paid": "unknown"
+        },
+        "details": {
+          "fromOrigin": "<normalized>",
+          "toOrigin": "<normalized>",
+          "reservationExpiresAtEpochMs": "<normalized>",
+          "causeCategory": "redirect-blocked"
+        }
+      }
+    }
+  },
+  "same-origin-redirect": {
+    "exitCode": 8,
+    "json": {
+      "schemaVersion": 1,
+      "ok": false,
+      "exitCode": 8,
+      "dryRun": false,
+      "inspection": {
+        "requirementCount": 1,
+        "headerHash": "<normalized>"
+      },
+      "route": {
+        "network": "eip155:8453",
+        "scheme": "exact",
+        "healthScore": "<normalized>",
+        "rank": 1,
+        "candidateCount": 1
+      },
+      "settlement": {
+        "status": "unknown",
+        "transaction": null,
+        "payer": "0x56262F1779298D9c7C22f5273ee254C3d8e4fA4F"
+      },
+      "timings": {
+        "elapsedMs": "<normalized>",
+        "events": 9
+      },
+      "error": {
+        "name": "AmbiguousPaymentError",
+        "code": "TX402_PAYMENT_AMBIGUOUS",
+        "message": "The payment was transmitted but its outcome is unknown",
+        "retryable": false,
+        "retryability": "no-automatic-retry",
+        "context": {
+          "requestId": "<normalized>",
+          "phase": "retry",
+          "network": "eip155:8453",
+          "scheme": "exact",
+          "amountAtomic": "50000",
+          "assetId": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "reservationId": "<normalized>",
+          "paid": "unknown"
+        },
+        "details": {
+          "reservationExpiresAtEpochMs": "<normalized>",
+          "causeCategory": "redirect-not-followed"
+        }
+      }
+    }
+  },
+  "server-error": {
+    "exitCode": 0,
+    "json": {
+      "schemaVersion": 1,
+      "ok": false,
+      "exitCode": 0,
+      "dryRun": false,
+      "inspection": null,
+      "route": null,
+      "status": 500,
+      "body": "<normalized>",
+      "settlement": null,
+      "timings": {
+        "elapsedMs": "<normalized>",
+        "events": 1
+      },
+      "error": null
+    }
+  }
+}

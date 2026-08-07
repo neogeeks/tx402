@@ -1,0 +1,32 @@
+{
+  "$schema": "https://tx402.dev/schemas/v1/conformance-vector.schema.json",
+  "id": "completion.paid-attempt.single-attempt-exhausted",
+  "kind": "completion.paid-attempt",
+  "milestone": "M6",
+  "title": "maxPaidAttempts of 1 exhausts on the first re-challenge",
+  "description": "The boundary that separates a disposition table from a loop guard. With maxPaidAttempts set to 1 there is no second pass for a guard to prevent, so an implementation that decided exhaustion by falling out of a loop would have nowhere to raise the error and would report the bare 402 instead. The bound belongs to the 402 branch: attempt 1 is already the last permitted attempt.",
+  "spec": ["SPEC \u00a76.7", "SPEC \u00a74.3"],
+  "input": {
+    "maxPaidAttempts": 1,
+    "attempts": [
+      {
+        "attempt": 1,
+        "result": {
+          "kind": "response",
+          "status": 402,
+          "settlement": "absent"
+        }
+      }
+    ]
+  },
+  "expected": {
+    "dispositions": [
+      {
+        "kind": "failed",
+        "reservation": "released",
+        "errorCode": "TX402_RESOURCE_DELIVERY",
+        "reason": "max-paid-attempts-exhausted"
+      }
+    ]
+  }
+}

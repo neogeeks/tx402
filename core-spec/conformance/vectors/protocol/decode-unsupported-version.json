@@ -1,0 +1,20 @@
+{
+  "$schema": "../../../schemas/conformance-vector.schema.json",
+  "id": "protocol.decode-payment-required.unsupported-version",
+  "kind": "protocol.decode-payment-required",
+  "milestone": "M1",
+  "title": "A v3 challenge raises UnsupportedProtocolError, not a parse error",
+  "description": "The distinction matters to callers: a malformed v2 challenge means the merchant is broken, while a v3 challenge means this SDK is out of date. They are different actions, so they are different error codes (ADR-004).",
+  "spec": ["ADR-004", "SPEC §8"],
+  "input": {
+    "requestUrl": "https://api.example.com/v1/completions",
+    "requestMethod": "POST",
+    "header": "eyJ4NDAyVmVyc2lvbiI6MywicmVzb3VyY2UiOnsidXJsIjoiaHR0cHM6Ly9hcGkuZXhhbXBsZS5jb20vdjEvY29tcGxldGlvbnMiLCJkZXNjcmlwdGlvbiI6IlRleHQgY29tcGxldGlvbiJ9LCJhY2NlcHRzIjpbeyJzY2hlbWUiOiJleGFjdCIsIm5ldHdvcmsiOiJlaXAxNTU6ODQ1MyIsImFzc2V0IjoiMHg4MzM1ODlmQ0Q2ZURiNkUwOGY0YzdDMzJENGY3MWI1NGJkQTAyOTEzIiwiYW1vdW50IjoiNTAwMDAiLCJwYXlUbyI6IjB4MTIzNDU2Nzg5MEFiY2RFRjEyMzQ1Njc4OTBhQmNkZWYxMjM0NTY3OCIsIm1heFRpbWVvdXRTZWNvbmRzIjo2MCwiZXh0cmEiOnt9fV19",
+    "clockEpochMs": 1785711360000
+  },
+  "expected": {
+    "outcome": "invalid",
+    "errorCode": "TX402_PROTOCOL_UNSUPPORTED",
+    "reason": "unsupported-protocol-version"
+  }
+}

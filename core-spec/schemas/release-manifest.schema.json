@@ -1,0 +1,208 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tx402.dev/schemas/v1/release-manifest.schema.json",
+  "title": "ReleaseManifest",
+  "description": "The signed network and token data the SDK is allowed to act on (SPEC §5.4, §0).\n\nSPEC §0 forbids hardcoding chain addresses, token addresses, or facilitator URLs into core logic; they arrive through this document instead. It is verified offline at client construction — signature, key ID, expiry, and content all gate construction (SPEC §5.4). There is no runtime remote fetch in v0.1.\n\nThe document is signed over a domain-separated canonical serialization; see ADR-012 and core-spec/manifests/README.md. That serialization is only well-defined over ASCII documents containing no floating-point numbers, which is why this schema constrains both.",
+
+  "type": "object",
+  "required": [
+    "manifestVersion",
+    "release",
+    "issuedAt",
+    "expiresAt",
+    "networks",
+    "networkAliases",
+    "signature"
+  ],
+  "additionalProperties": false,
+
+  "properties": {
+    "manifestVersion": {
+      "description": "Schema generation of this document. Exactly 1 for v0.1. An unrecognized value fails construction rather than being parsed optimistically.",
+      "const": 1
+    },
+
+    "release": {
+      "description": "The tx402 release this manifest was issued for. Network/token updates that change nothing else are patch releases (SPEC §15).",
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(-[0-9A-Za-z.-]+)?$"
+    },
+
+    "issuedAt": {
+      "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/rfc3339"
+    },
+
+    "expiresAt": {
+      "description": "After this instant the manifest no longer verifies and client construction fails. A compromised manifest therefore has a bounded blast radius even if the signing key is never rotated (SPEC §9.1).",
+      "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/rfc3339"
+    },
+
+    "networks": {
+      "description": "Keyed by canonical CAIP-2. The bundled manifest MUST contain Base Mainnet, Base Sepolia, Solana Mainnet, and Solana Devnet (SPEC §5.4). Object keys make duplicate network entries structurally impossible.",
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {
+        "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/caip2"
+      },
+      "patternProperties": {
+        "^eip155:": { "$ref": "#/$defs/evmNetwork" },
+        "^solana:": { "$ref": "#/$defs/svmNetwork" }
+      },
+      "additionalProperties": false
+    },
+
+    "networkAliases": {
+      "description": "Display and configuration aliases mapping to canonical CAIP-2 identifiers (ADR-010 decision 4). `solana:mainnet`, as written in the SPEC §4.1 config example, is an alias — not an identifier. Accepted in `policy.allowedNetworks`, `routing.preferNetworks`, and the CLI `--network` flag; resolved to canonical before any comparison. An alias key that collides with a canonical network key is invalid.",
+      "type": "object",
+      "propertyNames": {
+        "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/caip2OrAlias"
+      },
+      "additionalProperties": {
+        "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/caip2"
+      }
+    },
+
+    "signature": {
+      "type": "object",
+      "required": ["algorithm", "keyId", "value"],
+      "additionalProperties": false,
+      "properties": {
+        "algorithm": {
+          "description": "Ed25519 only. The algorithm is pinned rather than negotiated so that a manifest cannot downgrade its own verification.",
+          "const": "ed25519"
+        },
+        "keyId": {
+          "description": "Must match a public key compiled into the SDK. An unknown key ID fails construction; keys are never fetched (SPEC §5.4).",
+          "type": "string",
+          "pattern": "^tx402-release-[0-9]+$"
+        },
+        "value": {
+          "description": "Standard-alphabet base64 of the 64-byte Ed25519 signature over the domain-separated canonical serialization of this document with `signature` removed.",
+          "type": "string",
+          "pattern": "^[A-Za-z0-9+/]{86}==$"
+        }
+      }
+    }
+  },
+
+  "$defs": {
+    "rpcUrls": {
+      "description": "Ordered by preference. Route planning queries at most two providers per network (SPEC §6.4 step 15), so entries beyond the second are fallbacks used only when earlier endpoints have open circuits. Callers may supply their own endpoints in config; those take precedence over manifest defaults.",
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 8,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "format": "uri",
+        "pattern": "^https://[A-Za-z0-9.-]+(:[0-9]{1,5})?(/[A-Za-z0-9._~:/?#@!$&'()*+,;=%-]*)?$",
+        "maxLength": 512
+      }
+    },
+
+    "evmNetwork": {
+      "type": "object",
+      "required": ["environment", "chainId", "rpcUrls", "assets"],
+      "additionalProperties": false,
+      "properties": {
+        "environment": {
+          "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/environment"
+        },
+        "chainId": {
+          "description": "The EIP-155 chain ID, stated explicitly rather than re-parsed from the CAIP-2 key at every use. SPEC §7.1 requires comparing the chain ID an RPC reports against this value before signing; a mismatch opens that endpoint's circuit and moves to the next RPC.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "rpcUrls": { "$ref": "#/$defs/rpcUrls" },
+        "assets": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "items": { "$ref": "#/$defs/evmAsset" }
+        }
+      }
+    },
+
+    "svmNetwork": {
+      "type": "object",
+      "required": ["environment", "genesisHash", "rpcUrls", "assets"],
+      "additionalProperties": false,
+      "properties": {
+        "environment": {
+          "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/environment"
+        },
+        "genesisHash": {
+          "description": "The full base58 genesis hash. The CAIP-2 key is its 32-character truncation, so the full value is required to validate a cluster against `getGenesisHash` without relying on prefix comparison (SPEC §7.2).",
+          "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/svmAddress"
+        },
+        "rpcUrls": { "$ref": "#/$defs/rpcUrls" },
+        "assets": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "items": { "$ref": "#/$defs/svmAsset" }
+        }
+      }
+    },
+
+    "evmAsset": {
+      "type": "object",
+      "required": ["symbol", "address", "decimals", "schemes"],
+      "additionalProperties": false,
+      "properties": {
+        "symbol": {
+          "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/tokenSymbol"
+        },
+        "address": {
+          "description": "Checksummed ERC-20 contract address, matching the pinned upstream `@x402/evm` stablecoin table.",
+          "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/evmAddress"
+        },
+        "decimals": {
+          "description": "Authoritative for decimal-string to atomic-unit conversion (ADR-006). Normally 6 for USDC. Never inferred at runtime.",
+          "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/decimals"
+        },
+        "eip712Version": {
+          "description": "The EIP-712 domain `version` for this token, required by the exact scheme's typed-data authorization. Upstream calls this field `version`; renamed here because a bare `version` next to `manifestVersion` and `release` reads ambiguously.",
+          "type": "string",
+          "maxLength": 8
+        },
+        "schemes": { "$ref": "#/$defs/schemes" }
+      }
+    },
+
+    "svmAsset": {
+      "type": "object",
+      "required": ["symbol", "mint", "decimals", "schemes"],
+      "additionalProperties": false,
+      "properties": {
+        "symbol": {
+          "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/tokenSymbol"
+        },
+        "mint": {
+          "description": "SPL mint address. Named `mint` rather than `address` because SPEC §5.4's example is normative on field names (SPEC §0).",
+          "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/svmAddress"
+        },
+        "decimals": {
+          "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/decimals"
+        },
+        "tokenProgram": {
+          "description": "Owning token program. v0.1 supports the original SPL Token program only; Token-2022 is excluded unless the pinned conformance suite requires it for USDC on a supported network (SPEC §7.2).",
+          "type": "string",
+          "enum": ["spl-token"]
+        },
+        "schemes": { "$ref": "#/$defs/schemes" }
+      }
+    },
+
+    "schemes": {
+      "description": "Payment schemes this asset may be used with. v0.1 ships `exact` only.",
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 8,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/scheme"
+      }
+    }
+  }
+}

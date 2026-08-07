@@ -1,0 +1,206 @@
+---
+title: Spend policy
+description: The guardrails that run before any key is touched, the order they run in, and how money is represented.
+sidebar:
+  order: 2
+---
+
+Policy is the reason to use tx402 rather than a fetch wrapper. It is a set of local rules that
+run **before** a signer is reachable, so a refused payment is a payment that was never
+authorized — not one that was authorized and then discarded.
+
+## Configuring it
+
+```ts title="TypeScript"
+const tx402 = createTx402Client({
+  signers: { evm },
+  policy: {
+    maxPerRequest: "0.10 USDC",
+    maxPerHour: "5.00 USDC",
+    allowedDomains: ["api.example.com", "*.trusted.dev"],
+    allowedNetworks: ["eip155:8453", "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"],
+    maxPaidAttempts: 2,
+  },
+  routing: { preferNetworks: ["eip155:8453"] },
+});
+```
+
+```python title="Python"
+tx402 = Tx402Client(
+    evm_signer=evm,
+    policy=Policy(
+        max_per_request="0.10 USDC",
+        max_per_hour="5.00 USDC",
+        allowed_domains=["api.example.com", "*.trusted.dev"],
+        allowed_networks=["eip155:8453"],
+        max_paid_attempts=2,
+    ),
+    routing=RoutingPolicy(prefer_networks=["eip155:8453"]),
+)
+```
+
+Every field is optional and every default is conservative. The full table is in the
+[configuration reference](../../reference/configuration/).
+
+## Evaluation order is fixed
+
+The order is fixed, and both SDKs implement exactly it:
+
+1. **Domain** — the normalized host against `allowedDomains`.
+2. **Network** — the CAIP-2 network against `allowedNetworks` and the signed release manifest.
+3. **Scheme and asset** — the payment scheme and token against what tx402 supports and what the
+   manifest declares for that network.
+4. **Per-request cap** — the amount against `maxPerRequest`.
+5. **Rolling hourly cap** — the amount against `maxPerHour`, over committed spend **plus active
+   reservations** in the last 3 600 000 ms.
+6. **Challenge freshness** — a timestamp in the challenge's `extra`, if one is present.
+
+The order is observable, and it is chosen so the cheapest and most specific refusals come first.
+A request to a domain you never allowed is refused without a network round trip, without a
+balance read, and without consulting the ledger.
+
+Only after all six pass may route planning read a balance. That matters more than it sounds: a
+balance query against a merchant-named chain is already an observable side effect of a request
+your policy would have refused.
+
+:::note[The hourly window counts reservations]
+`maxPerHour` is evaluated over committed spend **and** reservations that are still active. An
+in-flight payment counts against your cap while it is in flight. Without that, two concurrent
+requests could each see room for the last dollar and both proceed.
+:::
+
+## Money is always an integer
+
+Every amount in tx402 is an integer count of the token's smallest unit. `"0.10 USDC"` is parsed
+once, at the edge, into `100000` atomic units (USDC has six decimals) and stays an integer from
+there to the signature.
+
+**Floating point is rejected, not tolerated.**
+
+```ts
+policy: {
+  maxPerRequest: 0.1;
+} // ✗ throws TX402_CONFIG_INVALID
+policy: {
+  maxPerRequest: "0.10 USDC";
+} // ✓
+policy: {
+  maxPerRequest: "100000";
+} // ✗ throws TX402_CONFIG_INVALID — invalid-format
+```
+
+**A cap is always written `<decimal> <SYMBOL>`.** One ASCII space, no sign, no exponent. There
+is no atomic-unit input form: `"100000"` on its own is rejected, in both languages, with
+`configPath: "policy.maxPerRequest"` and `reason: "invalid-format"`. Atomic units are how tx402
+*represents* money internally and what `getBudgetState` reports back — they are not how you
+write a limit.
+
+:::danger[Do not "fix" a rejected integer by appending the symbol]
+`"100000"` is refused, and the obvious repair is silently a completely different number.
+`"100000 USDC"` is **valid** and parses to 100 000 000 000 atomic — a cap **one million times**
+larger than the `100000` atomic you meant, because the symbol makes the number a decimal
+quantity of USDC rather than a count of its smallest unit.
+
+Nothing downstream can catch this for you: it is a well-formed cap, just an enormous one. The
+only thing standing between it and a large payment is `maxPerHour`, which must be at least
+`maxPerRequest` and will reject the pair at construction if you left it at its default. Write
+`"0.10 USDC"`.
+:::
+
+Passing a JavaScript `number` or a Python `float` is a configuration error rather than a
+best-effort conversion. `0.1 + 0.2 !== 0.3` is a curiosity in most code and a discrepancy
+between the quote and the signature here — and a discrepancy in a signed authorization is not
+recoverable after the fact.
+
+This is not negotiable anywhere in either SDK.
+
+## Domain patterns
+
+Patterns match against the **normalized** host: lowercased, punycoded, trailing root dot
+removed, and the port dropped.
+
+| Pattern           | Matches                              | Does not match         |
+| ----------------- | ------------------------------------ | ---------------------- |
+| `api.example.com` | exactly that host                    | `evil-api.example.com` |
+| `*.example.com`   | `api.example.com`, `a.b.example.com` | `example.com`          |
+| `*`               | everything                           | —                      |
+
+An internationalized domain normalizes to its **ASCII (A-label) form** — the punycode a URL
+parser produces, which is also what goes on the wire. `bücher.example` and
+`xn--bcher-kva.example` are the same host to the allowlist, to the ledger, and to
+`normalizePolicyHost` / `normalize_policy_host`, so you may write either one in
+`allowedDomains` and query the budget with either one.
+
+The default is `["*"]`, because a domain allowlist that is subtly wrong is worse than no
+allowlist — it fails closed on the wrong things and teaches people to disable it. Set it
+explicitly once you know your merchants.
+
+## What policy does not do
+
+- **It is not a rate limiter.** `maxPerHour` bounds spend, not request count.
+- **It is not shared across processes _by default_.** The default ledger is in-memory, so two
+  processes have two budgets. Supply your own `SpendStore` and they share one — see below.
+- **It does not survive a restart.** A fresh client starts with a fresh hourly window. This is a
+  deliberate v0.1 scope decision, not an oversight.
+- **It cannot stop a merchant from asking.** It stops tx402 from paying.
+
+## Checking your budget
+
+Both languages let you **query the store** for any scope, including one another process wrote.
+TypeScript additionally offers a **synchronous snapshot** of the most recent paid request, which
+the TypeScript client's own contract requires of it; Python has no snapshot form and does not need one.
+
+**TypeScript — two calls, and the difference matters.**
+
+```ts
+import { normalizePolicyHost } from "tx402";
+
+// The snapshot: what this client last paid, and it says which ledger that was.
+const last = tx402.getBudgetState();
+// { storeKind, policyScope, assetId, committedAtomic, reservedAtomic, entries, reservations }
+
+// The query: any scope, read from the store.
+const state = await tx402.queryBudgetState({
+  policyScope: normalizePolicyHost("https://api.example.com/v1/x"), // → "api.example.com"
+  assetId: "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+});
+```
+
+**Python — one call, and it is the query.** `get_budget_state` carries the shorter name and the
+querying behaviour: both keyword arguments are **required**, so there is no snapshot form to
+reach for and calling it bare raises `TypeError` rather than returning the last request.
+
+```python
+from tx402 import normalize_policy_host
+
+state = client.get_budget_state(
+    policy_scope=normalize_policy_host("https://api.example.com/v1/x"),
+    asset_id="eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+)
+```
+
+The asymmetry is deliberate rather than a gap waiting to be filled: the snapshot answers "what
+did *this client object* last pay", which is a natural question of a TypeScript client that owns
+`fetch()`, and a much less natural one of a Python client that is an httpx transport wrapper. The
+store query answers everything the snapshot does and more, in both languages.
+
+Budgets are scoped **per host and per asset**, so spending against one merchant does not consume
+another's allowance, and USDC on Base is a different budget from USDC on Solana.
+
+## Sharing one budget across processes
+
+The scope key is the **normalized merchant host** in both languages, which is what makes a
+shared store actually shared: two processes calling `api.example.com` write the same ledger
+row. Supply any object with the four `SpendStore` methods.
+
+```python
+from tx402 import check_spend_store
+
+check_spend_store(lambda: MySpendStore())   # shipped conformance suite
+```
+
+`check_spend_store` is part of the published package, not this repository's test suite, and
+it runs the whole contract — including twenty concurrent reservations against a five-unit
+cap, because the rule an adapter is most likely to break is that `reserve` must be atomic.
+TypeScript publishes the same contract as the `SpendStore` interface. Both are documented in
+full on the type itself.

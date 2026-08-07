@@ -1,0 +1,107 @@
+---
+title: tx402
+description: A resilient, non-custodial buyer-side SDK for the x402 HTTP payment protocol, in TypeScript and Python.
+template: splash
+hero:
+  tagline: Turn a 402 challenge into a paid response in three lines — with spend caps enforced before any key is touched.
+  actions:
+    - text: Quickstart
+      link: ./start/quickstart/
+      icon: right-arrow
+    - text: Read the security model
+      link: ./security/
+      variant: minimal
+---
+
+import { Card, CardGrid } from "@astrojs/starlight/components";
+
+## What it does
+
+`tx402` wraps a normal HTTP client. When a server answers **`402 Payment Required`**, tx402
+interprets the challenge, checks it against **your** spend policy, picks a payment route across
+the chains the merchant offered, signs one authorization, and retries the request. You get the
+response body. Roughly a hundred lines of fragile glue code become three.
+
+It is **non-custodial** and **buyer-side only**. tx402 never holds funds, never calls a
+facilitator's `/verify` or `/settle` — settlement is the merchant's job — and never accepts a
+raw private key in its main configuration.
+
+<CardGrid>
+  <Card title="Guardrails before keys" icon="approve-check">
+    Policy evaluation and an atomic budget reservation both complete **before** a signer is
+    ever invoked. A refused request costs zero signatures, and a dry run costs zero of both.
+  </Card>
+  <Card title="Deterministic routing" icon="random">
+    Offered several chains? The same challenge and the same health state select the same
+    route every time — viability, then your preference, then fee, then health.
+  </Card>
+  <Card title="Integer money, always" icon="seti:db">
+    Every amount is an integer in atomic units, end to end. No float, no `Number`, no
+    rounding surprise between the quote and the signature.
+  </Card>
+  <Card title="It tells you when it cannot tell" icon="warning">
+    If a signature reached the merchant and the outcome is unknown, you get a distinct error
+    and the budget stays reserved — so the same money is never spent twice by accident.
+  </Card>
+</CardGrid>
+
+## Install
+
+```bash
+# TypeScript / Node 20+
+npm install tx402                    # core + CLI, no chain
+npm install tx402 @x402/evm viem     # + Base / EVM
+
+# Python 3.10+
+pip install tx402                    # core + CLI, no chain
+pip install "tx402[evm]"             # + Base / EVM
+```
+
+Both packages are unscoped and named `tx402`. Chain support is opt-in: the core import path
+loads **no chain library** in either language. Add the chain row for anything that reaches a
+chain — the [quickstart](./start/quickstart/) lists Solana's too.
+
+## Three lines
+
+```ts title="TypeScript"
+import { createTx402Client } from "tx402";
+
+const tx402 = createTx402Client({
+  signers: { evm },
+  policy: { maxPerRequest: "0.10 USDC", maxPerHour: "5.00 USDC" },
+});
+
+const response = await tx402.fetch("https://api.example.com/paid-resource");
+```
+
+```python title="Python"
+from tx402 import Policy, Tx402Client
+
+with Tx402Client(
+    evm_signer=evm,
+    policy=Policy(max_per_request="0.10 USDC", max_per_hour="5.00 USDC"),
+) as tx402:
+    response = tx402.get("https://api.example.com/paid-resource")
+```
+
+Or without writing any code at all:
+
+```bash
+npx tx402 call https://api.example.com/paid-resource --max-spend "0.10 USDC" --dry-run
+```
+
+`--dry-run` does everything a real call does **except** reserve budget and sign. It is the
+fastest way to find out what a merchant is asking for and what tx402 would do about it.
+
+It is not, however, free of setup: planning ranks the offered routes by reading your balance on
+each, so `--dry-run` needs a **chain row installed and a key configured**, and says so with exit
+`5` if either is missing. The question that needs neither is `client.inspect()`, which returns
+the merchant's terms without touching a chain.
+
+## Where to go next
+
+- **[Quickstart](./start/quickstart/)** — a real paid call on a testnet, in under five minutes.
+- **[The request lifecycle](./guides/lifecycle/)** — what happens between your call and the response.
+- **[Spend policy](./guides/policy/)** — the guardrails, and the order they run in.
+- **[Error reference](./reference/errors/)** — all fifteen errors and the nine exit codes.
+- **[Security model](./security/)** — the threat model, and what tx402 does and does not defend.

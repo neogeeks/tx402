@@ -1,0 +1,108 @@
+{
+  "$schema": "https://tx402.dev/schemas/v1/conformance-vector.schema.json",
+  "id": "routing.candidate-order.full-key-cascade",
+  "kind": "routing.candidate-order",
+  "milestone": "M5",
+  "title": "Every SPEC \u00a76.4 step 18 ordering key decides exactly one pair",
+  "description": "No preference is configured, so this vector exercises the remaining keys in sequence and each key breaks exactly one tie it is responsible for. Candidate 5 is non-viable and sorts last regardless of being otherwise perfect. Candidate 4 is viable with the best health and the lowest latency but carries a non-zero buyer fee, which sinks it below every zero-fee candidate. Among those, 3 wins on health despite the worst latency; 2 then wins on latency; and 0 precedes 1 only because a lower requirement index is the final, total tie-break \u2014 which is what makes the order reproducible rather than dependent on which balance query happened to return first.",
+  "spec": ["SPEC \u00a76.4", "SPEC \u00a75.2"],
+  "input": {
+    "preferNetworks": [],
+    "candidates": [
+      {
+        "requirementIndex": 0,
+        "network": "eip155:8453",
+        "scheme": "exact",
+        "assetId": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "amountAtomic": "50000",
+        "estimatedFeeAtomic": "0",
+        "healthScore": 0.8,
+        "circuitState": "closed",
+        "viable": true,
+        "rejectionReasons": [],
+        "signerId": "evm:0x1111111111111111111111111111111111111111",
+        "balanceAtomic": "5000000",
+        "observedLatencyMs": 50
+      },
+      {
+        "requirementIndex": 1,
+        "network": "eip155:8453",
+        "scheme": "exact",
+        "assetId": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "amountAtomic": "50000",
+        "estimatedFeeAtomic": "0",
+        "healthScore": 0.8,
+        "circuitState": "closed",
+        "viable": true,
+        "rejectionReasons": [],
+        "signerId": "evm:0x1111111111111111111111111111111111111111",
+        "balanceAtomic": "5000000",
+        "observedLatencyMs": 50
+      },
+      {
+        "requirementIndex": 2,
+        "network": "eip155:8453",
+        "scheme": "exact",
+        "assetId": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "amountAtomic": "50000",
+        "estimatedFeeAtomic": "0",
+        "healthScore": 0.8,
+        "circuitState": "closed",
+        "viable": true,
+        "rejectionReasons": [],
+        "signerId": "evm:0x1111111111111111111111111111111111111111",
+        "balanceAtomic": "5000000",
+        "observedLatencyMs": 10
+      },
+      {
+        "requirementIndex": 3,
+        "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+        "scheme": "exact",
+        "assetId": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/token:EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "amountAtomic": "50000",
+        "estimatedFeeAtomic": "0",
+        "healthScore": 0.95,
+        "circuitState": "closed",
+        "viable": true,
+        "rejectionReasons": [],
+        "signerId": "solana:9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin",
+        "balanceAtomic": "5000000",
+        "observedLatencyMs": 900
+      },
+      {
+        "requirementIndex": 4,
+        "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+        "scheme": "exact",
+        "assetId": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/token:EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "amountAtomic": "50000",
+        "estimatedFeeAtomic": "5",
+        "healthScore": 0.99,
+        "circuitState": "closed",
+        "viable": true,
+        "rejectionReasons": [],
+        "signerId": "solana:9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin",
+        "balanceAtomic": "5000000",
+        "observedLatencyMs": 1
+      },
+      {
+        "requirementIndex": 5,
+        "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+        "scheme": "exact",
+        "assetId": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/token:EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "amountAtomic": "50000",
+        "estimatedFeeAtomic": "0",
+        "healthScore": 0.99,
+        "circuitState": "closed",
+        "viable": false,
+        "rejectionReasons": ["insufficient-balance"],
+        "signerId": "solana:9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin",
+        "balanceAtomic": "0",
+        "observedLatencyMs": 1
+      }
+    ]
+  },
+  "expected": {
+    "order": [3, 2, 0, 1, 4, 5],
+    "selected": 3
+  }
+}

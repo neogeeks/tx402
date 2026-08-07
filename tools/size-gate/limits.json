@@ -1,0 +1,27 @@
+{
+  "$comment": [
+    "Budgets for the tx402 core import path. Authority: ADR-008.",
+    "",
+    "ownCodeGzipBytes is RELEASE-BLOCKING and does not move. It measures only the code tx402",
+    "itself emits, treating @x402/core, zod, and every chain adapter as external. 25 KiB = 25600.",
+    "",
+    "totalCorePathGzipBytes is a tracking ceiling, re-baselined only by an ADR-008 amendment that",
+    "records the measurement and the milestone. M1 froze 24 KiB, M2 amended to 28 KiB, and the M3",
+    "amendment sets 30 KiB from a measured 28.39 KiB core. The M5 amendment sets 32 KiB from a",
+    "measured 30.55 KiB core (route planner + health index).",
+    "",
+    "The M5 note said this was frozen for good at M8. The S29 amendment moves it once more, to",
+    "32.25 KiB, and says plainly why: a HIGH-severity correctness fix measured 51 bytes over a",
+    "ceiling that had been sitting at exactly 32768 with zero headroom. Holding the number would",
+    "have meant either degrading the fix's diagnostics or deleting unrelated core code to buy",
+    "bytes, and the second of those is how collateral defects get introduced. The blocking gate",
+    "above did not move and is not affected: it measures tx402's own code and has ~7.7 KiB spare.",
+    "This ceiling includes @x402/core and zod, which tx402 does not control.",
+    "",
+    "Chain adapters (tx402/evm, tx402/solana) are measured and reported separately and are",
+    "excluded from both figures, consistent with the SPEC §12.3 carve-out. That exclusion covers",
+    "the lazy import() targets in src/core/chain.ts, which a real bundler code-splits."
+  ],
+  "ownCodeGzipBytes": { "limit": 25600, "enforced": true },
+  "totalCorePathGzipBytes": { "limit": 33024, "enforced": true }
+}

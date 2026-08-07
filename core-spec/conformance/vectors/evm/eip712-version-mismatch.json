@@ -1,0 +1,32 @@
+{
+  "$schema": "https://tx402.dev/schemas/v1/conformance-vector.schema.json",
+  "id": "evm.authorization-plan.eip712-version-mismatch",
+  "kind": "evm.authorization-plan",
+  "milestone": "M3",
+  "title": "A token domain version the manifest contradicts is declined",
+  "description": "Signing a version the token does not use produces an authorization the token rejects on-chain. Declining costs nothing; signing would burn a nonce and a reservation for a payment that cannot settle.",
+  "spec": ["SPEC §7.1", "SPEC §0"],
+  "input": {
+    "networkId": "eip155:8453",
+    "requirement": {
+      "index": 0,
+      "scheme": "exact",
+      "network": "eip155:8453",
+      "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+      "amountAtomic": "50000",
+      "payTo": "0x1234567890AbcdEF1234567890aBcdef12345678",
+      "maxTimeoutSeconds": 60,
+      "extra": {
+        "name": "USD Coin",
+        "version": "1"
+      }
+    },
+    "payer": "0x00000000000000000000000000000000000000A1",
+    "nowEpochMs": 1785715200000
+  },
+  "expected": {
+    "outcome": "invalid",
+    "errorCode": "TX402_PAYMENT_REQUIRED_INVALID",
+    "reason": "eip712-domain-mismatch"
+  }
+}

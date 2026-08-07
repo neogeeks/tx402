@@ -1,0 +1,117 @@
+---
+title: Routing and health
+description: How tx402 chooses between the chains a merchant offers, and what happens when an RPC goes dark.
+sidebar:
+  order: 3
+---
+
+When a merchant offers several ways to pay — USDC on Base _or_ USDC on Solana — something has to
+choose. tx402 chooses with a fixed key cascade over a set of candidates it has actually probed,
+so the choice is explainable after the fact rather than a matter of which RPC answered first.
+
+## Every requirement becomes a candidate
+
+Nothing is silently dropped. A requirement with no configured signer, an unreadable balance, or
+an insufficient balance all become **candidates** carrying a `rejectionReasons` list. They are
+ranked below the viable ones, not removed.
+
+That is what makes the failure message useful: when nothing is viable, tx402 raises
+`InsufficientLiquidityError` with **per-network deficits**, so you learn you are $0.03 short on
+Base rather than just "no route".
+
+## The ordering cascade
+
+Candidates are ordered by these keys, in this order (with the
+open-circuit rule):
+
+1. **Viable first** — can this route actually pay?
+2. **Circuit closed first** — an endpoint whose circuit is open is ranked _last_, and is used
+   only when every compatible endpoint is open.
+3. **Your preference** — `routing.preferNetworks`, in the order you listed them.
+4. **Lower buyer fee.**
+5. **Higher health score.**
+6. **Lower observed latency.**
+7. **Original requirement index** — the merchant's own ordering, as the final tie-break.
+
+The open-circuit key sits above preference deliberately. An open endpoint "is
+ranked last", which is a stronger statement than a low health score — a large enough preference
+bonus would outrank a mere score — so it cannot be folded into the number.
+
+**Viability is first, and preference cannot lift a candidate above it.** If you prefer Base and
+your Base balance is short, tx402 pays on Solana. A preference is a tie-break, never a filter. If
+you need it to be a filter, use `policy.allowedNetworks`, which refuses rather than reorders.
+
+## Balances are read concurrently, and every probe is awaited
+
+All balance probes run together, and requirements sharing a network, asset, and owner collapse
+onto **one** query. There is a 600 ms budget per provider and a maximum of two providers per
+network.
+
+Crucially, **every probe finishes before anything is ordered**. A "first viable candidate wins"
+shortcut would make the selection depend on which RPC happened to answer first, which is exactly
+what determinism forbids. A test drives the preferred network to answer _last_ and asserts it
+still wins.
+
+## Determinism, precisely
+
+Identical inputs **and health state** must produce identical output. That is a
+property of the ordering function, and it holds: the same candidates in any order produce the
+same ranking, and an exact tie on every key above the index falls through to the merchant's own
+ordering.
+
+:::note[Health state includes a fresh measurement]
+Two of the keys — health score and observed latency — are derived from a wall-clock measurement
+of the balance probe on _this_ request. So two candidates that tie on viability, circuit,
+preference, and fee are separated by which endpoint was marginally faster **this time**, and that
+can differ between runs.
+
+In practice this never decides anything you would notice: real RPC endpoints on different chains
+differ by tens of milliseconds, which the health score separates cleanly and stably. It only
+surfaces when two routes are genuinely equal — and then either choice is equally good.
+
+**If you need the same network chosen every time, say so:** set `routing.preferNetworks`. That
+key sits above both measured ones, so it decides before either is consulted.
+:::
+
+## Health and circuit breaking
+
+tx402 keeps one health index per client, shared by every RPC pool. There is exactly one place
+circuit state lives, so two layers cannot disagree about the same provider.
+
+| Setting                          | Value                                                         |
+| -------------------------------- | ------------------------------------------------------------- |
+| EWMA alpha (latency and success) | 0.20                                                          |
+| Failure window                   | last 20 observations                                          |
+| Opens at                         | 5 consecutive failures **or** ≥50 % failures with ≥10 samples |
+| Open duration                    | 30 seconds                                                    |
+| Half-open probes                 | 1                                                             |
+| Closes after                     | 1 successful probe                                            |
+| Idle retention                   | 30 minutes                                                    |
+| Maximum endpoints                | 128, LRU                                                      |
+
+A new endpoint starts at **0.80**. A successful probe **discards** the failure history that
+opened the circuit — otherwise a recovered endpoint would re-open on its next single failure.
+
+### Chain identity failures open immediately
+
+An `eth_chainId` mismatch or a Solana genesis-hash mismatch does **not** go into the failure
+window. It opens the circuit at once and moves to the next RPC.
+
+The reason is that these are not reliability observations to average. They say the endpoint is
+serving **a different chain than it claims**, which is a correctness fact, not a flaky one, and
+averaging it into a window would let a misconfigured or hostile endpoint stay in rotation while
+its score decayed.
+
+tx402 verifies chain identity on the **same endpoint** that serves the balance, on **every**
+read — not once at startup — because an endpoint that was correct a minute ago is not
+necessarily the endpoint answering now.
+
+## Resetting
+
+```ts
+tx402.resetHealth();
+```
+
+Clears in-memory health metrics and circuit state. It does **not** clear the spend ledger —
+health is an observation about the network, budget is a record of your money, and conflating
+them would let a health reset hand back budget.

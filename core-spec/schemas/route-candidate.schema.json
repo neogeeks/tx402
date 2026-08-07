@@ -1,0 +1,128 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tx402.dev/schemas/v1/route-candidate.schema.json",
+  "title": "RouteCandidate",
+  "description": "One scored payment route considered by the RoutePlanner (SPEC §5.2, §6.4).\n\nA candidate is produced for every requirement that has both an enabled scheme handler and a configured signer. Non-viable candidates are retained rather than dropped, with their `rejectionReasons` populated, so that InsufficientLiquidityError can report per-network deficits and so that route decisions are explainable in diagnostics.\n\nOrdering is fully determined by SPEC §6.4 step 18 and MUST be identical for identical inputs and health state.",
+
+  "type": "object",
+  "required": [
+    "requirementIndex",
+    "network",
+    "scheme",
+    "assetId",
+    "amountAtomic",
+    "healthScore",
+    "rank",
+    "viable",
+    "rejectionReasons"
+  ],
+  "additionalProperties": false,
+
+  "properties": {
+    "requirementIndex": {
+      "description": "Index into NormalizedPaymentRequired.requirements. The final, stable tie-break in route ordering.",
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 31
+    },
+
+    "network": {
+      "description": "Canonical CAIP-2. Health indexing and policy matching key on this, never on an alias (ADR-010 decision 4).",
+      "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/caip2"
+    },
+
+    "scheme": {
+      "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/scheme"
+    },
+
+    "assetId": {
+      "description": "CAIP-19, derived from the network and the offered asset address/mint.",
+      "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/caip19"
+    },
+
+    "amountAtomic": {
+      "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/positiveAtomicAmount"
+    },
+
+    "signerId": {
+      "description": "Stable, non-secret identifier for the signer that would authorize this route — `evm:<address>` or `solana:<pubkey>`. Public identifiers only; never key material (SEC-003). Absent when no configured signer can serve the requirement.",
+      "type": "string",
+      "pattern": "^(evm|solana):[-_A-Za-z0-9]{1,64}$"
+    },
+
+    "balanceAtomic": {
+      "description": "Observed spendable balance of `assetId` for `signerId`. Absent when the balance query failed or timed out (600 ms per provider, max 2 providers per network — SPEC §6.4 step 15); an absent balance makes the candidate non-viable, it does not make it zero.",
+      "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/atomicAmount"
+    },
+
+    "estimatedFeeAtomic": {
+      "description": "Expected buyer-borne fee in atomic units of `assetId`. `\"0\"` for the exact scheme on both supported networks in v0.1, where the merchant bears settlement cost.",
+      "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/atomicAmount"
+    },
+
+    "healthScore": {
+      "description": "Local EWMA health for this network's endpoints. New endpoints start at 0.80 (SPEC §6.4 step 17). Derived only from locally observed outcomes — never from remote telemetry (SEC-010).",
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+
+    "observedLatencyMs": {
+      "description": "EWMA latency (alpha 0.20) for this network's endpoints. Ordering tie-break below healthScore.",
+      "type": "number",
+      "minimum": 0
+    },
+
+    "circuitState": {
+      "description": "An open endpoint may be selected only when every compatible endpoint is open, and it is then ranked last (SPEC §6.5).",
+      "type": "string",
+      "enum": ["closed", "open", "half-open"]
+    },
+
+    "rank": {
+      "description": "1-based position after ordering. Assigned to every candidate including non-viable ones, so diagnostics show the full considered set.",
+      "type": "integer",
+      "minimum": 1
+    },
+
+    "viable": {
+      "description": "True when balanceAtomic >= amountAtomic and the signer can authorize this asset/scheme (SPEC §6.4 step 16). Viable candidates always sort ahead of non-viable ones.",
+      "type": "boolean"
+    },
+
+    "rejectionReasons": {
+      "description": "Empty exactly when `viable` is true. Machine-readable and redaction-safe: no balances beyond the atomic figures already in this object, no addresses beyond `signerId`.",
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "enum": [
+          "no-signer-configured",
+          "scheme-unsupported",
+          "network-not-in-manifest",
+          "network-not-allowed-by-policy",
+          "asset-unsupported",
+          "environment-mismatch",
+          "insufficient-balance",
+          "balance-unavailable",
+          "chain-identity-mismatch",
+          "circuit-open"
+        ]
+      }
+    }
+  },
+
+  "allOf": [
+    {
+      "description": "A viable candidate has no rejection reasons, and vice versa.",
+      "if": { "properties": { "viable": { "const": true } }, "required": ["viable"] },
+      "then": { "properties": { "rejectionReasons": { "maxItems": 0 } } },
+      "else": { "properties": { "rejectionReasons": { "minItems": 1 } } }
+    },
+    {
+      "description": "Viability is only assertable when a signer and a balance were both resolved.",
+      "if": { "properties": { "viable": { "const": true } }, "required": ["viable"] },
+      "then": { "required": ["signerId", "balanceAtomic"] }
+    }
+  ]
+}

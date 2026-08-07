@@ -1,0 +1,137 @@
+---
+title: TypeScript API surface
+description: Every value the tx402 core entry point exports, generated from the built package.
+sidebar:
+  order: 3
+---
+
+{/*
+  GENERATED FILE — DO NOT EDIT.
+
+  Emitted by `node tools/docs-gen/index.js build` from the shipped source named in each
+  section. Edit the source and regenerate; `pnpm docs:check` fails if this file is stale.
+*/}
+
+Generated from the built `tx402` package's own exports, so this list cannot claim a symbol the
+package does not ship. Signatures and per-symbol documentation live in the bundled `.d.ts`
+files, which your editor reads directly — this page answers "what is available and from where".
+
+## `tx402` — the core entry point
+
+Importing this path **must not load a chain library**, and a package-contract test asserts it.
+`viem`, `@solana/kit`, `@x402/evm`, and `@x402/svm` are reached through a lazy `import()`
+only when a payment on that family is actually planned.
+
+### Functions
+
+- `assertValidReleaseManifest`
+- `chainFamily`
+- `createBalanceProbeCache`
+- `createTx402Client`
+- `decodePaymentRequired`
+- `digestRequestBody`
+- `fingerprintRequest`
+- `formatMoneyDecimal`
+- `isEvmSigner`
+- `isSolanaSigner`
+- `isTx402Error`
+- `normalizeFingerprintUrl`
+- `normalizePolicyHost`
+- `orderRouteCandidates`
+- `parseMoneyAtomic`
+- `parsePositiveMoneyAtomic`
+- `planRoutes`
+- `requireNetwork`
+- `resolveNetwork`
+- `verifyReleaseManifest`
+
+### Classes and constructors
+
+- `AmbiguousPaymentError`
+- `BudgetExceededError`
+- `ClockSkewError`
+- `ConfigurationError`
+- `DomainNotAllowedError`
+- `HealthIndex`
+- `InsufficientLiquidityError`
+- `InvalidPaymentRequiredError`
+- `MemorySpendStore`
+- `MoneyParseError`
+- `NonReplayableRequestError`
+- `PaidRedirectBlockedError`
+- `PolicyEngine`
+- `ReservedHeaderError`
+- `ResourceDeliveryError`
+- `SignerError`
+- `TransportError`
+- `Tx402Error`
+- `UnsupportedProtocolError`
+- `UnsupportedSchemeError`
+
+### Constants
+
+- `BALANCE_KEY_SEPARATOR`
+- `BALANCE_TIMEOUT_MS`
+- `BUNDLED_MANIFEST`
+- `CIRCUIT_OPEN_MS`
+- `HEALTH_CONSECUTIVE_FAILURES_TO_OPEN`
+- `HEALTH_EWMA_ALPHA`
+- `HEALTH_FAILURE_RATE_TO_OPEN`
+- `HEALTH_FAILURE_WINDOW`
+- `HEALTH_IDLE_RETENTION_MS`
+- `HEALTH_LATENCY_PENALTY_MAX`
+- `HEALTH_LATENCY_REFERENCE_MS`
+- `HEALTH_MAX_ENDPOINTS`
+- `HEALTH_MIN_SAMPLES_FOR_RATE`
+- `HEALTH_NEW_ENDPOINT_SCORE`
+- `HEALTH_OPEN_MS`
+- `MANIFEST_SIGNING_DOMAIN`
+- `MAX_AUTHORIZATION_SECONDS`
+- `MAX_PAYMENT_REQUIRED_BYTES`
+- `MAX_PAYMENT_REQUIRED_DEPTH`
+- `MAX_PAYMENT_REQUIREMENTS`
+- `MAX_PROVIDERS_PER_NETWORK`
+- `PACKAGE_NAME`
+- `PROJECT_URLS`
+- `PROTOCOL_HEADERS`
+- `REQUEST_FINGERPRINT_DOMAIN`
+- `REQUEST_ID_HEADER`
+- `RESERVATION_TTL_MS`
+- `RESERVED_REQUEST_HEADERS`
+- `ROLLING_WINDOW_MS`
+- `TRUSTED_MANIFEST_KEYS`
+- `TX402_ERROR_CODES`
+- `TX402_ERROR_DESCRIPTORS`
+- `TX402_ERROR_TAXONOMY`
+- `X402_PROTOCOL_VERSION`
+
+## The client itself
+
+`createTx402Client(config)` returns an object carrying these methods. They are read from a
+constructed instance, so this list cannot claim a method the package does not ship.
+
+- `inspect(input: Tx402RequestInfo, init?: Tx402RequestInit): Promise<PaymentInspection>`
+- `plan(input: Tx402RequestInfo, init?: Tx402RequestInit): Promise<PaymentPlan>`
+- `fetch(input: Tx402RequestInfo, init?: Tx402RequestInit): Promise<Response>`
+- `getBudgetState(): BudgetState`
+- `queryBudgetState(query: BudgetQuery): Promise<BudgetState>`
+- `resetHealth(): void`
+
+`fetch` is the one most code calls. The other five are what you reach for when a payment has
+to be reasoned about rather than simply made: `plan` answers "what would this cost" without
+signing or reserving, `inspect` returns the raw challenge, and `getBudgetState` /
+`queryBudgetState` read the spend ledger — the latter for any scope, including one written by
+another process. Reconciling a settlement from code starts with `plan` and ends with
+`queryBudgetState`.
+
+## Optional subpath exports
+
+| Import | Loads | Use when |
+| ------ | ----- | -------- |
+| `tx402/evm` | `viem`, `@x402/evm` | You pay on an EVM network and want the bundled adapter. |
+| `tx402/solana` | `@solana/kit`, `@x402/svm` | You pay on Solana and want the bundled adapter. |
+| `tx402/signers` | `viem/accounts`, and `@solana/kit` lazily | Development only. `privateKeyToEvmSigner` wraps a raw hex key as an `EvmSigner`; `keypairToSolanaSigner` wraps a keypair as a `SolanaSigner`. |
+
+The Python package mirrors this split with extras: `pip install tx402` is the core,
+`tx402[evm]`, `tx402[svm]`, and `tx402[all]` add the chain libraries. `import tx402` loads no
+chain library in either language.

@@ -1,0 +1,46 @@
+{
+  "$schema": "https://tx402.dev/schemas/v1/conformance-vector.schema.json",
+  "id": "svm.authorization-plan.devnet-usdc-valid",
+  "kind": "svm.authorization-plan",
+  "milestone": "M4",
+  "title": "Solana Devnet native SPL USDC derives canonical payment ATAs",
+  "spec": ["SPEC §7.2", "SPEC §6.6", "ADR-010"],
+  "input": {
+    "networkId": "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
+    "requirement": {
+      "index": 0,
+      "scheme": "exact",
+      "network": "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
+      "asset": "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
+      "amountAtomic": "50000",
+      "payTo": "11111111111111111111111111111111",
+      "maxTimeoutSeconds": 60,
+      "extra": {
+        "feePayer": "11111111111111111111111111111111",
+        "recentBlockhash": "11111111111111111111111111111111",
+        "lastValidBlockHeight": "999999",
+        "memo": "tx402-vector"
+      }
+    },
+    "payer": "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM"
+  },
+  "expected": {
+    "outcome": "valid",
+    "plan": {
+      "networkId": "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
+      "genesisHash": "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG",
+      "mint": "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
+      "payer": "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
+      "recipient": "11111111111111111111111111111111",
+      "feePayer": "11111111111111111111111111111111",
+      "sourceTokenAccount": "HwpBSwuyVKJi7d9kqqNexc54MS9i4BEDKDVDLeUVjZm8",
+      "destinationTokenAccount": "27SXXCACcdgCZLU5hwYYjCb4j22H4ovDpHooVJpAJtXw",
+      "amountAtomic": "50000",
+      "decimals": 6,
+      "lifetimeSeconds": 60,
+      "recentBlockhash": "11111111111111111111111111111111",
+      "lastValidBlockHeight": "999999",
+      "memo": "tx402-vector"
+    }
+  }
+}

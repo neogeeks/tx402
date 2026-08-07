@@ -1,0 +1,118 @@
+---
+title: Key management
+description: How to give tx402 signing authority without giving it a key, and what to do if you must.
+sidebar:
+  order: 2
+---
+
+tx402's main configuration accepts **signer abstractions, never a raw private key**.
+That is not a style preference — it is the seam that lets the key live somewhere your process
+cannot read it.
+
+## The interface is small on purpose
+
+A signer is two methods. Anything that can implement them can sign for tx402:
+
+```ts title="EvmSigner"
+interface EvmSigner {
+  kind: "evm";
+  getAddress(): Promise<`0x${string}`>;
+  signTypedData(request: EvmTypedDataRequest): Promise<`0x${string}` | Uint8Array>;
+}
+```
+
+```ts title="SolanaSigner"
+interface SolanaSigner {
+  kind: "solana";
+  getPublicKey(): Promise<string>;
+  signTransaction(request: SolanaSignRequest): Promise<Uint8Array>;
+}
+```
+
+A KMS, a hardware wallet, a remote signing service, an HSM, or a multi-party signer all fit
+behind these. tx402 never asks where the key is, and there is no code path that can.
+
+The request object passed in carries a `presentation` alongside the payload: domain, asset,
+atomic **and** decimal amount, recipient, network, expiry, and request hash. Show it to whoever
+or whatever approves the signature.
+
+## Recommended, in order
+
+<div class="money">
+
+| Approach                    | Key exposure          | Use for                                  |
+| --------------------------- | --------------------- | ---------------------------------------- |
+| KMS / HSM signer            | Never in your process | Production, any real value               |
+| Hardware wallet             | Never in your process | Human-in-the-loop, high value            |
+| Remote signing service      | Never in your process | Fleets, centralized policy               |
+| `tx402/signers` private key | In process memory     | Development, CI, small dedicated wallets |
+
+</div>
+
+## If you must hold the key
+
+The convenience adapter exists, and it is deliberately awkward to reach:
+
+```ts title="TypeScript"
+import { privateKeyToEvmSigner } from "tx402/signers";
+
+const evm = privateKeyToEvmSigner(process.env.TX402_DEV_PRIVATE_KEY as `0x${string}`);
+```
+
+```python title="Python"
+from tx402.signers import private_key_to_evm_signer
+
+evm = private_key_to_evm_signer(os.environ["TX402_DEV_PRIVATE_KEY"])
+```
+
+It lives behind its own import path (`tx402/signers`, `tx402.signers`) that nothing in the core
+API touches, so choosing it is **visible in a diff**. That is the point of the isolation.
+
+The adapter does what it can with what it has been given:
+
+- The key is captured in a closure. It is not a property, not in `vars()`, and not reachable by
+  attribute access.
+- `toJSON` / `repr` render a redacted placeholder, so a signer accidentally passed to a logger
+  does not become a logged key.
+- Pickling is refused outright (Python) — there is no legitimate reason to send a live signer to
+  another process.
+- Malformed input is rejected **before** the chain library sees it, because a chain library's
+  validation error tends to quote its input, and that is how a key reaches a traceback.
+
+None of that changes the underlying fact: a key in process memory is readable by anything with
+code execution in your process. The adapter narrows the accidental paths; it cannot narrow the
+deliberate one.
+
+## Rules that hold everywhere
+
+1. **Never pass a key as a CLI flag.** The CLI accepts none, and will not grow one. Command lines
+   land in shell history, in `ps` output, and in CI logs.
+2. **Environment variables are a development convenience.** Any child process and most crash
+   reporters can read them. tx402 warns on stderr every time it reads one.
+3. **Use a dedicated, low-balance wallet** for anything automated. The blast radius of a
+   compromise is the wallet balance, so keep it small — that is the rule for these wallets and it is the
+   cheapest control available.
+4. **Set `maxPerHour` even with a hardware signer.** A cap bounds a compromise that a signing
+   boundary does not: an attacker with request-forging ability but no key still has to get past
+   your policy.
+5. **Never commit a key.** Not to `.env`, not to a fixture, not to a test. The repository's
+   `.gitignore` covers the obvious names, which is a safety net and not a strategy.
+
+## Prompt injection is a live threat here
+
+It is named explicitly in the threat model, and it is the reason for the `maxPerHour` advice above. An agent
+that reads untrusted content and can make HTTP requests can be induced to fetch a URL that
+answers `402`. If the agent's wallet has no cap, the attacker's ceiling is the wallet balance.
+With a cap, it is the cap.
+
+The layered answer is: an external signer so the key cannot be exfiltrated, a domain allowlist so
+an arbitrary URL cannot be paid, and an hourly cap so a permitted domain cannot be drained.
+
+`client.inspect()` is worth building into an agent's own tooling for the same reason — it lets the
+agent find out what something costs **without being able to pay for it**. It performs the request,
+decodes and validates the merchant's challenge, and stops: no signer, no chain, no budget. A
+client constructed with no signers at all can still call it.
+
+`--dry-run` is a different guarantee and is not a substitute here. It never signs — that much is
+structural — but it does rank routes, which means a configured key and an installed chain adapter,
+so it is a tool for someone who *could* pay and is deciding whether to.

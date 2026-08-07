@@ -1,0 +1,87 @@
+name: Bug report
+description: Something in tx402 behaves differently from what the docs promise.
+title: "bug: <short summary>"
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a report. A good repro is the fastest path to a fix.
+
+        **Do not report a security vulnerability here.** Use
+        [private vulnerability reporting](https://github.com/neogeeks/tx402/security/advisories/new)
+        instead — see [SECURITY.md](https://github.com/neogeeks/tx402/blob/main/SECURITY.md).
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Before you file
+      options:
+        - label: I searched existing issues and this is not a duplicate.
+          required: true
+        - label: This is not a security vulnerability (those go through private reporting).
+          required: true
+        - label: My logs and snippets below contain no private keys, tokens, or authorization payloads.
+          required: true
+  - type: dropdown
+    id: sdk
+    attributes:
+      label: Which SDK
+      options:
+        - TypeScript (npm tx402)
+        - Python (PyPI tx402)
+        - Both
+        - CLI (tx402 call)
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: tx402 version
+      description: Output of `tx402 --version`, or the version in your lockfile.
+      placeholder: "0.1.0"
+    validations:
+      required: true
+  - type: input
+    id: runtime
+    attributes:
+      label: Runtime version
+      description: Node version (`node -v`) or Python version (`python -V`).
+      placeholder: "Node 22.12.0 / Python 3.12.3"
+    validations:
+      required: true
+  - type: dropdown
+    id: network
+    attributes:
+      label: Network involved (if any)
+      options:
+        - Not network-specific
+        - Base Sepolia (eip155:84532)
+        - Base Mainnet (eip155:8453)
+        - Solana Devnet
+        - Solana Mainnet
+        - Other / multiple
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction
+      description: The smallest steps or code that reproduce it. A failing snippet beats a description.
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected vs actual
+      description: What you expected, and what happened instead. Include the error code (e.g. `TX402_POLICY_BUDGET`) and exit code if the CLI was involved.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs or output
+      description: Paste the diagnostic event stream or CLI `--json` output. tx402 redacts secrets by design, but double-check before pasting.
+      render: shell
+    validations:
+      required: false

@@ -1,0 +1,28 @@
+{
+  "$schema": "https://tx402.dev/schemas/v1/conformance-vector.schema.json",
+  "id": "svm.authorization-plan.token-2022-excluded",
+  "kind": "svm.authorization-plan",
+  "milestone": "M4",
+  "title": "Token-2022 is excluded from v0.1 SVM payments",
+  "spec": ["SPEC §7.2"],
+  "input": {
+    "networkId": "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
+    "assetTokenProgram": "token-2022",
+    "requirement": {
+      "index": 0,
+      "scheme": "exact",
+      "network": "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
+      "asset": "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
+      "amountAtomic": "1",
+      "payTo": "11111111111111111111111111111111",
+      "maxTimeoutSeconds": 60,
+      "extra": { "feePayer": "11111111111111111111111111111111" }
+    },
+    "payer": "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM"
+  },
+  "expected": {
+    "outcome": "invalid",
+    "errorCode": "TX402_CONFIG_INVALID",
+    "reason": "token-2022-excluded"
+  }
+}

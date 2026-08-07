@@ -1,0 +1,225 @@
+---
+title: The CLI
+description: tx402 call — flags, output contract, exit codes, and how to use it in a script.
+sidebar:
+  order: 4
+---
+
+Both packages install the same `tx402` command with the same flags, the same `--json` document,
+and the same exit codes. `npx tx402` works with no install at all.
+
+```
+tx402 call <URL> [options]
+
+  --method <METHOD>     HTTP method (default: GET)
+  --body @<file>        Request body, read from a file
+  --max-spend <MONEY>   Per-request cap, e.g. "0.10 USDC"
+  --network <CAIP2>     Allow only this network. Required to pay on a testnet:
+                        the default policy allows production networks only.
+  --dry-run             Parse, evaluate policy, and plan routes. Never signs.
+                        Needs a configured key — planning reads your balance.
+  --json                Emit one JSON object on stdout
+  --timeout <MS>        Paid-retry timeout in whole milliseconds
+  -h, --help            Show this message
+  -v, --version         Show version
+```
+
+:::caution[`--network` is mandatory on a testnet]
+The default policy allows only **production** networks — Base and Solana mainnet. That is not
+an oversight: a silent fallback from production to a testnet is the worst failure this SDK
+could have, so a testnet has to be asked for by name. Every testnet command on this site
+therefore carries `--network eip155:84532` or
+`--network solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1`. Without it you get
+`TX402_SCHEME_UNSUPPORTED` and exit `5`, and the error lists what the merchant offered.
+:::
+
+## `--dry-run` is the one to start with
+
+```bash
+npx tx402 call https://api.example.com/paid --max-spend "0.10 USDC" --dry-run
+```
+
+It runs the **real** decision path — decode, policy, route planning, ranking — and stops before
+the budget reservation. No signer is invoked and no budget is consumed, so you can run it
+freely.
+
+The guarantee is structural, not a convention: on the dry-run path the signer is wrapped in a
+guard that raises if it is ever reached, and the test suite asserts the signature count is zero
+and that the merchant never received a `PAYMENT-SIGNATURE` header.
+
+Route planning **does** read your payer address and balance, because a route cannot be scored
+without knowing whether it is fundable. "Never invokes a signer" means never produces a
+signature.
+
+## stdout and stderr are a contract
+
+**stdout** carries the response body — or, with `--json`, exactly one JSON object. Nothing else,
+ever.
+
+**stderr** carries everything else: warnings, the human-readable plan, and errors.
+
+That split is what makes this work even when the call is noisy:
+
+```bash
+npx tx402 call "$URL" --max-spend "0.10 USDC" > response.json
+```
+
+The SDK itself never writes to the console at all. The CLI renders from the structured event
+stream, which is why a warning can never corrupt your redirected output.
+
+## `--json`
+
+```json
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "exitCode": 0,
+  "dryRun": false,
+  "inspection": { "requirementCount": 2, "headerHash": "sha256:…" },
+  "route": {
+    "network": "eip155:8453",
+    "scheme": "exact",
+    "healthScore": 0.84,
+    "rank": 1,
+    "candidateCount": 2
+  },
+  "status": 200,
+  "body": "…",
+  "settlement": {
+    "status": "committed",
+    "transaction": "0x8a01f2027e5af993977c5c4c7dded4e8a031aa0a07578aa2f5d429f670af5af0",
+    "payer": "0xaad1566216D2447B530E04945dfEefD04C84967B"
+  },
+  "timings": { "elapsedMs": 452, "events": 9 },
+  "error": null
+}
+```
+
+One object, on both success and failure. On failure `ok` is `false`, `exitCode` names the
+classification, and `error` carries the typed error — code, message, retryability, and its
+required detail keys.
+
+`settlement` is what you reconcile with. `transaction` is the settlement identifier the
+merchant reported — the hash you paste into a block explorer — and `payer` is the address that
+paid, on the chain the route selected.
+
+- `"status": "committed"` — the money moved. Exit `0`, and the paid half of exit `9`.
+- `"status": "unknown"` — the signature was transmitted and the outcome could not be
+  determined. This is exit `8`. `transaction` is `null`, because tx402 has none.
+- `"settlement": null` — **tx402 holds no settlement**. Usually that is because nothing was
+  ever signed: a dry run, or any policy or protocol refusal. It is also what you get when a
+  signature *was* transmitted and the merchant reported the settlement as unsuccessful, which
+  is the unpaid half of exit `9`.
+
+`settlement` alone therefore does not tell you whether you paid. `error.context.paid` does, and
+it is the field the CLI itself branches on:
+
+| `context.paid` | Meaning                                              | Where it appears           |
+| :------------- | :----------------------------------------------------- | :--------------------------- |
+| absent         | No signature was ever produced                        | Exits `2`–`7`, and dry runs |
+| `false`        | A signature was transmitted and **no money moved** — the merchant refused the settlement, or re-challenged until `maxPaidAttempts` ran out | Exit `9` |
+| `"unknown"`    | A signature was transmitted and the outcome cannot be determined | Exit `8`                    |
+| `true`         | The payment settled                                   | Exit `0`, and exit `9` when the resource then failed |
+
+A `settlement` object is emitted only for the last two rows, which is why its absence on exit `9`
+is information rather than an omission: it means the money is still yours.
+
+`transaction` can also be `null` on a committed payment, when the merchant supplied no
+identifier at all: the pinned protocol marks `PAYMENT-RESPONSE` optional, and that case commits
+with a warning rather than failing. The warning is a `payment.completed` event at `warn` with
+`reason: "payment-response-absent"`.
+
+**Read `null` there as "tx402 has no identifier", not as proof that money moved.** A `200` to a
+signature-bearing request is the merchant asserting it accepted payment, and tx402 takes it at
+its word — it never calls a facilitator to check, by design. So `status: "committed"` with
+`transaction: null` means the merchant claimed settlement and offered nothing to verify it with,
+and tx402 **cannot distinguish** that from a merchant that accepted without settling at all.
+
+This errs in the safe direction for you: your local ledger records the spend, so it can
+over-count what you have paid but never under-count it, and no cap is loosened by a merchant
+behaving this way. It matters only when you are reconciling against the chain, and it is the one
+committed outcome for which you have no on-chain identifier to reconcile with. If that matters
+for a given merchant, treat an absent `PAYMENT-RESPONSE` as a reason to ask them, not as a
+receipt.
+
+The raw identifier is reported here, and only here. The structured event stream carries a
+`settlementIdHash` instead, because events are the thing that reaches a log aggregator and a
+settlement identifier there is a payment graph handed to whoever operates it. `--json` goes to
+your own stdout, which is the same boundary as your own spend ledger.
+
+On exits `8` and `9` the same two values are printed to **stderr** as well, so the documented
+"reconcile before you retry" does not require re-running a payment to obtain them.
+
+`error` **never carries the underlying cause**, which is where a URL with credentials or a
+signer payload would live. That is enforced by the error's own serializer, not by the CLI
+remembering to strip it.
+
+`schemaVersion` changes only on a breaking shape change, so a script can pin it.
+
+## Exit codes in a script
+
+```bash
+#!/usr/bin/env bash
+set -uo pipefail
+
+npx tx402 call "$URL" --max-spend "0.10 USDC" --json > out.json
+code=$?
+
+case $code in
+  0) jq -r .body out.json ;;
+  3) echo "refused by local policy — this is the guardrail working" >&2; exit 0 ;;
+  4) echo "fund the wallet" >&2; exit 1 ;;
+  7) echo "network failure — safe to retry" >&2; exit 75 ;;
+  8) echo "AMBIGUOUS: payment may have settled. Do not retry." >&2
+     jq -r '"payer \(.settlement.payer)"' out.json >&2; exit 1 ;;
+  9) # Not delivered — but exit 9 alone does not say whether you paid for it.
+     if [ "$(jq -r '.error.context.paid' out.json)" = "true" ]; then
+       echo "PAID but not delivered. Do not retry." >&2
+       jq -r '"payer \(.settlement.payer)  tx \(.settlement.transaction)"' out.json >&2
+     else
+       echo "not delivered, and nothing settled — safe to retry" >&2
+       jq -r '"reason \(.error.details.reason)"' out.json >&2
+     fi
+     exit 1 ;;
+  *) echo "failed with $code" >&2; exit 1 ;;
+esac
+```
+
+The `*)` catch-all is load-bearing: every code that is not named still stops the script rather
+than falling through to the success path.
+
+:::danger[Never retry on exit 8]
+Exit `8` means the signature reached the merchant and tx402 could not determine the outcome. It
+has its own code precisely so a script can **stop**. Retrying can pay twice. Reconcile against
+the merchant, then decide.
+:::
+
+Exit `1` is never used by tx402 — it is reserved for the runtime crashing. Every code and every
+error that maps to it is in the [error reference](../../reference/errors/).
+
+## Keys
+
+The CLI accepts **no flag that carries a private key**, and it never will. Anything on a command
+line lands in shell history, in `ps` output, and in CI logs.
+
+For development only, it reads `TX402_DEV_PRIVATE_KEY` (EVM) and `TX402_DEV_SOLANA_KEYPAIR`
+(Solana), and prints a warning to stderr **every single time** it does. The warning is not
+behind a verbosity flag and does not fire only once per session: a once-per-session warning is a
+warning people learn to stop seeing.
+
+For anything beyond a low-balance test wallet, use the SDK with an external signer. See
+[key management](../../security/keys/).
+
+## Bodies
+
+`--body` takes `@<file>` only. An inline body is refused, because a body is exactly the kind of
+thing that contains a token and exactly the kind of thing that ends up in `~/.bash_history`.
+
+```bash
+npx tx402 call "$URL" --method POST --body @payload.json --max-spend "0.10 USDC"
+```
+
+A missing or unreadable file is a usage error raised **before** any network request, so a dry
+run does not first cost the merchant a round trip to discover your file is not there. The
+underlying OS error is not forwarded — it quotes an absolute path, which ends up in CI logs more
+often than anyone intends.

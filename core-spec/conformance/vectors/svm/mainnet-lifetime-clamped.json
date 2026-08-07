@@ -1,0 +1,39 @@
+{
+  "$schema": "https://tx402.dev/schemas/v1/conformance-vector.schema.json",
+  "id": "svm.authorization-plan.mainnet-lifetime-clamped",
+  "kind": "svm.authorization-plan",
+  "milestone": "M4",
+  "title": "Solana Mainnet authorization lifetime is clamped to the merchant bound",
+  "spec": ["SPEC §7.2", "SPEC §6.6"],
+  "input": {
+    "networkId": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+    "requirement": {
+      "index": 1,
+      "scheme": "exact",
+      "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+      "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+      "amountAtomic": "1",
+      "payTo": "11111111111111111111111111111111",
+      "maxTimeoutSeconds": 15,
+      "extra": { "feePayer": "11111111111111111111111111111111" }
+    },
+    "payer": "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM"
+  },
+  "expected": {
+    "outcome": "valid",
+    "plan": {
+      "networkId": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+      "genesisHash": "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d",
+      "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+      "payer": "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
+      "recipient": "11111111111111111111111111111111",
+      "feePayer": "11111111111111111111111111111111",
+      "sourceTokenAccount": "FGETo8T8wMcN2wCjav8VK6eh3dLk63evNDPxzLSJra8B",
+      "destinationTokenAccount": "HJt8Tjdsc9ms9i4WCZEzhzr4oyf3ANcdzXrNdLPFqm3M",
+      "amountAtomic": "1",
+      "decimals": 6,
+      "lifetimeSeconds": 15,
+      "lastValidBlockHeight": "0"
+    }
+  }
+}

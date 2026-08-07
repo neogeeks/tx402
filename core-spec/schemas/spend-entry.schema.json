@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tx402.dev/schemas/v1/spend-entry.schema.json",
+  "title": "SpendEntry",
+  "description": "A committed spend (SPEC §5.3). Written only after a paid response is confirmed.\n\nThe rolling hourly budget is the sum of committed entries plus active reservations within [now - 3600000 ms, now]. Entries older than the window are pruned and stop counting; they are not retained for reporting, because ADR-007 keeps the ledger process-local and bounded.\n\nWhen settlement succeeded but the resource response was unusable, the entry stays committed and ResourceDeliveryError is raised with paid=true — the money moved regardless of what came back.",
+
+  "type": "object",
+  "required": ["requestFingerprint", "assetId", "amountAtomic", "committedAtEpochMs"],
+  "additionalProperties": false,
+
+  "properties": {
+    "settlementId": {
+      "description": "Merchant/facilitator settlement identifier from PAYMENT-RESPONSE, when one was supplied. Absent when the pinned protocol marks the response optional and none arrived — that case commits with a diagnostic warning rather than failing (SPEC §6.7).",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+
+    "requestFingerprint": {
+      "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/sha256Digest"
+    },
+
+    "assetId": {
+      "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/caip19"
+    },
+
+    "amountAtomic": {
+      "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/positiveAtomicAmount"
+    },
+
+    "committedAtEpochMs": {
+      "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/epochMs"
+    },
+
+    "reservationId": {
+      "description": "The reservation this entry settles. Retained so that commit is idempotent: replaying a commit for an already-committed reservation MUST NOT double-count against the hourly cap.",
+      "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/uuidV7"
+    }
+  }
+}

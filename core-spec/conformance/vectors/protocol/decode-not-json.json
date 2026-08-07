@@ -1,0 +1,19 @@
+{
+  "$schema": "../../../schemas/conformance-vector.schema.json",
+  "id": "protocol.decode-payment-required.not-json",
+  "kind": "protocol.decode-payment-required",
+  "milestone": "M1",
+  "title": "Valid base64 that does not decode to JSON is rejected without heuristics",
+  "spec": ["SPEC §6.2", "ADR-004"],
+  "input": {
+    "requestUrl": "https://api.example.com/v1/completions",
+    "requestMethod": "POST",
+    "header": "bm90IGpzb24gYXQgYWxs",
+    "clockEpochMs": 1785711360000
+  },
+  "expected": {
+    "outcome": "invalid",
+    "errorCode": "TX402_PAYMENT_REQUIRED_INVALID",
+    "reason": "invalid-json"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "$schema": "../../../schemas/conformance-vector.schema.json",
+  "id": "protocol.decode-payment-required.empty-accepts",
+  "kind": "protocol.decode-payment-required",
+  "milestone": "M1",
+  "title": "A challenge offering no requirements is rejected",
+  "spec": ["SPEC §5.1", "SPEC §6.2"],
+  "input": {
+    "requestUrl": "https://api.example.com/v1/completions",
+    "requestMethod": "POST",
+    "header": "eyJ4NDAyVmVyc2lvbiI6MiwicmVzb3VyY2UiOnsidXJsIjoiaHR0cHM6Ly9hcGkuZXhhbXBsZS5jb20vdjEvY29tcGxldGlvbnMiLCJkZXNjcmlwdGlvbiI6IlRleHQgY29tcGxldGlvbiJ9LCJhY2NlcHRzIjpbXX0=",
+    "clockEpochMs": 1785711360000
+  },
+  "expected": {
+    "outcome": "invalid",
+    "errorCode": "TX402_PAYMENT_REQUIRED_INVALID",
+    "reason": "requirements-count-out-of-range"
+  }
+}

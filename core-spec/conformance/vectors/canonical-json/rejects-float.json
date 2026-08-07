@@ -1,0 +1,17 @@
+{
+  "$schema": "../../../schemas/conformance-vector.schema.json",
+  "id": "canonical-json.rejects-float",
+  "kind": "canonical-json",
+  "milestone": "M0",
+  "title": "A fractional number is rejected rather than serialized",
+  "description": "Floating-point rendering differs between languages in the general case, so a document containing one has no single canonical byte string to sign. Rejecting is the only safe answer.",
+  "spec": ["ADR-006", "ADR-012"],
+  "input": {
+    "document": {
+      "decimals": 6.5
+    }
+  },
+  "expected": {
+    "error": "non-integer-number"
+  }
+}

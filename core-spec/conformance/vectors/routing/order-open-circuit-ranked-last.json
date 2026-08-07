@@ -1,0 +1,48 @@
+{
+  "$schema": "https://tx402.dev/schemas/v1/conformance-vector.schema.json",
+  "id": "routing.candidate-order.open-circuit-ranked-last",
+  "kind": "routing.candidate-order",
+  "milestone": "M5",
+  "title": "An endpoint with an open circuit is ranked last even on the preferred network",
+  "description": "SPEC \u00a76.5 says an open endpoint 'may be used only when every compatible endpoint is open, and it is ranked last'. That is a stronger statement than a low health score, which a large enough preference bonus could outrank, so open-circuit ordering sits immediately below viability and above policy preference. Here Base is both preferred and viable and still ranks last, which an implementation folding circuit state into the health score alone would get wrong.",
+  "spec": ["SPEC \u00a76.5", "SPEC \u00a76.4"],
+  "input": {
+    "preferNetworks": ["eip155:8453"],
+    "candidates": [
+      {
+        "requirementIndex": 0,
+        "network": "eip155:8453",
+        "scheme": "exact",
+        "assetId": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "amountAtomic": "50000",
+        "estimatedFeeAtomic": "0",
+        "healthScore": 0.0804,
+        "circuitState": "open",
+        "viable": true,
+        "rejectionReasons": [],
+        "signerId": "evm:0x1111111111111111111111111111111111111111",
+        "balanceAtomic": "5000000",
+        "observedLatencyMs": 35
+      },
+      {
+        "requirementIndex": 1,
+        "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+        "scheme": "exact",
+        "assetId": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/token:EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "amountAtomic": "50000",
+        "estimatedFeeAtomic": "0",
+        "healthScore": 0.7,
+        "circuitState": "closed",
+        "viable": true,
+        "rejectionReasons": [],
+        "signerId": "solana:9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin",
+        "balanceAtomic": "5000000",
+        "observedLatencyMs": 120
+      }
+    ]
+  },
+  "expected": {
+    "order": [1, 0],
+    "selected": 1
+  }
+}

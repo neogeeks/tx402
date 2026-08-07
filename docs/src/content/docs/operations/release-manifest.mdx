@@ -1,0 +1,114 @@
+---
+title: The release manifest
+description: Signing, verifying, and re-issuing the bundled network manifest.
+sidebar:
+  order: 4
+---
+
+The signed release manifest is the only channel through which chain addresses, token
+addresses, RPC endpoints, and token decimals reach the SDK. It is verified
+offline at client construction; a failure prevents construction rather than degrading to a
+warning.
+
+The format is defined by the JSON Schema the repository ships at
+`core-spec/schemas/release-manifest.schema.json`, which the signer and both SDKs validate
+against.
+
+## Layout
+
+| Path                                                  | Role                                          |
+| :---------------------------------------------------- | :-------------------------------------------- |
+| `core-spec/manifests/bundled.manifest.json`           | The signed source of truth                    |
+| `core-spec/manifests/keys/<id>.pub.json`              | Public key — **committed**                    |
+| `core-spec/manifests/keys/<id>.private.pem`           | Private key — **gitignored, never committed** |
+| `packages/tx402/src/core/bundled-manifest.ts`         | Generated embed — do not edit                 |
+| `packages/tx402-python/src/tx402/bundled_manifest.py` | Generated embed — do not edit                 |
+| `packages/tx402/src/core/trusted-keys.ts`             | Compiled-in trusted keys                      |
+| `packages/tx402-python/src/tx402/trusted_keys.py`     | Compiled-in trusted keys                      |
+
+Neither SDK reads the JSON at runtime. It is not inside either published package, and
+reaching for the filesystem would break serverless and edge deployments.
+
+## Everyday commands
+
+```bash
+# Verify the bundled manifest (what CI runs)
+node tools/manifest-signer/index.js verify
+
+# After editing bundled.manifest.json
+node tools/manifest-signer/index.js sign --key core-spec/manifests/keys/tx402-release-2.private.pem
+node tools/manifest-signer/index.js embed     # regenerate both SDK copies
+pnpm check                                     # both suites re-verify the signature
+```
+
+`embed` refuses to run on a manifest that does not verify. A test in each language asserts
+the embedded copy still equals the JSON, so a hand edit to a generated file is caught even if
+the tool is never re-run.
+
+`sign` reads the key from `TX402_MANIFEST_SIGNING_KEY` (a PKCS#8 PEM) when set, otherwise
+from `--key <file>`. It is never accepted as a flag _value_: argv is visible to every process
+on the machine and is routinely captured by shell history and CI logs.
+
+## Adding a network or token
+
+1. Edit `core-spec/manifests/bundled.manifest.json`.
+   - Key networks by **canonical CAIP-2**. For Solana that is the 32-character truncated
+     genesis hash, never `solana:mainnet` — that is an alias.
+   - Give EVM networks a `chainId` matching the CAIP-2 reference; the SDK compares it
+     against what an RPC reports before signing.
+   - Give Solana networks the **full** `genesisHash`; the CAIP-2 key is its truncation, and
+     cluster validation compares the full value.
+   - Amounts and decimals are integers. No fractional numbers anywhere — the canonicalizer
+     rejects them.
+2. `sign`, then `embed`, then `pnpm check`.
+3. A manifest-only change is a **patch** release. A new production network is a
+   **minor** release and requires a chain adapter security review.
+
+## Expiry
+
+The bundled manifest expires **2027-08-02**. After that it stops verifying and no client can
+be constructed, so it must be re-issued before then. `verify` warns below 90 days remaining.
+
+Expiry is deliberate: it bounds the blast radius of a compromised manifest even if the signing
+key is never rotated.
+
+## Key handling
+
+Releases are signed by `tx402-release-2`. `tx402-release-1` was the original development
+key; it is kept in the trusted set only so the manifest conformance vectors and any manifest
+it previously signed keep verifying, and the release pipeline refuses to publish a manifest
+still signed by it.
+
+Both private keys live at `core-spec/manifests/keys/<id>.private.pem`, which is gitignored.
+**Back them up somewhere durable.** If a key is lost, every manifest it signed stops being
+re-signable and a new key must be issued — see rotation below.
+
+`tx402-release-2` was generated locally for the `0.1.0` release, so it should be treated as
+readable on the machine that made it. A subsequent rotation should move signing into a key
+that lives only in a secret manager or CI OIDC and never touches a developer's machine — see
+_Releasing → The release signing key_.
+
+### Rotation
+
+```bash
+node tools/manifest-signer/index.js keygen --key-id tx402-release-2
+# add the new public key to BOTH trusted-keys.ts and trusted_keys.py — do not remove the old
+node tools/manifest-signer/index.js sign --key-id tx402-release-2 --key <new pem>
+node tools/manifest-signer/index.js embed
+```
+
+Rotation **adds** a trusted key rather than replacing one, so manifests signed by the previous
+key keep verifying for their remaining lifetime. Remove a key only once every manifest it
+signed has expired. `keygen` refuses to overwrite an existing private key — bump the key ID
+instead.
+
+## Why verification is hand-written
+
+`core-spec/schemas/release-manifest.schema.json` is the authority, used by the conformance
+runners, the signing tool, and CI. The SDKs do not ship a schema validator: it would add
+roughly 30 KiB gzipped to the TypeScript core path — blowing the blocking size gate — and
+put a validation library in every Python user's install path, for a document with fifteen
+fields.
+
+The runtime performs a narrower structural check instead, and the `manifest.verify.*`
+conformance vectors keep the two in agreement.

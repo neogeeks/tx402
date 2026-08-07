@@ -1,0 +1,53 @@
+{
+  "$schema": "https://tx402.dev/schemas/v1/conformance-vector.schema.json",
+  "id": "spend-ledger.behavior.atomic-cap",
+  "kind": "spend-ledger.behavior",
+  "milestone": "M2",
+  "title": "Reservation rejects an amount that would exceed the rolling cap",
+  "spec": ["SPEC §5.3", "SPEC T-007", "SPEC SEC-002"],
+  "input": {
+    "operations": [
+      {
+        "action": "reserve",
+        "reservationId": "00000000-0000-7000-8000-000000000001",
+        "requestId": "request-1",
+        "policyScope": "scope-1",
+        "requestFingerprint": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+        "assetId": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "amountAtomic": "6",
+        "maxPerHourAtomic": "10",
+        "nowEpochMs": 1785715200000
+      },
+      {
+        "action": "reserve",
+        "reservationId": "00000000-0000-7000-8000-000000000002",
+        "requestId": "request-2",
+        "policyScope": "scope-1",
+        "requestFingerprint": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+        "assetId": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "amountAtomic": "5",
+        "maxPerHourAtomic": "10",
+        "nowEpochMs": 1785715200000
+      },
+      {
+        "action": "snapshot",
+        "policyScope": "scope-1",
+        "assetId": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "nowEpochMs": 1785715200000
+      }
+    ]
+  },
+  "expected": {
+    "outcomes": [
+      { "outcome": "reserved", "state": "reserved" },
+      { "outcome": "error", "errorCode": "TX402_POLICY_BUDGET" },
+      {
+        "outcome": "snapshot",
+        "committedAtomic": "0",
+        "reservedAtomic": "6",
+        "reservationStates": ["reserved"],
+        "entryCount": 0
+      }
+    ]
+  }
+}

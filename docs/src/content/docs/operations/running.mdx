@@ -1,0 +1,123 @@
+---
+title: Running tx402 in production
+description: Configuration, observability, failure handling, and the reconciliation you need to build.
+sidebar:
+  order: 1
+---
+
+This page is for whoever is on call. It covers what to configure, what to watch, and what to do
+when a payment's outcome is unknown.
+
+## Configure these four things
+
+Everything else has a defensible default. These do not.
+
+```ts
+createTx402Client({
+  signers: { evm }, // 1. an external signer
+  policy: {
+    maxPerRequest: "0.10 USDC", // 2. a per-request ceiling
+    maxPerHour: "5.00 USDC", // 3. a blast-radius ceiling
+    allowedDomains: ["api.example.com"], // 4. who you are willing to pay
+  },
+  logger,
+});
+```
+
+**`allowedDomains` defaults to `["*"]`.** That default is right for a first run and wrong for
+production. Set it to the merchants you actually intend to pay; everything else is then refused
+before a network round trip.
+
+## Observability
+
+tx402 writes nothing to the console. Route the event stream into your logging system:
+
+```ts
+const logger = {
+  debug: (event) => log.debug(event),
+  info: (event) => log.info(event),
+  warn: (event) => log.warn(event),
+  error: (event) => log.error(event),
+};
+```
+
+Every event carries a `requestId` (UUIDv7, so it sorts by time) that is also sent to the
+merchant as `X-TX402-REQUEST-ID` on the paid retry — which means a buyer-side log line and a
+merchant-side one can be correlated during an incident without either party sharing anything
+sensitive.
+
+### Events worth alerting on
+
+| Event               | Field                 | Alert when                                                                    |
+| ------------------- | --------------------- | ----------------------------------------------------------------------------- |
+| `request.failed`    | `errorCode`           | `TX402_PAYMENT_AMBIGUOUS` — **page someone**                                  |
+| `request.failed`    | `errorCode`           | `TX402_POLICY_BUDGET` rate climbs — a cap is too low, or something is looping |
+| `request.failed`    | `errorCode`           | `TX402_LIQUIDITY` — the wallet needs funding                                  |
+| `route.planned`     | `selectedHealthScore` | trending down — an RPC is degrading                                           |
+| `route.planned`     | `candidateCount`      | drops unexpectedly — a network stopped being offered                          |
+| `payment.completed` | `totalSdkOverheadMs`  | p95 above your budget                                                         |
+
+Every field in every event is redaction-safe by construction, so the stream can go to a shared
+aggregator without a scrubbing step.
+
+## The one runbook you must have
+
+**`TX402_PAYMENT_AMBIGUOUS` / exit code 8.**
+
+It means a signature reached the merchant and tx402 could not determine what happened. A
+timeout, a reset, a 5xx, or a redirect it declined to follow all produce it. The payment may
+have settled. It may not have.
+
+What tx402 has already done for you:
+
+- **Retained** the budget reservation until its TTL, rather than releasing it. The same money
+  cannot be spent again inside the hour by accident.
+- Recorded `causeCategory` in the error's `details`, so you can tell a timeout from a 5xx from a
+  redirect.
+- Recorded `reservationExpiresAtEpochMs`, so you know how long the hold lasts.
+
+What you must do:
+
+1. **Do not retry automatically.** This is the whole reason it has a dedicated exit code.
+2. Reconcile against the merchant, using the `requestId` you logged.
+3. If it settled, treat the resource as paid for and fetch it however the merchant provides.
+4. If it did not, retry deliberately — after the reservation TTL, or with a fresh client.
+
+Building this reconciliation is your responsibility, and tx402 cannot do it for you: it does not
+call the facilitator, and it has no way to know your merchant's idempotency semantics.
+
+## Budget across processes
+
+The default spend store is **in-memory and per-client**. Two processes have two independent
+hourly budgets, and a restart resets the window.
+
+For a single budget across a fleet you need a shared store implementing atomic
+reserve/commit/release with a 120-second reservation TTL and a rolling 3 600 000 ms window over
+committed spend **plus** active reservations. The atomicity is the hard part and it is not
+optional: the store must own the cap comparison and the insert as one operation, or two
+concurrent requests can both see room for the last dollar.
+
+## Performance
+
+| Metric                                           | Budget       |
+| ------------------------------------------------ | ------------ |
+| Non-402 request overhead                         | < 15 ms p95  |
+| Payment decision (402 received → before signing) | < 150 ms p95 |
+| Policy rejection                                 | < 2 ms p95   |
+
+The decision budget is dominated by balance reads: 600 ms per provider, at most two providers
+per network, all probes concurrent and deduplicated by network/asset/owner.
+
+A dark RPC costs its deadline about five times and then stops costing anything — the circuit
+opens and stays open for 30 seconds. That warming behaviour is the property the p95 number
+depends on, so a cold process pays more than a warm one.
+
+## Upgrades
+
+The bundled release manifest **expires**. `pnpm manifest:verify` warns below 90 days remaining,
+and a client cannot be constructed against an expired one. Re-issuing it is a patch release, so
+keep tx402 reasonably current rather than pinning it forever.
+
+Upstream `@x402/*` moves quickly. Every dependency bump replays all 73 conformance vectors in
+both languages before it ships, so a protocol-envelope change cannot land silently — but that
+also means a tx402 release may lag an upstream one by the time it takes to reconcile.

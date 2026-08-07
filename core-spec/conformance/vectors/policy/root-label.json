@@ -1,0 +1,15 @@
+{
+  "$schema": "../../../schemas/conformance-vector.schema.json",
+  "id": "policy.host-normalization.root-label",
+  "kind": "policy.host-normalization",
+  "milestone": "M0",
+  "title": "The root label alone normalizes to the empty host",
+  "description": "`https://./x` has hostname `.`, which the one-dot rule reduces to the empty string. Accepted and non-routable: an empty host matches only the `\"*\"` pattern, which already permits every host, so this is an accepted edge rather than a hole (PLAN.md O43).",
+  "spec": ["SPEC §6.3", "ADR-018"],
+  "input": {
+    "url": "https://./resource"
+  },
+  "expected": {
+    "host": ""
+  }
+}

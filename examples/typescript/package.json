@@ -1,0 +1,18 @@
+{
+  "name": "tx402-example-typescript",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Runnable tx402 examples. Each file is standalone and commented as a walkthrough.",
+  "scripts": {
+    "quickstart": "node --experimental-strip-types quickstart.ts",
+    "dry-run": "node --experimental-strip-types dry-run.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "engines": {
+    "node": ">=22.6.0"
+  },
+  "dependencies": {
+    "tx402": "workspace:*"
+  }
+}

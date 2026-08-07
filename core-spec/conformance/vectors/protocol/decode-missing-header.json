@@ -1,0 +1,18 @@
+{
+  "$schema": "../../../schemas/conformance-vector.schema.json",
+  "id": "protocol.decode-payment-required.missing-header",
+  "kind": "protocol.decode-payment-required",
+  "milestone": "M1",
+  "title": "A 402 with no PAYMENT-REQUIRED header is rejected",
+  "spec": ["SPEC §6.2"],
+  "input": {
+    "requestUrl": "https://api.example.com/v1/completions",
+    "requestMethod": "POST",
+    "clockEpochMs": 1785711360000
+  },
+  "expected": {
+    "outcome": "invalid",
+    "errorCode": "TX402_PAYMENT_REQUIRED_INVALID",
+    "reason": "missing-header"
+  }
+}

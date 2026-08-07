@@ -1,0 +1,15 @@
+{
+  "$schema": "../../../schemas/conformance-vector.schema.json",
+  "id": "policy.host-normalization.trailing-dot",
+  "kind": "policy.host-normalization",
+  "milestone": "M0",
+  "title": "A single trailing dot is stripped",
+  "description": "The fully-qualified form of a host names the same merchant as the relative form, so `a.test.` and `a.test` must reserve against one ledger and match one allowlist entry. ADR-018 makes this normalizer the single definition of merchant identity for both `policy.allowedDomains` and the spend-ledger scope key.",
+  "spec": ["SPEC §6.3", "ADR-018"],
+  "input": {
+    "url": "https://a.test./resource"
+  },
+  "expected": {
+    "host": "a.test"
+  }
+}

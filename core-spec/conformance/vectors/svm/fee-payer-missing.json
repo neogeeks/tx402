@@ -1,0 +1,27 @@
+{
+  "$schema": "https://tx402.dev/schemas/v1/conformance-vector.schema.json",
+  "id": "svm.authorization-plan.fee-payer-missing",
+  "kind": "svm.authorization-plan",
+  "milestone": "M4",
+  "title": "SVM exact payment requires the facilitator fee payer",
+  "spec": ["SPEC §7.2", "ADR-010"],
+  "input": {
+    "networkId": "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
+    "requirement": {
+      "index": 0,
+      "scheme": "exact",
+      "network": "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
+      "asset": "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
+      "amountAtomic": "1",
+      "payTo": "11111111111111111111111111111111",
+      "maxTimeoutSeconds": 60,
+      "extra": {}
+    },
+    "payer": "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM"
+  },
+  "expected": {
+    "outcome": "invalid",
+    "errorCode": "TX402_PAYMENT_REQUIRED_INVALID",
+    "reason": "svm-feePayer-missing"
+  }
+}

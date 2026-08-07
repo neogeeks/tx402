@@ -1,0 +1,277 @@
+---
+title: Configuration
+description: Every client configuration field, its default, and what it actually does.
+sidebar:
+  order: 1
+---
+
+**Every configuration field the SDKs accept is implemented in both languages.** This page is
+not a flat list of them; it is the set of fields whose behaviour is not obvious from a
+one-line description, written out in full so the reasoning is not rediscovered — or quietly
+re-invented — later. The complete field table is at the bottom.
+
+Fields are given in both spellings where they differ: TypeScript's nested, camel-cased form and
+Python's flat, snake-cased keyword arguments. Where a field is offered by one language only, the
+row says so.
+
+Read the [TypeScript API reference](../api-typescript/) for TypeScript signatures and the
+[policy guide](../../guides/policy/) for how the caps compose. There is no generated Python API
+page yet; Python's signatures are on the objects themselves and in the
+[package README](https://github.com/neogeeks/tx402/blob/main/packages/tx402-python/README.md).
+
+---
+
+## `routing.maxQuoteAgeMs` — conditional, and inert for standard v2 challenges
+
+**Default:** `5000`
+
+The rule is "reject older `PaymentRequired` timestamps **when present**" — and "when present"
+is doing all the work.
+
+> **Upstream x402 v2 `PaymentRequired` carries no timestamp.**
+
+The verified shape at `@x402/core` 2.20.0 is:
+
+```ts
+type PaymentRequired = {
+  x402Version: number;
+  error?: string;
+  resource: ResourceInfo; // { url, description?, mimeType?, serviceName?, tags?, iconUrl? }
+  accepts: PaymentRequirements[];
+  extensions?: Record<string, unknown>;
+};
+```
+
+There is no `issuedAt`, no `timestamp`, and no `expiresAt`. The only place a challenge
+timestamp can appear is inside a requirement's scheme-specific `extra` object.
+
+So the check is implemented, and it is **conditional**: it looks for a timestamp in `extra`,
+and where none is present — which is every standard v2 challenge — it does nothing.
+
+**What this means in practice.** The default of `5000` is not an active protection against
+stale quotes. Setting it lower does not tighten anything, and the field being non-zero should
+not be read as evidence that challenge freshness is being enforced. What _does_ bound the
+window is the authorization lifetime: `min(60s, maxTimeoutSeconds)`, never exceeding the
+merchant's own bound.
+
+The field is kept rather than removed for two reasons: it is part of the configuration
+contract, and a scheme
+that starts putting a timestamp in `extra` gets the check for free.
+
+---
+
+## `routing.rpcOverrides` — your endpoint instead of the manifest's
+
+The signed manifest ships keyless public RPC endpoints, because those are the only ones that
+can be published to every installation. A keyless public endpoint has a per-IP quota, and at
+any volume you will hit it.
+
+`routing.rpcOverrides` replaces the endpoint list for one network, and changes nothing else:
+
+```ts
+const tx402 = createTx402Client({
+  signers: { solana },
+  routing: {
+    rpcOverrides: {
+      "solana:devnet": ["https://your-provider.example/v2/<key>"],
+    },
+  },
+});
+```
+
+```python
+Tx402Client(
+    solana_signer=solana,
+    routing=RoutingPolicy(
+        rpc_overrides={"solana:devnet": ["https://your-provider.example/v2/<key>"]},
+    ),
+)
+```
+
+Validated at construction, so a mistake is an error rather than a setting that quietly never
+applies:
+
+| Rule | Why |
+| :--- | :--- |
+| The key is resolved through the manifest | An unknown or misspelled network fails immediately. An override that never matches would leave you believing your keyed endpoint is in use while every read still goes to the public one. |
+| An empty list is rejected | "Override with nothing" is a mistake, not a request to fall back. |
+| `https:` only, except on localhost | An RPC endpoint usually carries its API key in the path or query. `http:` is allowed on `localhost`, `127.0.0.1`, and `[::1]` for a local validator. |
+| Nothing else is overridable | Which networks exist, which assets they carry, and a token's decimals still come from the signed document. |
+
+:::note[This does not weaken the signed manifest]
+The manifest's signature protects against a *third party* redirecting your balance reads.
+An override is you, in your own source. And it cannot make tx402 pay on the wrong chain
+regardless: chain identity — `eth_chainId`, the Solana genesis
+hash — to be proven on the same endpoint that serves the balance, on **every** read, and
+that check runs against whatever endpoint is in use. An override pointing somewhere wrong
+opens that endpoint's circuit and is skipped.
+
+The worst an override can do is make tx402 unable to read a balance, which surfaces as a
+typed `TransportError` and no signature.
+:::
+
+tx402 never reads the environment for this, or for anything else. If you keep the URL in an
+environment variable, your code passes it in.
+
+---
+
+## `policy.allowedNetworks` and `routing.preferNetworks` — aliases in, canonical out
+
+It is tempting to write `"solana:mainnet"`. Upstream never emits that. Solana CAIP-2
+identifiers are genesis-hash based:
+
+| Cluster | Canonical CAIP-2                          | Alias            |
+| :------ | :---------------------------------------- | :--------------- |
+| Mainnet | `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp` | `solana:mainnet` |
+| Devnet  | `solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1` | `solana:devnet`  |
+
+Configuration accepts **either form**. The alias map lives in the signed release manifest, so
+it is as tamper-evident as the network list itself, and a manifest whose alias shadows a real
+network is rejected at construction.
+
+Everything downstream — policy matching, route selection, health indexing, diagnostics —
+keys on the **canonical** identifier. The alias is display and input only.
+
+This is a correctness rule rather than cosmetics: keying health or policy on an alias would
+silently fail to match a merchant's canonical offer, and the failure would look like "the
+merchant does not support Solana" rather than like a bug.
+
+An identifier that is neither a declared network nor a declared alias is a `ConfigurationError`
+at construction, not a value passed through unresolved. Passing it through would let policy
+accept a network the SDK cannot pay on.
+
+---
+
+## `manifest` — verified at construction, offline, against compiled-in keys
+
+Defaults to the signed manifest bundled with the build. A caller-supplied manifest is
+verified on identical terms; there is no "trust me" mode.
+
+Verification is offline and synchronous, and failure **prevents construction** — it is never
+downgraded to a warning, because everything downstream treats manifest contents as
+authoritative. Rejection reasons are stable identifiers (`expired`, `signature-mismatch`,
+`unknown-key-id`, …) reported in the error's `details.reason`.
+
+Two consequences worth knowing:
+
+- **Expiry is real.** The bundled manifest stops verifying on **2027-08-02**, at which point
+  client construction fails until it is re-issued. See
+  [the manifest runbook](../../operations/release-manifest/).
+- **`requiredNetworks` is not applied by default.** The four-network requirement binds the
+  _bundled_ manifest, which a test asserts directly. A caller-supplied manifest may
+  legitimately declare a single network — a local integration fixture, for instance — so
+  verification requires nothing unless asked.
+
+---
+
+## `signers` — abstractions only
+
+`signers.evm` takes anything satisfying the `EvmSigner` contract: a `kind`, an async
+`getAddress()`, and `signTypedData(request)`. The core client never accepts a private key, and
+there is no environment-variable fallback: silently substituting an environment key for a
+configured signer is forbidden outright.
+
+The address is resolved on **first use** and cached per signer object, not at construction:
+`createTx402Client` validates synchronously and cannot await an async lookup. A failed
+lookup is not cached, so a transient KMS outage does not disable a signer for the life of the
+process.
+
+Chain adapters load lazily. `signers.evm` alone is enough — importing `tx402/evm` by hand is only
+necessary to build a signer or inspect a plan. A configured signer for a family whose adapter is
+unavailable produces `UnsupportedSchemeError` listing the networks that were offered, never a
+silent skip.
+
+The convenience adapter for a raw key lives behind its own import:
+
+```ts
+import { privateKeyToEvmSigner } from "tx402/signers";
+```
+
+It exists for development and for dedicated low-balance wallets. Prefer a KMS, a hardware wallet,
+or a remote signing service — the threat model lists prompt injection extracting a wallet key as a live
+threat for the agent runtimes this SDK targets, and a key in process memory is a key an in-process
+compromise can read.
+
+---
+
+## `timeouts` — the caller's own deadline is never shortened
+
+**The two languages spell these differently.** TypeScript nests them under a `timeouts` object;
+Python takes them as flat keyword arguments and exports no `Timeouts` type. Both are listed here
+because a Python reader who follows only the TypeScript spelling constructs something that does
+not exist.
+
+| Field                       | TypeScript                  | Python                          | Default                 |
+| :-------------------------- | :-------------------------- | :------------------------------ | :---------------------- |
+| `timeouts.initialRequestMs` | `timeouts.initialRequestMs` | `initial_request_timeout_ms`    | absent                  |
+| `timeouts.paymentRetryMs`   | `timeouts.paymentRetryMs`   | `payment_retry_timeout_ms`      | `10000`, minimum `1000` |
+
+```ts
+const tx402 = createTx402Client({
+  signers: { evm },
+  timeouts: { initialRequestMs: 5000, paymentRetryMs: 15000 },
+});
+```
+
+```python
+Tx402Client(
+    evm_signer=evm,
+    initial_request_timeout_ms=5000,
+    payment_retry_timeout_ms=15000,
+)
+```
+
+**`initialRequestMs` is absent by default**, and absent means no SDK deadline at all: the
+caller's own transport timeout — or `AbortSignal` in TypeScript — governs. Supplying one adds a
+deadline **alongside** that, never replacing it, because a caller who set a timeout meant it.
+A non-integer or non-positive value is a `ConfigurationError` at construction in both languages,
+with `reason: "expected-positive-integer"`. Each language reports the `configPath` **in its own
+spelling** — `timeouts.initialRequestMs` from TypeScript, `initial_request_timeout_ms` from
+Python — so the path in the error is always one you could have typed.
+
+**`paymentRetryMs` covers the signature-bearing attempt**, and a paid retry that hits its
+deadline is **ambiguous**, not failed: the signature was already transmitted, so
+`AmbiguousPaymentError` is raised and the reservation is retained until its 120-second TTL.
+Setting this very low does not make failures cleaner — it makes ambiguous outcomes more
+likely. The initial request carries no such hazard, which is why it is the one that may be
+bounded freely: nothing has been signed yet.
+
+---
+
+## `disableRequestIdHeader`
+
+Omits `X-TX402-REQUEST-ID` from the paid retry. The header carries a UUIDv7 and no payment
+meaning; turn it off for merchants that reject unknown headers. The caller's own
+`Idempotency-Key` is always preserved and is never synthesized — merchant semantics are unknown, so
+inventing one would be guessing.
+
+---
+
+## Every remaining field
+
+Listed here so this page is a complete reference rather than a selective one.
+
+| Field                     | Default                     | Behaviour                                                                                                                              |
+| ------------------------- | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `signers.evm`             | absent                      | Required to select an EVM route. A two-method interface, so a KMS or hardware signer is first-class.                                     |
+| `signers.solana`          | absent                      | Required to select a Solana route.                                                                                                       |
+| `policy.maxPerRequest`    | `"0.50 USDC"`               | Per-payment ceiling. Integer atomic units; a decimal that does not divide exactly into the asset's atomic unit is rejected.               |
+| `policy.maxPerHour`       | `"10.00 USDC"`              | Rolling 60-minute cap over committed entries **plus** live reservations, per scope and asset. Must be ≥ `maxPerRequest`.                  |
+| `policy.allowedDomains`   | `["*"]`                     | Matched against the normalized host before the first request **and** before the paid retry.                                              |
+| `policy.allowedNetworks`  | Base + Solana production    | Empty list is invalid. Aliases accepted in, canonical CAIP-2 out — see above.                                                            |
+| `policy.maxPaidAttempts`  | `2`                         | Range 1–3. Counts signed retries only, never the initial unpaid request. Exhaustion is a typed terminal error, not a loop that stops.     |
+| `timeouts.initialRequestMs`<br />`initial_request_timeout_ms` | caller's own | Absent by default: the SDK never silently shortens a caller's timeout.                                            |
+| `timeouts.paymentRetryMs`<br />`payment_retry_timeout_ms` | `10000`         | Covers the one signature-bearing request. Minimum 1000.                                                                 |
+| `routing.preferNetworks`  | `[]`                        | **Implemented.** A tie-break preference only — it cannot make a non-viable route viable, and it ranks below viability. |
+| `routing.rpcOverrides`    | `{}`                        | Caller-supplied RPC endpoints per network, for keyed or private providers.                                                     |
+| `spendStore`              | `MemorySpendStore`          | The pluggable ledger. Its scope key is the normalized merchant host, so two processes sharing a store share a cap.              |
+| `logger`                  | no-op                       | An **object** with `debug`, `info`, `warn` and `error`, each taking one event mapping — not a single callback. Receives redacted structured events; the SDK never writes to the console itself. A value missing any of the four is rejected at construction. |
+| `clock`                   | system + monotonic          | Injectable for tests only.                                                                                                               |
+| `manifest`                | bundled signed manifest     | Signature and expiry verified synchronously at construction; a failure is a construction failure, not a warning.                         |
+| `allowInsecureLocalhost`  | `false`                     | Permits `http://` to localhost. For a local test merchant, and nothing else.                                                             |
+
+### Solana is implemented
+
+Both Solana and `routing.preferNetworks` are shipped: Solana with SPL exact transfers and
+pre-sign transaction validation, and the deterministic route planner that consumes
+`preferNetworks`.

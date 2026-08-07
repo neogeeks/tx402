@@ -1,0 +1,22 @@
+{
+  "name": "@tx402-dev/test-merchant",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Deterministic x402 merchant for integration and fault-injection tests (SPEC §13). Not published.",
+  "type": "module",
+  "main": "index.js",
+  "types": "./index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./index.js"
+    },
+    "./scenarios": "./scenarios.js"
+  },
+  "bin": {
+    "tx402-test-merchant": "./cli.js"
+  },
+  "dependencies": {
+    "@x402/core": "~2.20.0"
+  }
+}

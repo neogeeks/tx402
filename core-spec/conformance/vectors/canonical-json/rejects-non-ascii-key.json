@@ -1,0 +1,17 @@
+{
+  "$schema": "../../../schemas/conformance-vector.schema.json",
+  "id": "canonical-json.rejects-non-ascii-key",
+  "kind": "canonical-json",
+  "milestone": "M0",
+  "title": "A non-ASCII object key is rejected",
+  "description": "String *values* may contain anything and are escaped. Keys may not, because they are sorted, and the sort order of non-ASCII keys differs between the two languages. Rejecting the key is cheaper than specifying a shared collation.",
+  "spec": ["ADR-012"],
+  "input": {
+    "document": {
+      "café": 1
+    }
+  },
+  "expected": {
+    "error": "non-ascii-key"
+  }
+}

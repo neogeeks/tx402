@@ -1,0 +1,56 @@
+# Canonical label set for this repository.
+#
+# This file is the source of truth for issue/PR labels. Apply it with a tool such as
+# `github-label-sync --access-token <token> neogeeks/tx402` or by hand via
+# `gh label create <name> --color <hex> --description <text>`. The issue forms in
+# .github/ISSUE_TEMPLATE/ reference `bug`, `enhancement`, and `triage`.
+
+# --- Type ---
+- name: bug
+  color: d73a4a
+  description: Something behaves differently from what the docs promise
+- name: enhancement
+  color: a2eeef
+  description: New feature or request
+- name: documentation
+  color: 0075ca
+  description: Improvements or additions to docs
+- name: security
+  color: b60205
+  description: Security-relevant (public tracking only; report vulnerabilities privately)
+
+# --- Triage ---
+- name: triage
+  color: ededed
+  description: Needs maintainer triage
+- name: question
+  color: d876e3
+  description: Further information is requested
+- name: duplicate
+  color: cfd3d7
+  description: This issue or PR already exists
+- name: wontfix
+  color: ffffff
+  description: This will not be worked on
+
+# --- Area ---
+- name: typescript
+  color: 3178c6
+  description: The TypeScript SDK
+- name: python
+  color: 3776ab
+  description: The Python SDK
+- name: cli
+  color: 5319e7
+  description: The tx402 command-line interface
+- name: conformance
+  color: fbca04
+  description: Cross-language parity and the shared conformance vectors
+
+# --- Invitation ---
+- name: good first issue
+  color: 7057ff
+  description: A good entry point for new contributors
+- name: help wanted
+  color: 008672
+  description: Extra attention is welcome

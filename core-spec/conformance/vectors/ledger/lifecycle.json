@@ -1,0 +1,73 @@
+{
+  "$schema": "https://tx402.dev/schemas/v1/conformance-vector.schema.json",
+  "id": "spend-ledger.behavior.lifecycle",
+  "kind": "spend-ledger.behavior",
+  "milestone": "M2",
+  "title": "Commit is idempotent and release removes an active reservation from totals",
+  "spec": ["SPEC §5.3", "ADR-007"],
+  "input": {
+    "operations": [
+      {
+        "action": "reserve",
+        "reservationId": "00000000-0000-7000-8000-000000000011",
+        "requestId": "request-11",
+        "policyScope": "scope-1",
+        "requestFingerprint": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+        "assetId": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "amountAtomic": "4",
+        "maxPerHourAtomic": "10",
+        "nowEpochMs": 1785715200000
+      },
+      {
+        "action": "commit",
+        "reservationId": "00000000-0000-7000-8000-000000000011",
+        "committedAtEpochMs": 1785715200100,
+        "settlementId": "settlement-11"
+      },
+      {
+        "action": "commit",
+        "reservationId": "00000000-0000-7000-8000-000000000011",
+        "committedAtEpochMs": 1785715200200,
+        "settlementId": "ignored-idempotent-replay"
+      },
+      {
+        "action": "reserve",
+        "reservationId": "00000000-0000-7000-8000-000000000012",
+        "requestId": "request-12",
+        "policyScope": "scope-1",
+        "requestFingerprint": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+        "assetId": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "amountAtomic": "6",
+        "maxPerHourAtomic": "10",
+        "nowEpochMs": 1785715200300
+      },
+      {
+        "action": "release",
+        "reservationId": "00000000-0000-7000-8000-000000000012",
+        "nowEpochMs": 1785715200400
+      },
+      {
+        "action": "snapshot",
+        "policyScope": "scope-1",
+        "assetId": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "nowEpochMs": 1785715200500
+      }
+    ]
+  },
+  "expected": {
+    "outcomes": [
+      { "outcome": "reserved", "state": "reserved" },
+      { "outcome": "committed" },
+      { "outcome": "committed" },
+      { "outcome": "reserved", "state": "reserved" },
+      { "outcome": "released", "state": "released" },
+      {
+        "outcome": "snapshot",
+        "committedAtomic": "4",
+        "reservedAtomic": "0",
+        "reservationStates": ["committed", "released"],
+        "entryCount": 1
+      }
+    ]
+  }
+}

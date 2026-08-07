@@ -1,0 +1,44 @@
+{
+  "$schema": "https://tx402.dev/schemas/v1/conformance-vector.schema.json",
+  "id": "completion.paid-attempt.attempts-exhausted",
+  "kind": "completion.paid-attempt",
+  "milestone": "M6",
+  "title": "The last permitted attempt turns a repeated 402 into a terminal error",
+  "description": "The same 402 means two different things depending only on how many attempts remain. On attempt 1 of 2 it is a re-challenge; on attempt 2 of 2 it is exhaustion, and exhaustion must be a typed terminal error rather than a loop that quietly stops. Both dispositions release, because in neither case did the merchant accept the payment.",
+  "spec": ["SPEC \u00a76.7", "SPEC \u00a74.3", "SPEC T-010"],
+  "input": {
+    "maxPaidAttempts": 2,
+    "attempts": [
+      {
+        "attempt": 1,
+        "result": {
+          "kind": "response",
+          "status": 402,
+          "settlement": "absent"
+        }
+      },
+      {
+        "attempt": 2,
+        "result": {
+          "kind": "response",
+          "status": 402,
+          "settlement": "absent"
+        }
+      }
+    ]
+  },
+  "expected": {
+    "dispositions": [
+      {
+        "kind": "rechallenge",
+        "reservation": "released"
+      },
+      {
+        "kind": "failed",
+        "reservation": "released",
+        "errorCode": "TX402_RESOURCE_DELIVERY",
+        "reason": "max-paid-attempts-exhausted"
+      }
+    ]
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "$schema": "https://tx402.dev/schemas/v1/conformance-vector.schema.json",
+  "id": "routing.candidate-order.viability-outranks-preference",
+  "kind": "routing.candidate-order",
+  "milestone": "M5",
+  "title": "A preferred network with an insufficient balance still loses to a viable one",
+  "description": "T-005's ordering in isolation: Base is the preferred network and is offered first, but its balance is below the requirement, so it is not viable. Viability is the first key in SPEC \u00a76.4 step 18 and no amount of preference can lift a candidate above it. The non-viable candidate is retained rather than dropped, with its rejection reason, because step 20's per-network deficits are reported from the full considered set.",
+  "spec": ["SPEC \u00a76.4", "SPEC \u00a75.2", "SPEC T-005"],
+  "input": {
+    "preferNetworks": ["eip155:8453"],
+    "candidates": [
+      {
+        "requirementIndex": 0,
+        "network": "eip155:8453",
+        "scheme": "exact",
+        "assetId": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "amountAtomic": "50000",
+        "estimatedFeeAtomic": "0",
+        "healthScore": 0.8,
+        "circuitState": "closed",
+        "viable": false,
+        "rejectionReasons": ["insufficient-balance"],
+        "signerId": "evm:0x1111111111111111111111111111111111111111",
+        "balanceAtomic": "10000",
+        "observedLatencyMs": 40
+      },
+      {
+        "requirementIndex": 1,
+        "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+        "scheme": "exact",
+        "assetId": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/token:EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "amountAtomic": "50000",
+        "estimatedFeeAtomic": "0",
+        "healthScore": 0.8,
+        "circuitState": "closed",
+        "viable": true,
+        "rejectionReasons": [],
+        "signerId": "solana:9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin",
+        "balanceAtomic": "5000000",
+        "observedLatencyMs": 90
+      }
+    ]
+  },
+  "expected": {
+    "order": [1, 0],
+    "selected": 1
+  }
+}

@@ -1,0 +1,93 @@
+{
+  "$schema": "../../../schemas/conformance-vector.schema.json",
+  "id": "manifest.verify.non-canonical-float",
+  "kind": "manifest.verify",
+  "milestone": "M0",
+  "title": "A manifest containing a float cannot be canonicalized, so it cannot be verified",
+  "description": "Canonical JSON is only well-defined over integers (ADR-012). A float would serialize differently in the two languages, so a document containing one has no single set of bytes to check a signature against. It is rejected at canonicalization, before verification is attempted.",
+  "spec": ["ADR-006", "ADR-012"],
+  "input": {
+    "manifest": {
+      "manifestVersion": 1,
+      "release": "0.1.0",
+      "issuedAt": "2026-08-02T00:00:00Z",
+      "expiresAt": "2027-08-02T00:00:00Z",
+      "networks": {
+        "eip155:8453": {
+          "environment": "production",
+          "chainId": 8453,
+          "rpcUrls": ["https://mainnet.base.org", "https://base-rpc.publicnode.com"],
+          "assets": [
+            {
+              "symbol": "USDC",
+              "address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "decimals": 6.0000001,
+              "eip712Version": "2",
+              "schemes": ["exact"]
+            }
+          ]
+        },
+        "eip155:84532": {
+          "environment": "test",
+          "chainId": 84532,
+          "rpcUrls": [
+            "https://sepolia.base.org",
+            "https://base-sepolia-rpc.publicnode.com"
+          ],
+          "assets": [
+            {
+              "symbol": "USDC",
+              "address": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+              "decimals": 6,
+              "eip712Version": "2",
+              "schemes": ["exact"]
+            }
+          ]
+        },
+        "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp": {
+          "environment": "production",
+          "genesisHash": "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d",
+          "rpcUrls": ["https://api.mainnet-beta.solana.com"],
+          "assets": [
+            {
+              "symbol": "USDC",
+              "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+              "decimals": 6,
+              "tokenProgram": "spl-token",
+              "schemes": ["exact"]
+            }
+          ]
+        },
+        "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1": {
+          "environment": "test",
+          "genesisHash": "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG",
+          "rpcUrls": ["https://api.devnet.solana.com"],
+          "assets": [
+            {
+              "symbol": "USDC",
+              "mint": "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
+              "decimals": 6,
+              "tokenProgram": "spl-token",
+              "schemes": ["exact"]
+            }
+          ]
+        }
+      },
+      "networkAliases": {
+        "solana:mainnet": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+        "solana:devnet": "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1"
+      },
+      "signature": {
+        "algorithm": "ed25519",
+        "keyId": "tx402-release-1",
+        "value": "5XDeqs74lnuSVoRzpxmqOI+29zKLj25eIDfK/qAhXtU+IxfZ27uEGCJnR0WAOIycQ3VOUHV9W3S2tdx9kX7pAQ=="
+      }
+    },
+    "nowEpochMs": 1788220800000
+  },
+  "expected": {
+    "outcome": "invalid",
+    "errorCode": "TX402_CONFIG_INVALID",
+    "reason": "non-canonical-document"
+  }
+}

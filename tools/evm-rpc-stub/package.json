@@ -1,0 +1,15 @@
+{
+  "name": "@tx402-dev/evm-rpc-stub",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Deterministic local EVM JSON-RPC stub for Base integration and fault-injection tests (SPEC §13). Not published.",
+  "type": "module",
+  "main": "index.js",
+  "types": "./index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./index.js"
+    }
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "name": "@tx402-dev/supply-chain",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "SPEC §12.4 supply-chain gates — CycloneDX SBOMs, licence policy, vulnerability scan, reproducible build."
+}

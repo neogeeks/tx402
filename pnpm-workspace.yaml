@@ -1,0 +1,7 @@
+packages:
+  - "packages/tx402"
+  - "docs"
+  - "examples/typescript"
+  - "tools/*"
+onlyBuiltDependencies:
+  - esbuild

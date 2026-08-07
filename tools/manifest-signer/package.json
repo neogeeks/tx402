@@ -1,0 +1,11 @@
+{
+  "name": "@tx402-dev/manifest-signer",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Generates, signs, and verifies tx402 release manifests (SPEC §5.4, ADR-012). Not published.",
+  "type": "module",
+  "main": "index.js",
+  "bin": {
+    "tx402-manifest": "./index.js"
+  }
+}

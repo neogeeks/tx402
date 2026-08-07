@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tx402.dev/schemas/v1/spend-reservation.schema.json",
+  "title": "SpendReservation",
+  "description": "A hold placed on the rolling hourly budget before any signer is invoked (SPEC §5.3, SEC-002).\n\nLifecycle: created atomically in state `reserved` before signing; moves to `committed` only after a paid response is confirmed; moves to `released` on terminal failure with no payment evidence; moves to `expired` once `expiresAtEpochMs` passes without resolution.\n\nAn expired reservation MUST NOT count toward the hourly budget. An ambiguous outcome (5xx, timeout, or network failure after the signature was transmitted) deliberately leaves the reservation in `reserved` until its TTL elapses rather than releasing it — releasing early would let a possibly-settled payment be double-spent against the cap (SPEC §6.7).",
+
+  "type": "object",
+  "required": [
+    "reservationId",
+    "policyScope",
+    "requestFingerprint",
+    "assetId",
+    "amountAtomic",
+    "createdAtEpochMs",
+    "expiresAtEpochMs",
+    "state"
+  ],
+  "additionalProperties": false,
+
+  "properties": {
+    "reservationId": {
+      "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/uuidV7"
+    },
+
+    "policyScope": {
+      "description": "Identifies the budget the reservation draws against. A single client instance uses one scope; a shared SpendStore across processes partitions by it (ADR-007).",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+
+    "requestFingerprint": {
+      "description": "SEC-009: binds method, normalized URL, body digest, and challenge hash. Contains no secrets — not headers, not cookies, not bearer tokens. Golden vectors freeze the construction so TypeScript and Python produce identical digests.",
+      "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/sha256Digest"
+    },
+
+    "assetId": {
+      "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/caip19"
+    },
+
+    "amountAtomic": {
+      "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/positiveAtomicAmount"
+    },
+
+    "createdAtEpochMs": {
+      "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/epochMs"
+    },
+
+    "expiresAtEpochMs": {
+      "description": "createdAtEpochMs + 120000. The TTL is fixed at 120 seconds by SPEC §5.3 and is not configurable.",
+      "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/epochMs"
+    },
+
+    "state": {
+      "type": "string",
+      "enum": ["reserved", "committed", "released", "expired"]
+    }
+  }
+}

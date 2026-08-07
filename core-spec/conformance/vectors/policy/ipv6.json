@@ -1,0 +1,15 @@
+{
+  "$schema": "../../../schemas/conformance-vector.schema.json",
+  "id": "policy.host-normalization.ipv6",
+  "kind": "policy.host-normalization",
+  "milestone": "M0",
+  "title": "An IPv6 literal keeps its brackets",
+  "description": "`new URL(...).hostname` retains the brackets, and the allowlist pattern normalizer routes through this same function, so both sides carry them. Dropping them on one side only would make an IPv6 allowlist entry silently never match.",
+  "spec": ["SPEC §6.3", "ADR-018"],
+  "input": {
+    "url": "https://[2001:db8::1]/resource"
+  },
+  "expected": {
+    "host": "[2001:db8::1]"
+  }
+}

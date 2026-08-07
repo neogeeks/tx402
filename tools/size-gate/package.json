@@ -1,0 +1,11 @@
+{
+  "name": "@tx402-dev/size-gate",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Measures the tx402 core import path against the two-part budget defined in ADR-008. Not published.",
+  "type": "module",
+  "main": "index.js",
+  "dependencies": {
+    "esbuild": "^0.24.0"
+  }
+}

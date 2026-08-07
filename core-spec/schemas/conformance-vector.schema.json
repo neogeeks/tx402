@@ -1,0 +1,923 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tx402.dev/schemas/v1/conformance-vector.schema.json",
+  "title": "ConformanceVector",
+  "description": "One language-neutral conformance fixture (ADR-005).\n\nEvery vector is a self-contained document: it carries its own inputs, its own expected outputs, and the milestone at which an implementation is required to execute it. Runners in both languages read the same files; neither language may carry a private fixture.\n\nExecution is two-stage — see core-spec/conformance/README.md:\n  Stage A validates the *vector* against the frozen schemas and taxonomy. It runs from M0 in both languages for every vector, including vectors whose milestone has not landed.\n  Stage B runs the *implementation* against the vector. It runs only where a handler for the vector's `kind` is registered.\n\nA vector whose `milestone` is at or below a language's implemented-through marker MUST have a Stage B handler; otherwise the runner fails. That is what stops an unimplemented milestone from passing silently.",
+
+  "type": "object",
+  "required": ["id", "kind", "milestone", "title", "spec", "expected"],
+  "additionalProperties": false,
+
+  "properties": {
+    "id": {
+      "description": "Globally unique, stable, and never reused. Referenced from PLAN.md and from release notes, so renaming one is a documentation break. Dotted segments read as `<area>.<subject>.<case>`; the leading segment conventionally matches the vector's `kind`.",
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*(\\.[a-z0-9-]+)+$",
+      "maxLength": 128
+    },
+
+    "kind": {
+      "description": "Selects the handler. A runner that encounters an unknown kind fails rather than skipping — an unrecognized kind means the fixture set moved ahead of the runner.",
+      "type": "string",
+      "enum": [
+        "errors.taxonomy",
+        "canonical-json",
+        "manifest.verify",
+        "manifest.network-resolution",
+        "policy.host-normalization",
+        "protocol.decode-payment-required",
+        "request.fingerprint",
+        "spend-ledger.behavior",
+        "evm.authorization-plan",
+        "svm.authorization-plan",
+        "routing.candidate-order",
+        "health.circuit",
+        "completion.paid-attempt"
+      ]
+    },
+
+    "milestone": {
+      "description": "The SPEC §14 milestone that must execute this vector under Stage B.",
+      "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/milestone"
+    },
+
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+
+    "description": {
+      "type": "string",
+      "maxLength": 2000
+    },
+
+    "spec": {
+      "description": "The clauses this vector pins. Non-empty: a vector that cannot cite a requirement is testing an implementation detail, not a contract.",
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1, "maxLength": 80 }
+    },
+
+    "input": {
+      "description": "Kind-specific. Absent for kinds that take no input, such as errors.taxonomy."
+    },
+
+    "expected": {
+      "description": "Kind-specific."
+    }
+  },
+
+  "allOf": [
+    {
+      "if": {
+        "properties": { "kind": { "const": "errors.taxonomy" } },
+        "required": ["kind"]
+      },
+      "then": {
+        "properties": { "expected": { "$ref": "#/$defs/expectedErrorTaxonomy" } }
+      }
+    },
+    {
+      "if": {
+        "properties": { "kind": { "const": "canonical-json" } },
+        "required": ["kind"]
+      },
+      "then": {
+        "required": ["input"],
+        "properties": {
+          "input": { "$ref": "#/$defs/inputCanonicalJson" },
+          "expected": { "$ref": "#/$defs/expectedCanonicalJson" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "kind": { "const": "manifest.verify" } },
+        "required": ["kind"]
+      },
+      "then": {
+        "required": ["input"],
+        "properties": {
+          "input": { "$ref": "#/$defs/inputManifestVerify" },
+          "expected": { "$ref": "#/$defs/expectedOutcome" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "kind": { "const": "manifest.network-resolution" } },
+        "required": ["kind"]
+      },
+      "then": {
+        "required": ["input"],
+        "properties": {
+          "input": { "$ref": "#/$defs/inputNetworkResolution" },
+          "expected": { "$ref": "#/$defs/expectedNetworkResolution" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "kind": { "const": "protocol.decode-payment-required" } },
+        "required": ["kind"]
+      },
+      "then": {
+        "required": ["input"],
+        "properties": {
+          "input": { "$ref": "#/$defs/inputDecodePaymentRequired" },
+          "expected": { "$ref": "#/$defs/expectedDecodePaymentRequired" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "kind": { "const": "request.fingerprint" } },
+        "required": ["kind"]
+      },
+      "then": {
+        "required": ["input"],
+        "properties": {
+          "input": { "$ref": "#/$defs/inputRequestFingerprint" },
+          "expected": { "$ref": "#/$defs/expectedRequestFingerprint" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "kind": { "const": "spend-ledger.behavior" } },
+        "required": ["kind"]
+      },
+      "then": {
+        "required": ["input"],
+        "properties": {
+          "input": { "$ref": "#/$defs/inputSpendLedger" },
+          "expected": { "$ref": "#/$defs/expectedSpendLedger" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "kind": { "const": "evm.authorization-plan" } },
+        "required": ["kind"]
+      },
+      "then": {
+        "required": ["input"],
+        "properties": {
+          "input": { "$ref": "#/$defs/inputEvmAuthorizationPlan" },
+          "expected": { "$ref": "#/$defs/expectedEvmAuthorizationPlan" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "kind": { "const": "routing.candidate-order" } },
+        "required": ["kind"]
+      },
+      "then": {
+        "required": ["input"],
+        "properties": {
+          "input": { "$ref": "#/$defs/inputCandidateOrder" },
+          "expected": { "$ref": "#/$defs/expectedCandidateOrder" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "kind": { "const": "health.circuit" } },
+        "required": ["kind"]
+      },
+      "then": {
+        "required": ["input"],
+        "properties": {
+          "input": { "$ref": "#/$defs/inputHealthCircuit" },
+          "expected": { "$ref": "#/$defs/expectedHealthCircuit" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "kind": { "const": "completion.paid-attempt" } },
+        "required": ["kind"]
+      },
+      "then": {
+        "required": ["input"],
+        "properties": {
+          "input": { "$ref": "#/$defs/inputPaidAttempt" },
+          "expected": { "$ref": "#/$defs/expectedPaidAttempt" }
+        }
+      }
+    }
+  ],
+
+  "$defs": {
+    "taxonomyEntry": {
+      "type": "object",
+      "required": ["code", "className", "retryability", "retryable", "requiredDetails"],
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/errorCode"
+        },
+        "className": {
+          "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/errorClassName"
+        },
+        "retryability": {
+          "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/retryability"
+        },
+        "retryable": {
+          "description": "Derived from `retryability`, not chosen independently: true only for `caller-policy` (ADR-011). Stated explicitly here so a drift between the rule and the derivation is caught by the fixture rather than by a user.",
+          "type": "boolean"
+        },
+        "requiredDetails": {
+          "description": "Keys the SPEC §8 'required context' column obliges this error to carry in `details`. Every key must be redaction-safe.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^[a-z][A-Za-z0-9]*$" }
+        }
+      }
+    },
+
+    "expectedErrorTaxonomy": {
+      "type": "object",
+      "required": ["entries"],
+      "additionalProperties": false,
+      "properties": {
+        "entries": {
+          "type": "array",
+          "minItems": 15,
+          "maxItems": 15,
+          "items": { "$ref": "#/$defs/taxonomyEntry" }
+        }
+      }
+    },
+
+    "inputCanonicalJson": {
+      "type": "object",
+      "required": ["document"],
+      "additionalProperties": false,
+      "properties": {
+        "document": {
+          "description": "Any JSON value. Values that canonical serialization rejects — floats, non-ASCII object keys — are expressed as vectors with an `error` expectation."
+        }
+      }
+    },
+
+    "expectedCanonicalJson": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["canonical", "sha256"],
+          "additionalProperties": false,
+          "properties": {
+            "canonical": { "type": "string" },
+            "sha256": {
+              "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/sha256Digest"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["error"],
+          "additionalProperties": false,
+          "properties": {
+            "error": {
+              "description": "Both languages must reject for the same stated reason, not merely both reject.",
+              "type": "string",
+              "enum": [
+                "non-integer-number",
+                "number-out-of-safe-range",
+                "non-ascii-key",
+                "unsupported-type"
+              ]
+            }
+          }
+        }
+      ]
+    },
+
+    "inputManifestVerify": {
+      "type": "object",
+      "required": ["manifest", "nowEpochMs"],
+      "additionalProperties": false,
+      "properties": {
+        "manifest": {
+          "description": "The document under test. Deliberately unconstrained: invalid manifests are the point of most of these vectors.",
+          "type": "object"
+        },
+        "nowEpochMs": {
+          "description": "Injected clock (SPEC §4.3 `clock`), so expiry vectors are not time-dependent.",
+          "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/epochMs"
+        },
+        "trustedKeys": {
+          "description": "keyId to standard-base64 raw 32-byte Ed25519 public key. Omitted means 'the keys the SDK ships with', which is the realistic case.",
+          "type": "object",
+          "additionalProperties": { "type": "string", "pattern": "^[A-Za-z0-9+/]{43}=$" }
+        }
+      }
+    },
+
+    "expectedOutcome": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["outcome"],
+          "additionalProperties": false,
+          "properties": { "outcome": { "const": "valid" } }
+        },
+        {
+          "type": "object",
+          "required": ["outcome", "errorCode", "reason"],
+          "additionalProperties": false,
+          "properties": {
+            "outcome": { "const": "invalid" },
+            "errorCode": {
+              "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/errorCode"
+            },
+            "reason": {
+              "description": "Stable machine-readable discriminator. Two implementations must fail for the same reason, not merely both fail.",
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]*$",
+              "maxLength": 64
+            }
+          }
+        }
+      ]
+    },
+
+    "inputNetworkResolution": {
+      "type": "object",
+      "required": ["manifest", "query"],
+      "additionalProperties": false,
+      "properties": {
+        "manifest": { "type": "object" },
+        "query": {
+          "description": "A canonical CAIP-2 identifier or a manifest-declared alias, as it would arrive from `policy.allowedNetworks` or the CLI `--network` flag.",
+          "type": "string",
+          "maxLength": 64
+        }
+      }
+    },
+
+    "expectedNetworkResolution": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["resolved", "wasAlias"],
+          "additionalProperties": false,
+          "properties": {
+            "resolved": {
+              "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/caip2"
+            },
+            "wasAlias": { "type": "boolean" }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["errorCode", "reason"],
+          "additionalProperties": false,
+          "properties": {
+            "errorCode": {
+              "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/errorCode"
+            },
+            "reason": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$", "maxLength": 64 }
+          }
+        }
+      ]
+    },
+
+    "inputDecodePaymentRequired": {
+      "type": "object",
+      "required": ["requestUrl", "requestMethod", "clockEpochMs"],
+      "additionalProperties": false,
+      "properties": {
+        "requestUrl": {
+          "description": "The URL tx402 actually requested. Origin binding is checked against this (ADR-010 decision 2).",
+          "type": "string",
+          "maxLength": 2048
+        },
+        "requestMethod": {
+          "description": "The method tx402 actually issued. This is what populates `resource.method`; it is not read from the challenge.",
+          "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/httpMethod"
+        },
+        "header": {
+          "description": "Raw PAYMENT-REQUIRED header value, exactly as it would arrive on the wire. Standard base64 alphabet with padding, matching upstream's Base64EncodedRegex `^[A-Za-z0-9+/]*={0,2}$`. Absent for vectors that test a missing header.",
+          "type": "string",
+          "maxLength": 131072
+        },
+        "generatedHeader": {
+          "description": "A deterministic header recipe used when committing the literal base64 would make the fixture needlessly huge. Runners in both languages must materialize exactly the requested decoded byte count before Stage B.",
+          "type": "object",
+          "required": ["kind", "decodedBytes"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "repeated-ascii" },
+            "decodedBytes": { "type": "integer", "minimum": 65537, "maximum": 98304 }
+          }
+        },
+        "clockEpochMs": {
+          "description": "Injected clock, so `receivedAt` is deterministic.",
+          "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/epochMs"
+        }
+      },
+      "not": { "required": ["header", "generatedHeader"] }
+    },
+
+    "expectedDecodePaymentRequired": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["outcome", "normalized"],
+          "additionalProperties": false,
+          "properties": {
+            "outcome": { "const": "valid" },
+            "normalized": {
+              "$ref": "https://tx402.dev/schemas/v1/normalized-payment-required.schema.json"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["outcome", "errorCode", "reason"],
+          "additionalProperties": false,
+          "properties": {
+            "outcome": { "const": "invalid" },
+            "errorCode": {
+              "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/errorCode"
+            },
+            "reason": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$", "maxLength": 64 }
+          }
+        }
+      ]
+    },
+
+    "inputRequestFingerprint": {
+      "type": "object",
+      "required": ["method", "url", "body", "challengeHash"],
+      "additionalProperties": false,
+      "properties": {
+        "method": {
+          "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/httpMethod"
+        },
+        "url": { "type": "string", "minLength": 1, "maxLength": 2048 },
+        "body": { "type": ["string", "null"] },
+        "challengeHash": {
+          "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/sha256Digest"
+        }
+      }
+    },
+
+    "expectedRequestFingerprint": {
+      "type": "object",
+      "required": ["normalizedUrl", "bodyHash", "fingerprint"],
+      "additionalProperties": false,
+      "properties": {
+        "normalizedUrl": { "type": "string", "minLength": 1, "maxLength": 2048 },
+        "bodyHash": {
+          "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/sha256Digest"
+        },
+        "fingerprint": {
+          "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/sha256Digest"
+        }
+      }
+    },
+
+    "inputSpendLedger": {
+      "type": "object",
+      "required": ["operations"],
+      "additionalProperties": false,
+      "properties": {
+        "operations": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 64,
+          "items": {
+            "type": "object",
+            "required": ["action"],
+            "properties": {
+              "action": { "enum": ["reserve", "commit", "release", "snapshot"] },
+              "reservationId": {
+                "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/uuidV7"
+              },
+              "requestId": { "type": "string", "minLength": 1 },
+              "policyScope": { "type": "string", "minLength": 1, "maxLength": 128 },
+              "requestFingerprint": {
+                "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/sha256Digest"
+              },
+              "assetId": {
+                "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/caip19"
+              },
+              "amountAtomic": {
+                "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/positiveAtomicAmount"
+              },
+              "maxPerHourAtomic": {
+                "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/positiveAtomicAmount"
+              },
+              "nowEpochMs": {
+                "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/epochMs"
+              },
+              "committedAtEpochMs": {
+                "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/epochMs"
+              },
+              "settlementId": { "type": "string", "minLength": 1, "maxLength": 256 }
+            },
+            "additionalProperties": false
+          }
+        }
+      }
+    },
+
+    "inputEvmAuthorizationPlan": {
+      "description": "One policy-approved requirement, as the Base adapter receives it. The manifest is not carried here: the network and asset are resolved from the implementation's own bundled manifest by `networkId` and `requirement.asset`, so the vector also pins that lookup.",
+      "type": "object",
+      "required": ["networkId", "requirement", "payer", "nowEpochMs"],
+      "additionalProperties": false,
+      "properties": {
+        "networkId": {
+          "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/caip2"
+        },
+        "requirement": {
+          "type": "object",
+          "required": [
+            "scheme",
+            "network",
+            "asset",
+            "amountAtomic",
+            "payTo",
+            "maxTimeoutSeconds",
+            "extra"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "index": { "type": "integer", "minimum": 0 },
+            "scheme": { "type": "string", "minLength": 1, "maxLength": 64 },
+            "network": { "type": "string", "minLength": 3, "maxLength": 64 },
+            "asset": { "type": "string", "minLength": 1, "maxLength": 128 },
+            "amountAtomic": { "type": "string", "minLength": 1, "maxLength": 78 },
+            "payTo": { "type": "string", "minLength": 1, "maxLength": 128 },
+            "maxTimeoutSeconds": { "type": "integer" },
+            "extra": { "type": "object" }
+          }
+        },
+        "payer": {
+          "description": "The address the configured signer resolved to.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "nowEpochMs": {
+          "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/epochMs"
+        },
+        "maxAuthorizationSeconds": {
+          "description": "SPEC §6.6's ceiling. Defaults to 60 when the vector omits it.",
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+
+    "expectedEvmAuthorizationPlan": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["outcome", "plan"],
+          "additionalProperties": false,
+          "properties": {
+            "outcome": { "const": "valid" },
+            "plan": {
+              "type": "object",
+              "required": [
+                "chainId",
+                "verifyingContract",
+                "domainName",
+                "domainVersion",
+                "payer",
+                "recipient",
+                "valueAtomic",
+                "lifetimeSeconds",
+                "validAfterSeconds",
+                "notBeforeEpochSeconds",
+                "notAfterEpochSeconds",
+                "balanceOfCallData"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "chainId": { "type": "integer", "minimum": 1 },
+                "verifyingContract": { "type": "string", "pattern": "^0x[0-9a-fA-F]{40}$" },
+                "domainName": { "type": "string", "minLength": 1 },
+                "domainVersion": { "type": "string", "minLength": 1 },
+                "payer": { "type": "string", "pattern": "^0x[0-9a-fA-F]{40}$" },
+                "recipient": { "type": "string", "pattern": "^0x[0-9a-fA-F]{40}$" },
+                "valueAtomic": {
+                  "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/positiveAtomicAmount"
+                },
+                "lifetimeSeconds": { "type": "integer", "minimum": 1, "maximum": 60 },
+                "validAfterSeconds": { "const": 0 },
+                "notBeforeEpochSeconds": { "type": "integer", "minimum": 0 },
+                "notAfterEpochSeconds": { "type": "integer", "minimum": 0 },
+                "balanceOfCallData": {
+                  "type": "string",
+                  "pattern": "^0x70a08231[0-9a-f]{64}$"
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["outcome", "errorCode", "reason"],
+          "additionalProperties": false,
+          "properties": {
+            "outcome": { "const": "invalid" },
+            "errorCode": {
+              "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/errorCode"
+            },
+            "reason": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$", "maxLength": 64 }
+          }
+        }
+      ]
+    },
+
+    "routeCandidateInput": {
+      "description": "A RouteCandidate as it exists *before* ordering. Deliberately not a `$ref` to route-candidate.schema.json: that schema requires `rank`, and a rank is precisely what these vectors are asking the implementation to compute. Every other field and constraint is kept identical, so a candidate that validates here validates there once ranked.",
+      "type": "object",
+      "required": [
+        "requirementIndex",
+        "network",
+        "scheme",
+        "assetId",
+        "amountAtomic",
+        "estimatedFeeAtomic",
+        "healthScore",
+        "circuitState",
+        "viable",
+        "rejectionReasons"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "requirementIndex": { "type": "integer", "minimum": 0, "maximum": 31 },
+        "network": {
+          "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/caip2"
+        },
+        "scheme": {
+          "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/scheme"
+        },
+        "assetId": {
+          "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/caip19"
+        },
+        "amountAtomic": {
+          "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/positiveAtomicAmount"
+        },
+        "signerId": { "type": "string", "pattern": "^(evm|solana):[-_A-Za-z0-9]{1,64}$" },
+        "balanceAtomic": {
+          "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/atomicAmount"
+        },
+        "estimatedFeeAtomic": {
+          "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/atomicAmount"
+        },
+        "healthScore": { "type": "number", "minimum": 0, "maximum": 1 },
+        "observedLatencyMs": { "type": "number", "minimum": 0 },
+        "circuitState": { "enum": ["closed", "open", "half-open"] },
+        "viable": { "type": "boolean" },
+        "rejectionReasons": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "no-signer-configured",
+              "scheme-unsupported",
+              "network-not-in-manifest",
+              "network-not-allowed-by-policy",
+              "asset-unsupported",
+              "environment-mismatch",
+              "insufficient-balance",
+              "balance-unavailable",
+              "chain-identity-mismatch",
+              "circuit-open"
+            ]
+          }
+        }
+      }
+    },
+
+    "inputCandidateOrder": {
+      "description": "A fully-scored candidate set, so ordering is pinned independently of any RPC, signer, or clock. Health scores are supplied rather than derived — `health.circuit` vectors pin the derivation.",
+      "type": "object",
+      "required": ["candidates"],
+      "additionalProperties": false,
+      "properties": {
+        "preferNetworks": {
+          "description": "`routing.preferNetworks`, already canonical (SPEC §4.3). Tie-break only.",
+          "type": "array",
+          "maxItems": 8,
+          "items": {
+            "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/caip2"
+          }
+        },
+        "candidates": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 32,
+          "items": { "$ref": "#/$defs/routeCandidateInput" }
+        }
+      }
+    },
+
+    "expectedCandidateOrder": {
+      "type": "object",
+      "required": ["order"],
+      "additionalProperties": false,
+      "properties": {
+        "order": {
+          "description": "`requirementIndex` values in final rank order — rank 1 first. Every input candidate appears exactly once: SPEC §6.4 retains non-viable candidates rather than dropping them.",
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 32,
+          "uniqueItems": true,
+          "items": { "type": "integer", "minimum": 0, "maximum": 31 }
+        },
+        "selected": {
+          "description": "`requirementIndex` of the highest-ranked viable candidate. Null when SPEC §6.4 step 20 applies and no route is payable.",
+          "type": ["integer", "null"],
+          "minimum": 0,
+          "maximum": 31
+        }
+      }
+    },
+
+    "inputHealthCircuit": {
+      "description": "A sequence of observations against one endpoint (SPEC §6.5). Latencies and clock readings are supplied so the EWMA arithmetic and the 30-second window are reproducible in both languages.",
+      "type": "object",
+      "required": ["endpointId", "operations"],
+      "additionalProperties": false,
+      "properties": {
+        "endpointId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "operations": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 64,
+          "items": {
+            "type": "object",
+            "required": ["action", "nowEpochMs"],
+            "additionalProperties": false,
+            "properties": {
+              "action": {
+                "description": "`success`/`failure` record a completed use; `open` is the forced chain-identity open of SPEC §7.1/§7.2; `inspect` observes without recording; `admit` claims the half-open probe.",
+                "enum": ["success", "failure", "open", "inspect", "admit"]
+              },
+              "latencyMs": { "type": "number", "minimum": 0 },
+              "nowEpochMs": {
+                "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/epochMs"
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "inputPaidAttempt": {
+      "description": "A sequence of signed attempts against one merchant (SPEC §6.7), with `maxPaidAttempts` held fixed across them. Each entry is what one signature-bearing request produced; nothing here is a clock, a balance, or a route, because the disposition table depends on none of those.",
+      "type": "object",
+      "required": ["maxPaidAttempts", "attempts"],
+      "additionalProperties": false,
+      "properties": {
+        "maxPaidAttempts": {
+          "description": "SPEC §4.3: range 1–3, counting signed retries and never the initial request.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3
+        },
+        "attempts": {
+          "description": "Each entry is one independent classification, not necessarily a step in one call: a vector may put several unrelated attempt-1 cases side by side so they cannot be collapsed into a single branch.",
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 8,
+          "items": {
+            "type": "object",
+            "required": ["attempt", "result"],
+            "additionalProperties": false,
+            "properties": {
+              "attempt": { "type": "integer", "minimum": 1, "maximum": 3 },
+              "result": {
+                "type": "object",
+                "required": ["kind"],
+                "additionalProperties": false,
+                "properties": {
+                  "kind": {
+                    "description": "`response` means the merchant answered; the other two are transmissions that never completed and are ambiguous by construction.",
+                    "enum": ["response", "redirect-blocked", "transport-failure"]
+                  },
+                  "status": { "type": "integer", "minimum": 100, "maximum": 599 },
+                  "settlement": {
+                    "description": "What PAYMENT-RESPONSE proved. Four values, not three: `absent` (no header — permitted, because the pinned upstream protocol marks it optional) and `malformed` (present and undecodable — a protocol violation, and evidence in no direction) were one value until ADR-016, which is what let a corrupt header be read as a paid success.",
+                    "enum": ["success", "unsuccessful", "absent", "malformed"]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "expectedPaidAttempt": {
+      "description": "One disposition per attempt, in order. `reservation` is the money-critical field: `released` requires evidence that no settlement occurred, `retained` holds the reservation to its TTL because the outcome is unknown, and `committed` requires evidence that it did.",
+      "type": "object",
+      "required": ["dispositions"],
+      "additionalProperties": false,
+      "properties": {
+        "dispositions": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 8,
+          "items": {
+            "type": "object",
+            "required": ["kind", "reservation"],
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "description": "The money disposition. `paid-undelivered` is SPEC §5.3's case — the settlement stands and the resource does not — and is the only kind that both commits and raises. `errorCode` is a separate field because the public error identity does not always follow the disposition: a cross-origin redirect is `ambiguous`/`retained` and reports TX402_REDIRECT_BLOCKED (SPEC §6.1).",
+                "enum": ["commit", "rechallenge", "failed", "paid-undelivered", "ambiguous"]
+              },
+              "reservation": { "enum": ["committed", "released", "retained"] },
+              "errorCode": {
+                "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/errorCode"
+              },
+              "reason": { "type": "string", "minLength": 1, "maxLength": 64 },
+              "causeCategory": { "type": "string", "minLength": 1, "maxLength": 64 }
+            }
+          }
+        }
+      }
+    },
+
+    "expectedHealthCircuit": {
+      "type": "object",
+      "required": ["observations"],
+      "additionalProperties": false,
+      "properties": {
+        "observations": {
+          "description": "One entry per input operation, describing the index state immediately after it.",
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 64,
+          "items": {
+            "type": "object",
+            "required": ["circuitState", "healthScore"],
+            "additionalProperties": false,
+            "properties": {
+              "circuitState": { "enum": ["closed", "open", "half-open"] },
+              "healthScore": {
+                "description": "Rounded to four decimal places, half away from zero, so TypeScript and Python agree exactly (SPEC §6.4 step 19).",
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "consecutiveFailures": { "type": "integer", "minimum": 0 },
+              "sampleCount": { "type": "integer", "minimum": 0, "maximum": 20 },
+              "admission": { "enum": ["closed", "open", "half-open"] }
+            }
+          }
+        }
+      }
+    },
+
+    "expectedSpendLedger": {
+      "type": "object",
+      "required": ["outcomes"],
+      "additionalProperties": false,
+      "properties": {
+        "outcomes": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 64,
+          "items": {
+            "type": "object",
+            "required": ["outcome"],
+            "properties": {
+              "outcome": {
+                "enum": ["reserved", "committed", "released", "snapshot", "error"]
+              },
+              "state": { "enum": ["reserved", "committed", "released", "expired"] },
+              "errorCode": {
+                "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/errorCode"
+              },
+              "committedAtomic": {
+                "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/atomicAmount"
+              },
+              "reservedAtomic": {
+                "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/atomicAmount"
+              },
+              "reservationStates": {
+                "type": "array",
+                "items": { "enum": ["reserved", "committed", "released", "expired"] }
+              },
+              "entryCount": { "type": "integer", "minimum": 0 }
+            },
+            "additionalProperties": false
+          }
+        }
+      }
+    }
+  }
+}

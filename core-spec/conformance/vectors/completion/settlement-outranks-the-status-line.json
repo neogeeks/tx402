@@ -1,0 +1,74 @@
+{
+  "$schema": "https://tx402.dev/schemas/v1/conformance-vector.schema.json",
+  "id": "completion.paid-attempt.settlement-outranks-the-status-line",
+  "kind": "completion.paid-attempt",
+  "milestone": "M6",
+  "title": "A reported successful settlement commits whatever the status line says",
+  "description": "SPEC §5.3: if payment settlement is reported successful but the resource response is unusable, the spend remains committed and the SDK raises ResourceDeliveryError with paid=true. Four unusable responses carry a successful PAYMENT-RESPONSE here — a 403 refusal, a 500, a 302, and a fresh 402 with attempts still remaining — and every one of them commits. The 402 is the sharpest of the four: a re-challenge is normally the one piece of evidence strong enough to release, because a merchant still asking to be paid has not been paid, yet a merchant that simultaneously reports a settled payment has contradicted itself and only one reading is safe. Releasing on any of these hands budget back for money that moved, and lets an autonomous caller pay a second time; the S15 audit reproduced exactly that as O44 against attempt 1 of 2 with status 403. Note what does *not* change: a non-2xx that claims no settlement still releases, which is the neighbouring refusal-releases-redirect-does-not vector.",
+  "spec": ["SPEC §5.3", "SPEC §6.7"],
+  "input": {
+    "maxPaidAttempts": 2,
+    "attempts": [
+      {
+        "attempt": 1,
+        "result": {
+          "kind": "response",
+          "status": 403,
+          "settlement": "success"
+        }
+      },
+      {
+        "attempt": 1,
+        "result": {
+          "kind": "response",
+          "status": 500,
+          "settlement": "success"
+        }
+      },
+      {
+        "attempt": 1,
+        "result": {
+          "kind": "response",
+          "status": 302,
+          "settlement": "success"
+        }
+      },
+      {
+        "attempt": 1,
+        "result": {
+          "kind": "response",
+          "status": 402,
+          "settlement": "success"
+        }
+      }
+    ]
+  },
+  "expected": {
+    "dispositions": [
+      {
+        "kind": "paid-undelivered",
+        "reservation": "committed",
+        "errorCode": "TX402_RESOURCE_DELIVERY",
+        "reason": "settlement-succeeded-resource-unusable"
+      },
+      {
+        "kind": "paid-undelivered",
+        "reservation": "committed",
+        "errorCode": "TX402_RESOURCE_DELIVERY",
+        "reason": "settlement-succeeded-resource-unusable"
+      },
+      {
+        "kind": "paid-undelivered",
+        "reservation": "committed",
+        "errorCode": "TX402_RESOURCE_DELIVERY",
+        "reason": "settlement-succeeded-resource-unusable"
+      },
+      {
+        "kind": "paid-undelivered",
+        "reservation": "committed",
+        "errorCode": "TX402_RESOURCE_DELIVERY",
+        "reason": "settlement-succeeded-resource-unusable"
+      }
+    ]
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "$schema": "https://tx402.dev/schemas/v1/conformance-vector.schema.json",
+  "id": "evm.authorization-plan.lifetime-below-default",
+  "kind": "evm.authorization-plan",
+  "milestone": "M3",
+  "title": "A merchant timeout below 60 seconds is the binding one",
+  "description": "The clamp is a ceiling, not a floor: a merchant that allows only 25 seconds gets a 25-second authorization, because SPEC §6.6 forbids exceeding the merchant bound.",
+  "spec": ["SPEC §6.6"],
+  "input": {
+    "networkId": "eip155:8453",
+    "requirement": {
+      "index": 0,
+      "scheme": "exact",
+      "network": "eip155:8453",
+      "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+      "amountAtomic": "50000",
+      "payTo": "0x1234567890AbcdEF1234567890aBcdef12345678",
+      "maxTimeoutSeconds": 25,
+      "extra": {
+        "name": "USD Coin",
+        "version": "2"
+      }
+    },
+    "payer": "0x00000000000000000000000000000000000000A1",
+    "nowEpochMs": 1785715200000
+  },
+  "expected": {
+    "outcome": "valid",
+    "plan": {
+      "chainId": 8453,
+      "verifyingContract": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+      "domainName": "USD Coin",
+      "domainVersion": "2",
+      "payer": "0x00000000000000000000000000000000000000A1",
+      "recipient": "0x1234567890AbcdEF1234567890aBcdef12345678",
+      "valueAtomic": "50000",
+      "lifetimeSeconds": 25,
+      "validAfterSeconds": 0,
+      "notBeforeEpochSeconds": 1785715200,
+      "notAfterEpochSeconds": 1785715225,
+      "balanceOfCallData": "0x70a0823100000000000000000000000000000000000000000000000000000000000000a1"
+    }
+  }
+}

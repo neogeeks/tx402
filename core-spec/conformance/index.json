@@ -1,0 +1,516 @@
+{
+  "formatVersion": 1,
+  "vectors": [
+    {
+      "id": "canonical-json.integer-bounds",
+      "kind": "canonical-json",
+      "milestone": "M0",
+      "file": "vectors/canonical-json/integer-bounds.json",
+      "sha256": "sha256:66b6b87bee14c58df257b5f82e360ad4ba66d0c396e9fb40db4e8ac9e22a65a4"
+    },
+    {
+      "id": "canonical-json.key-ordering",
+      "kind": "canonical-json",
+      "milestone": "M0",
+      "file": "vectors/canonical-json/key-ordering.json",
+      "sha256": "sha256:f490c5c6b317608487a1a27b272fce4b7a802b7349e47be968aa28c57bb9e12e"
+    },
+    {
+      "id": "canonical-json.nested-and-empty",
+      "kind": "canonical-json",
+      "milestone": "M0",
+      "file": "vectors/canonical-json/nested-and-empty.json",
+      "sha256": "sha256:50bba04a37cc8c5bb70397761009e973d1b87154cc97094c3345a3133a0744fe"
+    },
+    {
+      "id": "canonical-json.rejects-float",
+      "kind": "canonical-json",
+      "milestone": "M0",
+      "file": "vectors/canonical-json/rejects-float.json",
+      "sha256": "sha256:06a8af7ecf0d71e135223689fa458937950bbbec41112c23b4f6b00479a53fd1"
+    },
+    {
+      "id": "canonical-json.rejects-non-ascii-key",
+      "kind": "canonical-json",
+      "milestone": "M0",
+      "file": "vectors/canonical-json/rejects-non-ascii-key.json",
+      "sha256": "sha256:9ff016611b241170536d0985847ce257b85cd29bdaffad911ce49c4e230e6bd3"
+    },
+    {
+      "id": "canonical-json.rejects-unsafe-integer",
+      "kind": "canonical-json",
+      "milestone": "M0",
+      "file": "vectors/canonical-json/rejects-unsafe-integer.json",
+      "sha256": "sha256:c39922f8862fb70e3999d7992beb2bc2db911d75c0df32c726ccb249c1333abf"
+    },
+    {
+      "id": "canonical-json.string-escapes",
+      "kind": "canonical-json",
+      "milestone": "M0",
+      "file": "vectors/canonical-json/string-escapes.json",
+      "sha256": "sha256:676398c29305bd5e558102916350beac0abeaf05698ac46fea8415bb5e03bffa"
+    },
+    {
+      "id": "completion.paid-attempt.absent-settlement-evidence-commits",
+      "kind": "completion.paid-attempt",
+      "milestone": "M6",
+      "file": "vectors/completion/absent-settlement-evidence-commits.json",
+      "sha256": "sha256:0b4cb5b3a6ad3fc2c54b98a60d9a586c5fa110702de9caff8b4bd345492639c0"
+    },
+    {
+      "id": "completion.paid-attempt.ambiguous-after-transmission",
+      "kind": "completion.paid-attempt",
+      "milestone": "M6",
+      "file": "vectors/completion/ambiguous-after-transmission.json",
+      "sha256": "sha256:439ca345e45c7b6a0cce8b8db168af279d482e9bad7b5b37378c59d7d6db9d3c"
+    },
+    {
+      "id": "completion.paid-attempt.attempts-exhausted",
+      "kind": "completion.paid-attempt",
+      "milestone": "M6",
+      "file": "vectors/completion/attempts-exhausted.json",
+      "sha256": "sha256:c56efcbbfad1817049239bc979b56e135749dd88cd8a687bf765a978015b40f4"
+    },
+    {
+      "id": "completion.paid-attempt.malformed-settlement-metadata-is-never-evidence",
+      "kind": "completion.paid-attempt",
+      "milestone": "M6",
+      "file": "vectors/completion/malformed-settlement-metadata-is-never-evidence.json",
+      "sha256": "sha256:b44657ee23912b5fcfec48956f76bcfb93ff18b7b7d6e2dbfea9834a62d44be4"
+    },
+    {
+      "id": "completion.paid-attempt.rechallenge-then-delivered",
+      "kind": "completion.paid-attempt",
+      "milestone": "M6",
+      "file": "vectors/completion/rechallenge-then-delivered.json",
+      "sha256": "sha256:b8d43b73ad49fd63b1209a8bde90889c34b6e4a26e429c2c31ff7a091d199b79"
+    },
+    {
+      "id": "completion.paid-attempt.refusal-releases-redirect-does-not",
+      "kind": "completion.paid-attempt",
+      "milestone": "M6",
+      "file": "vectors/completion/refusal-releases-redirect-does-not.json",
+      "sha256": "sha256:415b39180319f6b0f84cc635f0e54fd4ba4a3343448bed8e9ce932b4e1d5133d"
+    },
+    {
+      "id": "completion.paid-attempt.settlement-outranks-the-status-line",
+      "kind": "completion.paid-attempt",
+      "milestone": "M6",
+      "file": "vectors/completion/settlement-outranks-the-status-line.json",
+      "sha256": "sha256:b1693d444d2afb12102f176d9dd6fc33626c08d54083497f6273da84c0f45ec3"
+    },
+    {
+      "id": "completion.paid-attempt.single-attempt-exhausted",
+      "kind": "completion.paid-attempt",
+      "milestone": "M6",
+      "file": "vectors/completion/single-attempt-exhausted.json",
+      "sha256": "sha256:eee079540dc60ad467a6966783baf4e86735c156ef84b352203e956519670d2a"
+    },
+    {
+      "id": "errors.taxonomy.frozen",
+      "kind": "errors.taxonomy",
+      "milestone": "M0",
+      "file": "vectors/errors/taxonomy.json",
+      "sha256": "sha256:48a81e3abdf4f3d99a9e0ed37cd30db3f3e9ecdb66393ff9f90be3171102d882"
+    },
+    {
+      "id": "evm.authorization-plan.asset-not-manifest-asset",
+      "kind": "evm.authorization-plan",
+      "milestone": "M3",
+      "file": "vectors/evm/asset-not-manifest-asset.json",
+      "sha256": "sha256:051b99743cdb67a7c9f3551fe995f44db1ebe7a5ace20244df1404c7448effb5"
+    },
+    {
+      "id": "evm.authorization-plan.base-usdc-valid",
+      "kind": "evm.authorization-plan",
+      "milestone": "M3",
+      "file": "vectors/evm/base-usdc-valid.json",
+      "sha256": "sha256:82c07188c3311f59586d4bd8efe7a7d712e696d1eec8b9d900be698b6782581a"
+    },
+    {
+      "id": "evm.authorization-plan.eip712-domain-missing",
+      "kind": "evm.authorization-plan",
+      "milestone": "M3",
+      "file": "vectors/evm/eip712-domain-missing.json",
+      "sha256": "sha256:2542215dca1dd1245848017e8fef01a2bb4497fd448c7a7d6ced8fb034622a4d"
+    },
+    {
+      "id": "evm.authorization-plan.eip712-version-mismatch",
+      "kind": "evm.authorization-plan",
+      "milestone": "M3",
+      "file": "vectors/evm/eip712-version-mismatch.json",
+      "sha256": "sha256:7f76e3680a600a78ffdcbc4937bcef7e60fb2427d4e4d4a173d20886c1942a63"
+    },
+    {
+      "id": "evm.authorization-plan.lifetime-below-default",
+      "kind": "evm.authorization-plan",
+      "milestone": "M3",
+      "file": "vectors/evm/lifetime-below-default.json",
+      "sha256": "sha256:3b47598e6b332f43bbb6bf5e14da8fea2b8567d69405018618eb171bc1fbb3d0"
+    },
+    {
+      "id": "evm.authorization-plan.lifetime-clamped",
+      "kind": "evm.authorization-plan",
+      "milestone": "M3",
+      "file": "vectors/evm/lifetime-clamped.json",
+      "sha256": "sha256:58c4a093175f2c743f334187c90773f02164b6c2a33aa293955e341e8015db07"
+    },
+    {
+      "id": "evm.authorization-plan.permit2-unsupported",
+      "kind": "evm.authorization-plan",
+      "milestone": "M3",
+      "file": "vectors/evm/permit2-unsupported.json",
+      "sha256": "sha256:193e0ec6cc27ca8edbd638dc76865979e20bd4c14beb7d88b0b30445e1a372bb"
+    },
+    {
+      "id": "health.circuit.consecutive-failures",
+      "kind": "health.circuit",
+      "milestone": "M5",
+      "file": "vectors/health/circuit-consecutive-failures.json",
+      "sha256": "sha256:7ded36027752f33f9b615183cd9e42b8762cc9c34540ee42ef47cd5a173884ed"
+    },
+    {
+      "id": "health.circuit.failure-rate",
+      "kind": "health.circuit",
+      "milestone": "M5",
+      "file": "vectors/health/circuit-failure-rate.json",
+      "sha256": "sha256:6244e6bfff1436d8b814dcc69c423d6f98e4d65297f431ff0d4b8b9b77d9241c"
+    },
+    {
+      "id": "manifest.network-resolution.alias",
+      "kind": "manifest.network-resolution",
+      "milestone": "M0",
+      "file": "vectors/manifest/resolve-alias.json",
+      "sha256": "sha256:68b637890998c22db67fbd797c6161a2b9afa5c85ac7a375528839fb5aa5653d"
+    },
+    {
+      "id": "manifest.network-resolution.canonical",
+      "kind": "manifest.network-resolution",
+      "milestone": "M0",
+      "file": "vectors/manifest/resolve-canonical.json",
+      "sha256": "sha256:028e7edc1268206f8e68dc78691ce74e747ea0e5c1c1e86aa6b6283ce56c9067"
+    },
+    {
+      "id": "manifest.network-resolution.devnet-alias",
+      "kind": "manifest.network-resolution",
+      "milestone": "M0",
+      "file": "vectors/manifest/resolve-devnet-alias.json",
+      "sha256": "sha256:492fd067d304e2243507968be9b5900d6d8672d973f125430879df53921af22e"
+    },
+    {
+      "id": "manifest.network-resolution.unknown",
+      "kind": "manifest.network-resolution",
+      "milestone": "M0",
+      "file": "vectors/manifest/resolve-unknown.json",
+      "sha256": "sha256:59e987ca87df9ffdced61be6b776dacab407a94fc9defa879d65c2dd5f3fd014"
+    },
+    {
+      "id": "manifest.verify.alias-collides-with-network",
+      "kind": "manifest.verify",
+      "milestone": "M0",
+      "file": "vectors/manifest/alias-collides-with-network.json",
+      "sha256": "sha256:2370f9f231b2db056e9909172e0938d123dd1760326582d950a3f23522082646"
+    },
+    {
+      "id": "manifest.verify.alias-target-unknown",
+      "kind": "manifest.verify",
+      "milestone": "M0",
+      "file": "vectors/manifest/alias-target-unknown.json",
+      "sha256": "sha256:8f28a6caf9dec2928506631f48557c33f75c0163cfafb138c54bcd96ee69a9a0"
+    },
+    {
+      "id": "manifest.verify.bundled-valid",
+      "kind": "manifest.verify",
+      "milestone": "M0",
+      "file": "vectors/manifest/bundled-valid.json",
+      "sha256": "sha256:b005bee88ab3d2dd57e743be72bb674d6281a4d73384cc0b1bef536d8dfb8478"
+    },
+    {
+      "id": "manifest.verify.expired",
+      "kind": "manifest.verify",
+      "milestone": "M0",
+      "file": "vectors/manifest/expired.json",
+      "sha256": "sha256:907e5dfa25ce14e7e0ed780de3a38b8ba33409d2b7b14a6fa2b3f7770f092975"
+    },
+    {
+      "id": "manifest.verify.malformed-signature",
+      "kind": "manifest.verify",
+      "milestone": "M0",
+      "file": "vectors/manifest/malformed-signature.json",
+      "sha256": "sha256:30c01a5fce2b01c72b07d7da11b1e0d5a59bc0e2636408cf0d956cd856661bc6"
+    },
+    {
+      "id": "manifest.verify.non-canonical-float",
+      "kind": "manifest.verify",
+      "milestone": "M0",
+      "file": "vectors/manifest/non-canonical-float.json",
+      "sha256": "sha256:5b2dd93799aa976f8ec2c6b7b477835ccc2af0b5850c1e3bf10559d4da1d6656"
+    },
+    {
+      "id": "manifest.verify.not-yet-issued",
+      "kind": "manifest.verify",
+      "milestone": "M0",
+      "file": "vectors/manifest/not-yet-issued.json",
+      "sha256": "sha256:594db08810acf7840e3949f3b597433840d932ead531657528e69889ee7bfd1d"
+    },
+    {
+      "id": "manifest.verify.tampered-body",
+      "kind": "manifest.verify",
+      "milestone": "M0",
+      "file": "vectors/manifest/tampered-body.json",
+      "sha256": "sha256:7e0bd4246af9e38c1c0fc7fb6544f2f84ce91cf9349e2dc363a7740ae06497c0"
+    },
+    {
+      "id": "manifest.verify.tampered-signature",
+      "kind": "manifest.verify",
+      "milestone": "M0",
+      "file": "vectors/manifest/tampered-signature.json",
+      "sha256": "sha256:ab210239917bf38fcea211831461e9026d6b3c847d856b2dbd9dafe8ec8bf3db"
+    },
+    {
+      "id": "manifest.verify.unknown-key-id",
+      "kind": "manifest.verify",
+      "milestone": "M0",
+      "file": "vectors/manifest/unknown-key-id.json",
+      "sha256": "sha256:eef04570ba002debd0b2443dc2bd8c2ac22113f358aef10d70ab315d9be8fecf"
+    },
+    {
+      "id": "manifest.verify.unsupported-algorithm",
+      "kind": "manifest.verify",
+      "milestone": "M0",
+      "file": "vectors/manifest/unsupported-algorithm.json",
+      "sha256": "sha256:b335b049c14b587bc2693289efb4957c4f1687a64e0f7dbfda4789aecf7939a8"
+    },
+    {
+      "id": "manifest.verify.unsupported-version",
+      "kind": "manifest.verify",
+      "milestone": "M0",
+      "file": "vectors/manifest/unsupported-version.json",
+      "sha256": "sha256:ae10ffe6db50bc48e8bdc12de0ec7b3b519c97a033592d27fc24d46ef661b6b7"
+    },
+    {
+      "id": "policy.host-normalization.double-dot",
+      "kind": "policy.host-normalization",
+      "milestone": "M0",
+      "file": "vectors/policy/double-dot.json",
+      "sha256": "sha256:f0dfc35e4e5a048c5a74b335317b69ec00a7872a9b853608bf7fdfe9fff37e42"
+    },
+    {
+      "id": "policy.host-normalization.ipv6",
+      "kind": "policy.host-normalization",
+      "milestone": "M0",
+      "file": "vectors/policy/ipv6.json",
+      "sha256": "sha256:8875e423ec894004a2c4cba7b61e34040c1d1fcfddd807e08d56da9cd85325aa"
+    },
+    {
+      "id": "policy.host-normalization.root-label",
+      "kind": "policy.host-normalization",
+      "milestone": "M0",
+      "file": "vectors/policy/root-label.json",
+      "sha256": "sha256:5f10e1866dfa5b49bc6a8536644687ff8e11b2671d36b73a2ddb0351d2f3f0eb"
+    },
+    {
+      "id": "policy.host-normalization.trailing-dot",
+      "kind": "policy.host-normalization",
+      "milestone": "M0",
+      "file": "vectors/policy/trailing-dot.json",
+      "sha256": "sha256:f3ee03630ae444c36f7e3028a91448f4bccb99ab14825be277d347860cb4545b"
+    },
+    {
+      "id": "policy.host-normalization.unicode-idn",
+      "kind": "policy.host-normalization",
+      "milestone": "M0",
+      "file": "vectors/policy/unicode-idn.json",
+      "sha256": "sha256:640a504cd10ba401d24e820d8fad06dde9ce22f2e94051e0586a8b4bfd9d49f0"
+    },
+    {
+      "id": "policy.host-normalization.uppercase",
+      "kind": "policy.host-normalization",
+      "milestone": "M0",
+      "file": "vectors/policy/uppercase.json",
+      "sha256": "sha256:d1c974300b95a0872e6a081aa5dc9aab8871177e0e941d58c9ffc8751fcfe84f"
+    },
+    {
+      "id": "protocol.decode-payment-required.amount-not-integer",
+      "kind": "protocol.decode-payment-required",
+      "milestone": "M1",
+      "file": "vectors/protocol/decode-amount-not-integer.json",
+      "sha256": "sha256:cf9b0000e8bb7fa62e7212222b6edc7f9bae031d4efb90fc97edc2b452e5c6aa"
+    },
+    {
+      "id": "protocol.decode-payment-required.base-usdc-valid",
+      "kind": "protocol.decode-payment-required",
+      "milestone": "M1",
+      "file": "vectors/protocol/decode-base-usdc-valid.json",
+      "sha256": "sha256:02aa8000ef6ae9b82959f982db9d4c0a335a8f559222e643359828fef0ec963a"
+    },
+    {
+      "id": "protocol.decode-payment-required.empty-accepts",
+      "kind": "protocol.decode-payment-required",
+      "milestone": "M1",
+      "file": "vectors/protocol/decode-empty-accepts.json",
+      "sha256": "sha256:890844c29f9516554eb24ad8e5f99d00d04c1fc04e8b2e328ac1aec5ef7453e1"
+    },
+    {
+      "id": "protocol.decode-payment-required.invalid-base64",
+      "kind": "protocol.decode-payment-required",
+      "milestone": "M1",
+      "file": "vectors/protocol/decode-invalid-base64.json",
+      "sha256": "sha256:b07b673717276b7bb21c3a66ee6fbabe90896b02ceb46c0fc9c92d13ce306294"
+    },
+    {
+      "id": "protocol.decode-payment-required.missing-header",
+      "kind": "protocol.decode-payment-required",
+      "milestone": "M1",
+      "file": "vectors/protocol/decode-missing-header.json",
+      "sha256": "sha256:1506a182e6bfdf6fec7c5e4a69d1441632ce70577b75e34ba544ab0d5f04f843"
+    },
+    {
+      "id": "protocol.decode-payment-required.multi-network-valid",
+      "kind": "protocol.decode-payment-required",
+      "milestone": "M1",
+      "file": "vectors/protocol/decode-multi-network-valid.json",
+      "sha256": "sha256:b9679a9b234d1b2773010ea8466eada7f24130cb3e8ab8194908a014a2fcff68"
+    },
+    {
+      "id": "protocol.decode-payment-required.not-json",
+      "kind": "protocol.decode-payment-required",
+      "milestone": "M1",
+      "file": "vectors/protocol/decode-not-json.json",
+      "sha256": "sha256:bebdcbd993a5842cd66c258080076e50f9af5e88374d89fa74dd33868c362f80"
+    },
+    {
+      "id": "protocol.decode-payment-required.origin-mismatch",
+      "kind": "protocol.decode-payment-required",
+      "milestone": "M1",
+      "file": "vectors/protocol/decode-origin-mismatch.json",
+      "sha256": "sha256:5aff34c9cef1e58905b84a5f693b282f1c184c20ae5bc54a20b36358a43c15c3"
+    },
+    {
+      "id": "protocol.decode-payment-required.oversized-header",
+      "kind": "protocol.decode-payment-required",
+      "milestone": "M1",
+      "file": "vectors/protocol/decode-oversized-header.json",
+      "sha256": "sha256:af354050610280412f5a01fa53d842bdfac252c10f8fd81dfc62ae6e552bd7f9"
+    },
+    {
+      "id": "protocol.decode-payment-required.too-many-requirements",
+      "kind": "protocol.decode-payment-required",
+      "milestone": "M1",
+      "file": "vectors/protocol/decode-too-many-requirements.json",
+      "sha256": "sha256:c18d47f0c2f41df97150afaa9ff2681ae6b37c84667a89c2c4d9d0fd037e2071"
+    },
+    {
+      "id": "protocol.decode-payment-required.unsupported-version",
+      "kind": "protocol.decode-payment-required",
+      "milestone": "M1",
+      "file": "vectors/protocol/decode-unsupported-version.json",
+      "sha256": "sha256:d798e1f3c8d11657966c5b676fae5b5c4be4328b176f36f381ac59400b9f35ba"
+    },
+    {
+      "id": "protocol.decode-payment-required.zero-amount",
+      "kind": "protocol.decode-payment-required",
+      "milestone": "M1",
+      "file": "vectors/protocol/decode-zero-amount.json",
+      "sha256": "sha256:00a8bc72a7b4856ca28cca5303eaac4be4a9c64de847c0d6f76bce90c4c55582"
+    },
+    {
+      "id": "request.fingerprint.basic",
+      "kind": "request.fingerprint",
+      "milestone": "M2",
+      "file": "vectors/fingerprint/basic.json",
+      "sha256": "sha256:b0eb5368cb044166f02cd1f434a662eba895fc60b3f9178c22539f93fbfdf7bb"
+    },
+    {
+      "id": "request.fingerprint.secrets-excluded",
+      "kind": "request.fingerprint",
+      "milestone": "M2",
+      "file": "vectors/fingerprint/secrets-excluded.json",
+      "sha256": "sha256:06a8bcef7e6d35ba01cdcaa461954a555758326483fbb1f22957829edeae0a9e"
+    },
+    {
+      "id": "request.fingerprint.unicode",
+      "kind": "request.fingerprint",
+      "milestone": "M2",
+      "file": "vectors/fingerprint/unicode.json",
+      "sha256": "sha256:c053434286dfa89eb5de23b3fea30993349ffe49c89bbaf72fdf637fb1dfeb2d"
+    },
+    {
+      "id": "routing.candidate-order.full-key-cascade",
+      "kind": "routing.candidate-order",
+      "milestone": "M5",
+      "file": "vectors/routing/order-full-key-cascade.json",
+      "sha256": "sha256:5015986e819bd3ede3fc882066702f7b9e30a40fd8f4e0e57a845f481df74153"
+    },
+    {
+      "id": "routing.candidate-order.open-circuit-ranked-last",
+      "kind": "routing.candidate-order",
+      "milestone": "M5",
+      "file": "vectors/routing/order-open-circuit-ranked-last.json",
+      "sha256": "sha256:41f973c58705e5e8daf7d93b70cea9febcf2620c3e66da4fac911aebdf0ed3ac"
+    },
+    {
+      "id": "routing.candidate-order.preference-outranks-index",
+      "kind": "routing.candidate-order",
+      "milestone": "M5",
+      "file": "vectors/routing/order-preference-outranks-index.json",
+      "sha256": "sha256:fafb23190ba20d4130c9b1266ef88f8ab0eb21960d067e0eeb5d7d2abcf2772d"
+    },
+    {
+      "id": "routing.candidate-order.viability-outranks-preference",
+      "kind": "routing.candidate-order",
+      "milestone": "M5",
+      "file": "vectors/routing/order-viability-outranks-preference.json",
+      "sha256": "sha256:fe5dca90e7c01fb07877ca1f2a48d24103d44515968172beaf05c2e941aff278"
+    },
+    {
+      "id": "spend-ledger.behavior.atomic-cap",
+      "kind": "spend-ledger.behavior",
+      "milestone": "M2",
+      "file": "vectors/ledger/atomic-cap.json",
+      "sha256": "sha256:61091ba7ee37cde7ae52f443ec1168cf585d65581318dff5f03d0c2b28d6c1e6"
+    },
+    {
+      "id": "spend-ledger.behavior.lifecycle",
+      "kind": "spend-ledger.behavior",
+      "milestone": "M2",
+      "file": "vectors/ledger/lifecycle.json",
+      "sha256": "sha256:be621c3f8ec0ffd368a7683581b7791ec394e270c62cb00d7e45860275790da2"
+    },
+    {
+      "id": "spend-ledger.behavior.ttl-window",
+      "kind": "spend-ledger.behavior",
+      "milestone": "M2",
+      "file": "vectors/ledger/ttl-window.json",
+      "sha256": "sha256:59014c7478cee38286b933540d01187946e77fed86e1c20aa6f3d063a8ed8ba3"
+    },
+    {
+      "id": "svm.authorization-plan.devnet-usdc-valid",
+      "kind": "svm.authorization-plan",
+      "milestone": "M4",
+      "file": "vectors/svm/devnet-usdc-valid.json",
+      "sha256": "sha256:0290744415b1d7567884eea0dec281e0f21639dd8bad4941762765bb41b9f27f"
+    },
+    {
+      "id": "svm.authorization-plan.fee-payer-missing",
+      "kind": "svm.authorization-plan",
+      "milestone": "M4",
+      "file": "vectors/svm/fee-payer-missing.json",
+      "sha256": "sha256:783d828739746c428cc73af6e3fdc3b19885458e9bc460573275526a50d97b12"
+    },
+    {
+      "id": "svm.authorization-plan.mainnet-lifetime-clamped",
+      "kind": "svm.authorization-plan",
+      "milestone": "M4",
+      "file": "vectors/svm/mainnet-lifetime-clamped.json",
+      "sha256": "sha256:c1e1ad4c80671007ef9ed6f0a0c0eb0c6a58fade4ded1095b0a39e3c07a68785"
+    },
+    {
+      "id": "svm.authorization-plan.token-2022-excluded",
+      "kind": "svm.authorization-plan",
+      "milestone": "M4",
+      "file": "vectors/svm/token-2022-excluded.json",
+      "sha256": "sha256:68d53b494fb727c73f512ffe1588c86efc54fda316f764a0a2d92bb822fa3453"
+    }
+  ]
+}

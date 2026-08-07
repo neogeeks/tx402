@@ -1,0 +1,30 @@
+{
+  "$schema": "https://tx402.dev/schemas/v1/conformance-vector.schema.json",
+  "id": "completion.paid-attempt.absent-settlement-evidence-commits",
+  "kind": "completion.paid-attempt",
+  "milestone": "M6",
+  "title": "An absent PAYMENT-RESPONSE is not a failed settlement",
+  "description": "PAYMENT-RESPONSE is optional on a delivered resource, so a header the merchant chose not to send commits: the resource arrived with a 2xx, and refusing to commit would release budget for a payment the merchant most likely did settle. Only an explicit success:false releases. A header that is *present* and does not decode is a different fact and has its own vector \u2014 conflating the two is the audit's O53.",
+  "spec": ["SPEC \u00a76.7"],
+  "input": {
+    "maxPaidAttempts": 1,
+    "attempts": [
+      {
+        "attempt": 1,
+        "result": {
+          "kind": "response",
+          "status": 200,
+          "settlement": "absent"
+        }
+      }
+    ]
+  },
+  "expected": {
+    "dispositions": [
+      {
+        "kind": "commit",
+        "reservation": "committed"
+      }
+    ]
+  }
+}

@@ -1,0 +1,195 @@
+---
+title: Cutting a release
+description: The tag-triggered release workflow, trusted publishing on both registries, and the release signing key.
+sidebar:
+  order: 5
+---
+
+A release is cut from `main`, by CI, and never from a laptop. That is not ceremony: a
+release a person can produce locally is a release whose provenance attestation certifies
+nothing, because the attestation only says "GitHub Actions built this from that commit" if
+GitHub Actions actually did.
+
+The compatibility contract — what counts as a break, what gets a patch, what gets a minor —
+is in [`VERSIONING.md`](https://github.com/neogeeks/tx402/blob/main/VERSIONING.md). This page
+is the mechanics.
+
+## What triggers it
+
+`.github/workflows/release.yml` runs on a pushed tag matching `v*.*.*`, and on nothing else.
+There is deliberately no `workflow_dispatch` with a version input.
+
+```bash
+# after CHANGELOG.md and both package versions are updated in one commit on main
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+The workflow has five jobs:
+
+```
+verify ──▶ docs-published ──┬──▶ npm  ──┐
+                            └──▶ pypi ──┴──▶ smoke
+```
+
+`npm` and `pypi` both declare `needs: [verify, docs-published]`, so **either of the first two
+jobs failing blocks the release outright** — nothing is published and nothing is partially
+published.
+
+### verify
+
+Re-runs every gate **on the tagged commit**. A green CI run on `main` is not evidence about
+a tag, because a tag need not point at the commit that was tested.
+
+It also checks three things a human typed:
+
+- the tag, `packages/tx402/package.json`, and `pyproject.toml` all carry the same version;
+- the bundled manifest's signature verifies;
+- the manifest is **not** signed by `tx402-release-1`, the development key.
+
+That last check is why the release key matters, and it is a hard failure rather than a
+warning.
+
+### docs-published
+
+Probes the **live** `https://docs.tx402.io` and requires every page the site must serve to
+return 200, before either registry is touched. It runs `tools/docs-live` twice: first
+`selftest`, which proves the probe is capable of failing, then `check`. A published package is
+permanent, and pointing it at documentation that is unreachable is not something re-running a
+workflow can undo.
+
+**Look at this job first when a tag does not publish.** It is the one gate that depends on
+something outside this repository — the documentation site is deployed by a separate workflow,
+so a tag pushed while the site is stale or down stops here with both publish jobs never
+starting. From the registry side the only symptom is that nothing was published, which is why
+it is worth knowing the job exists.
+
+### npm and PyPI
+
+Both publish through **OIDC trusted publishing**. Neither job has a registry token, because
+no long-lived registry token exists — the one that did was revoked and deliberately never
+replaced. The workflow's own identity is exchanged for a short-lived credential at publish
+time.
+
+npm publishes with provenance. The `--no-provenance` flag that the `0.0.0` placeholder was
+published with must never appear here: provenance requires CI OIDC, and this is that CI.
+
+### smoke
+
+Installs `tx402` from both registries into a clean environment, runs each CLI, imports each
+package, and checks that npm actually recorded a provenance attestation. Everything before
+this job verified the repository; this is the only job that verifies the registry.
+
+## One-time setup
+
+Two things must be configured by an account owner before the first real release. Neither can
+be done from this repository, and both are why `verify` fails loudly rather than publishing
+something unattested.
+
+### 1. npm trusted publisher
+
+On [npmjs.com](https://www.npmjs.com/package/tx402) → **Settings** → **Trusted publisher**,
+link:
+
+| Field | Value |
+| :--- | :--- |
+| Repository | the published repository |
+| Workflow filename | `release.yml` |
+| Environment | `release` |
+
+### 2. PyPI trusted publisher
+
+On [pypi.org](https://pypi.org/manage/project/tx402/settings/publishing/) → **Publishing** →
+**Add a new publisher** → GitHub:
+
+| Field | Value |
+| :--- | :--- |
+| Owner / repository | the published repository |
+| Workflow name | `release.yml` |
+| Environment name | `release` |
+
+:::note[The `release` environment is the approval gate]
+Both jobs declare `environment: release`. Configure it in the repository's
+**Settings → Environments** with required reviewers, and publishing needs a human to approve
+after `verify` passes. Without that, a pushed tag publishes on its own.
+:::
+
+## The release signing key
+
+The bundled manifest is signed with an Ed25519 key whose public half is compiled into both
+packages. `tx402-release-1` was the original **development** key: it was generated on a
+workstation, and anything generated on a workstation should be assumed to have been readable
+there. It no longer signs releases — it stays in the trusted set only so prior and
+conformance manifests keep verifying.
+
+**A published release should be signed by a key that was never on a developer's machine.**
+`0.1.0` is a deliberate, recorded exception: `tx402-release-2` was generated locally to ship
+the first release, so it should be treated as readable on that machine. The next rotation
+moves signing into a key that lives only in a secret manager or CI OIDC — the process below
+is written for that key.
+
+### Generating it
+
+Run this somewhere you control, not in this repository's tooling and not through an agent.
+The private key must not pass through a terminal that is being recorded, a shell history, or
+a coding assistant's context.
+
+```bash
+node tools/manifest-signer/index.js keygen --key-id tx402-release-2
+```
+
+That writes two files:
+
+| File | Handling |
+| :--- | :--- |
+| `core-spec/manifests/keys/tx402-release-2.pub.json` | **Commit it.** It is public by design. |
+| `core-spec/manifests/keys/tx402-release-2.private.pem` | **Never commit it.** Gitignored. |
+
+### Storing it
+
+Put the private PEM in a secret manager, or in a GitHub Actions secret scoped to the
+`release` environment — the rule is "CI OIDC or secret manager; never repository
+variables in plaintext." Then delete the local copy. Verify you can still sign before you
+delete it, not after.
+
+### Rotating to it
+
+1. Add the new public key to the trusted set compiled into both packages
+   (`packages/tx402/src/core/trusted-keys.ts` and the Python mirror) **alongside** the old
+   one, and release that. Clients must be able to verify the new key before anything is
+   signed with it, or an upgrade breaks construction for everyone still on the old version.
+2. Re-sign the manifest with the new key and embed it.
+3. Remove `tx402-release-1` from the trusted set in a later release.
+
+Doing steps 1 and 2 in the same release is the mistake worth naming: a client that has not
+yet upgraded would reject the new signature, and manifest verification failure is a
+construction failure, not a warning. (`0.1.0` combined them safely only because it is the
+first functional release: there is no earlier client in the field, and tx402 fetches no key
+at runtime.)
+
+### Verifying
+
+```bash
+pnpm manifest:verify
+```
+
+Reports the key id, the network count, and the expiry. The release workflow runs the same
+command and additionally refuses `tx402-release-1`.
+
+## Supply-chain artifacts
+
+`pnpm sbom` emits CycloneDX SBOMs for both packages plus a licence report, scoped to
+dependencies that actually ship — the development tree is not distributed and is excluded.
+CI uploads them as build artifacts on every run.
+
+```bash
+pnpm sbom            # sbom/tx402-{npm,pypi}-{core,evm,solana,all}.cdx.json + LICENSES.md
+pnpm supply-chain    # licence policy + vulnerability gate
+pnpm reproducible    # two clean builds must be byte-identical
+```
+
+The licence gate blocks on anything outside a permissive allowlist, evaluating SPDX `OR` and
+`AND` expressions rather than comparing strings — `Apache-2.0 OR BSD-3-Clause` is a choice of
+two acceptable licences and passes. The vulnerability gate blocks on critical and high
+findings in **shipped** dependencies only; a development-tree advisory is reported and does
+not fail the build, because a gate nobody can keep green is a gate that gets disabled.

@@ -1,0 +1,13 @@
+{
+  "name": "@tx402-dev/workflow-lint",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Catches GitHub Actions workflow errors that only surface as a run with zero jobs.",
+  "bin": {
+    "tx402-workflow-lint": "./index.js"
+  },
+  "dependencies": {
+    "js-yaml": "^4.1.0"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "name": "@tx402-dev/docs-gen",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Emits the generated pages of the documentation site from shipped source.",
+  "bin": {
+    "tx402-docs-gen": "./index.js"
+  }
+}

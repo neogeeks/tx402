@@ -1,0 +1,228 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tx402.dev/schemas/v1/common.schema.json",
+  "title": "tx402 shared definitions",
+  "description": "Primitive definitions shared by every tx402 schema. Frozen at M0 (PLAN.md session S2): changing any pattern here is a wire-visible change and requires an ADR.",
+
+  "$defs": {
+    "caip2": {
+      "title": "CAIP-2 network identifier",
+      "description": "Canonical, fully-qualified network identifier. Solana identifiers are the 32-character truncated genesis hash, never the `solana:mainnet` alias — see ADR-010 decision 4. Aliases are resolved to this form before any comparison.",
+      "type": "string",
+      "pattern": "^[-a-z0-9]{3,8}:[-_a-zA-Z0-9]{1,32}$",
+      "examples": [
+        "eip155:8453",
+        "eip155:84532",
+        "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+        "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1"
+      ]
+    },
+
+    "caip2OrAlias": {
+      "title": "CAIP-2 identifier or manifest-declared alias",
+      "description": "Accepted at the configuration boundary only (`policy.allowedNetworks`, `routing.preferNetworks`, CLI `--network`). Normalized to `caip2` before route matching, health indexing, or diagnostics.",
+      "type": "string",
+      "pattern": "^[-a-z0-9]{3,8}:[-_a-zA-Z0-9]{1,32}$"
+    },
+
+    "caip19": {
+      "title": "CAIP-19 asset identifier",
+      "description": "Derived, never parsed from the wire. EVM: `<caip2>/erc20:<address>`. SVM: `<caip2>/token:<mint>`.",
+      "type": "string",
+      "pattern": "^[-a-z0-9]{3,8}:[-_a-zA-Z0-9]{1,32}/[-a-z0-9]{3,8}:[-_a-zA-Z0-9]{1,128}$",
+      "examples": [
+        "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/token:EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+      ]
+    },
+
+    "atomicAmount": {
+      "title": "Non-negative integer atomic units",
+      "description": "Base-10 string, no sign, no leading zeros, no decimal point, no exponent. ADR-006: money is never a JS number or a Python float, and never crosses a language boundary as one.",
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)$",
+      "maxLength": 78
+    },
+
+    "positiveAtomicAmount": {
+      "title": "Strictly positive integer atomic units",
+      "type": "string",
+      "pattern": "^[1-9][0-9]*$",
+      "maxLength": 78
+    },
+
+    "sha256Digest": {
+      "title": "Prefixed SHA-256 digest",
+      "description": "Lowercase hex with an explicit algorithm prefix so the hash function is never inferred. Used for diagnostics and idempotency only, never as authorization material (SPEC §5.1).",
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+
+    "uuidV7": {
+      "title": "UUIDv7",
+      "description": "Time-ordered UUID. Used for reservation IDs and the non-authoritative X-TX402-REQUEST-ID diagnostic header.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+
+    "rfc3339": {
+      "title": "RFC 3339 UTC timestamp",
+      "description": "Always UTC with an explicit `Z`. Local offsets are rejected so that two implementations cannot disagree about ordering.",
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,9})?Z$"
+    },
+
+    "epochMs": {
+      "title": "Milliseconds since the Unix epoch",
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 253402300799999
+    },
+
+    "httpMethod": {
+      "title": "Uppercase HTTP method",
+      "type": "string",
+      "enum": ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
+    },
+
+    "resourceUrl": {
+      "title": "Absolute resource URL",
+      "description": "HTTPS by default (SEC-004). `http://` is permitted only for loopback hosts and only when the client is constructed with `allowInsecureLocalhost: true`.",
+      "type": "string",
+      "format": "uri",
+      "pattern": "^(https://|http://(localhost|127\\.0\\.0\\.1|\\[::1\\])(:[0-9]{1,5})?(/|$))",
+      "maxLength": 2048
+    },
+
+    "evmAddress": {
+      "type": "string",
+      "pattern": "^0x[0-9a-fA-F]{40}$"
+    },
+
+    "svmAddress": {
+      "title": "Base58-encoded Solana address",
+      "type": "string",
+      "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$"
+    },
+
+    "scheme": {
+      "title": "x402 payment scheme",
+      "description": "v0.1 implements `exact` only. Any other value raises UnsupportedSchemeError; it is never heuristically coerced (ADR-004).",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{0,31}$"
+    },
+
+    "tokenSymbol": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9]{0,11}$"
+    },
+
+    "decimals": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 36
+    },
+
+    "errorCode": {
+      "title": "tx402 error code",
+      "description": "The complete taxonomy from SPEC §8. Frozen at M0. Adding a code is a minor release; changing or removing one is a breaking change (SPEC §15).",
+      "type": "string",
+      "enum": [
+        "TX402_CONFIG_INVALID",
+        "TX402_RESERVED_HEADER",
+        "TX402_NON_REPLAYABLE",
+        "TX402_PROTOCOL_UNSUPPORTED",
+        "TX402_SCHEME_UNSUPPORTED",
+        "TX402_PAYMENT_REQUIRED_INVALID",
+        "TX402_POLICY_BUDGET",
+        "TX402_POLICY_DOMAIN",
+        "TX402_LIQUIDITY",
+        "TX402_SIGNER",
+        "TX402_CLOCK_SKEW",
+        "TX402_PAYMENT_AMBIGUOUS",
+        "TX402_RESOURCE_DELIVERY",
+        "TX402_REDIRECT_BLOCKED",
+        "TX402_TRANSPORT"
+      ]
+    },
+
+    "errorClassName": {
+      "title": "tx402 error class name",
+      "description": "Identical in TypeScript and Python (ADR-005). Bound one-to-one to `errorCode`.",
+      "type": "string",
+      "enum": [
+        "ConfigurationError",
+        "ReservedHeaderError",
+        "NonReplayableRequestError",
+        "UnsupportedProtocolError",
+        "UnsupportedSchemeError",
+        "InvalidPaymentRequiredError",
+        "BudgetExceededError",
+        "DomainNotAllowedError",
+        "InsufficientLiquidityError",
+        "SignerError",
+        "ClockSkewError",
+        "AmbiguousPaymentError",
+        "ResourceDeliveryError",
+        "PaidRedirectBlockedError",
+        "TransportError"
+      ]
+    },
+
+    "retryability": {
+      "title": "Retry classification",
+      "description": "Verbatim classification of the SPEC §8 `Retryable` column. The boolean `Tx402Error.retryable` is derived from it: true only for `caller-policy`. See ADR-011.",
+      "type": "string",
+      "enum": [
+        "no",
+        "conditional",
+        "after-correction",
+        "no-automatic-retry",
+        "app-dependent",
+        "caller-policy"
+      ]
+    },
+
+    "phase": {
+      "title": "Request-execution phase",
+      "description": "SPEC §8 Tx402ErrorContext.phase. Maps onto the SPEC §6 state machine.",
+      "type": "string",
+      "enum": ["initial", "parse", "policy", "route", "sign", "retry", "complete"]
+    },
+
+    "errorContext": {
+      "title": "Tx402ErrorContext",
+      "description": "The common diagnostic envelope carried by every tx402 error (SPEC §8). Per-error specifics live in `details`, not here — see ADR-011.",
+      "type": "object",
+      "properties": {
+        "requestId": { "type": "string", "minLength": 1 },
+        "phase": { "$ref": "#/$defs/phase" },
+        "network": { "$ref": "#/$defs/caip2" },
+        "scheme": { "$ref": "#/$defs/scheme" },
+        "amountAtomic": { "$ref": "#/$defs/atomicAmount" },
+        "assetId": { "$ref": "#/$defs/caip19" },
+        "paid": {
+          "description": "`\"unknown\"` is a distinct third state, not a missing boolean — it is what AmbiguousPaymentError reports (SPEC §6.7).",
+          "oneOf": [{ "type": "boolean" }, { "const": "unknown" }]
+        },
+        "reservationId": { "$ref": "#/$defs/uuidV7" }
+      },
+      "required": ["requestId", "phase"],
+      "additionalProperties": false
+    },
+
+    "environment": {
+      "title": "Network environment",
+      "description": "Production and test networks MUST NOT be mixed in one selected route (SPEC §5.4). Test networks require explicit config opt-in.",
+      "type": "string",
+      "enum": ["production", "test"]
+    },
+
+    "milestone": {
+      "title": "Implementation milestone (SPEC §14)",
+      "type": "string",
+      "enum": ["M0", "M1", "M2", "M3", "M4", "M5", "M6", "M7", "M8"]
+    }
+  }
+}

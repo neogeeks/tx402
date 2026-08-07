@@ -1,0 +1,15 @@
+{
+  "$schema": "../../../schemas/conformance-vector.schema.json",
+  "id": "policy.host-normalization.uppercase",
+  "kind": "policy.host-normalization",
+  "milestone": "M0",
+  "title": "Host comparison is case-insensitive",
+  "description": "DNS is case-insensitive, so an allowlist written in one case must match a URL written in another. Lowercasing happens before the trailing-dot rule.",
+  "spec": ["SPEC §6.3", "ADR-018"],
+  "input": {
+    "url": "https://EXAMPLE.COM/resource"
+  },
+  "expected": {
+    "host": "example.com"
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "$schema": "../../../schemas/conformance-vector.schema.json",
+  "id": "canonical-json.key-ordering",
+  "kind": "canonical-json",
+  "milestone": "M0",
+  "title": "Object keys sort by ASCII code point, uppercase before lowercase",
+  "description": "Keys are restricted to printable ASCII precisely so this ordering is unambiguous: JavaScript compares strings by UTF-16 code unit and Python by code point, and the two disagree above the BMP. Within ASCII they cannot. Note that `Z` sorts before `a`, which is not alphabetical order and is the case most likely to be got wrong by a hand-rolled comparator.",
+  "spec": ["ADR-012"],
+  "input": {
+    "document": {
+      "b": 1,
+      "Z": true,
+      "a": {
+        "0": "zero",
+        "z": null
+      },
+      "A": []
+    }
+  },
+  "expected": {
+    "canonical": "{\"A\":[],\"Z\":true,\"a\":{\"0\":\"zero\",\"z\":null},\"b\":1}",
+    "sha256": "sha256:f38ee2c176da8123aa74eb29164c72767d737e769e21e62c73bda4a542bb237b"
+  }
+}

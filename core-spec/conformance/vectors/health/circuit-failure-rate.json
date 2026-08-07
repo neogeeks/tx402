@@ -1,0 +1,174 @@
+{
+  "$schema": "https://tx402.dev/schemas/v1/conformance-vector.schema.json",
+  "id": "health.circuit.failure-rate",
+  "kind": "health.circuit",
+  "milestone": "M5",
+  "title": "Half of at least ten samples opens the circuit independently of the consecutive count",
+  "description": "SPEC \u00a76.5 states two open thresholds joined by OR, and this vector isolates the second. Four consecutive failures at nine samples do not open the circuit \u2014 neither threshold is met \u2014 and the circuit later opens at twelve samples with a consecutive count of only two, which is reachable only through the >=50%-of->=10 rule. An implementation that folded the two thresholds into one would pass the consecutive-failure vector and fail this one.",
+  "spec": ["SPEC \u00a76.5"],
+  "input": {
+    "endpointId": "eip155:8453|rpc.example.com",
+    "operations": [
+      {
+        "action": "success",
+        "latencyMs": 100,
+        "nowEpochMs": 1785715200000
+      },
+      {
+        "action": "success",
+        "latencyMs": 100,
+        "nowEpochMs": 1785715200001
+      },
+      {
+        "action": "success",
+        "latencyMs": 100,
+        "nowEpochMs": 1785715200002
+      },
+      {
+        "action": "success",
+        "latencyMs": 100,
+        "nowEpochMs": 1785715200003
+      },
+      {
+        "action": "success",
+        "latencyMs": 100,
+        "nowEpochMs": 1785715200004
+      },
+      {
+        "action": "failure",
+        "nowEpochMs": 1785715200005
+      },
+      {
+        "action": "failure",
+        "nowEpochMs": 1785715200006
+      },
+      {
+        "action": "failure",
+        "nowEpochMs": 1785715200007
+      },
+      {
+        "action": "failure",
+        "nowEpochMs": 1785715200008
+      },
+      {
+        "action": "success",
+        "latencyMs": 100,
+        "nowEpochMs": 1785715200009
+      },
+      {
+        "action": "failure",
+        "nowEpochMs": 1785715200010
+      },
+      {
+        "action": "failure",
+        "nowEpochMs": 1785715200011
+      },
+      {
+        "action": "failure",
+        "nowEpochMs": 1785715200012
+      },
+      {
+        "action": "failure",
+        "nowEpochMs": 1785715200013
+      },
+      {
+        "action": "inspect",
+        "nowEpochMs": 1785715200020
+      }
+    ]
+  },
+  "expected": {
+    "observations": [
+      {
+        "circuitState": "closed",
+        "healthScore": 0.8067,
+        "consecutiveFailures": 0,
+        "sampleCount": 1
+      },
+      {
+        "circuitState": "closed",
+        "healthScore": 0.8387,
+        "consecutiveFailures": 0,
+        "sampleCount": 2
+      },
+      {
+        "circuitState": "closed",
+        "healthScore": 0.8643,
+        "consecutiveFailures": 0,
+        "sampleCount": 3
+      },
+      {
+        "circuitState": "closed",
+        "healthScore": 0.8847,
+        "consecutiveFailures": 0,
+        "sampleCount": 4
+      },
+      {
+        "circuitState": "closed",
+        "healthScore": 0.9011,
+        "consecutiveFailures": 0,
+        "sampleCount": 5
+      },
+      {
+        "circuitState": "closed",
+        "healthScore": 0.7142,
+        "consecutiveFailures": 1,
+        "sampleCount": 6
+      },
+      {
+        "circuitState": "closed",
+        "healthScore": 0.5647,
+        "consecutiveFailures": 2,
+        "sampleCount": 7
+      },
+      {
+        "circuitState": "closed",
+        "healthScore": 0.4451,
+        "consecutiveFailures": 3,
+        "sampleCount": 8
+      },
+      {
+        "circuitState": "closed",
+        "healthScore": 0.3494,
+        "consecutiveFailures": 4,
+        "sampleCount": 9
+      },
+      {
+        "circuitState": "closed",
+        "healthScore": 0.4729,
+        "consecutiveFailures": 0,
+        "sampleCount": 10
+      },
+      {
+        "circuitState": "closed",
+        "healthScore": 0.3716,
+        "consecutiveFailures": 1,
+        "sampleCount": 11
+      },
+      {
+        "circuitState": "open",
+        "healthScore": 0.0291,
+        "consecutiveFailures": 2,
+        "sampleCount": 12
+      },
+      {
+        "circuitState": "open",
+        "healthScore": 0.0226,
+        "consecutiveFailures": 3,
+        "sampleCount": 13
+      },
+      {
+        "circuitState": "open",
+        "healthScore": 0.0174,
+        "consecutiveFailures": 4,
+        "sampleCount": 14
+      },
+      {
+        "circuitState": "open",
+        "healthScore": 0.0174,
+        "consecutiveFailures": 4,
+        "sampleCount": 14
+      }
+    ]
+  }
+}

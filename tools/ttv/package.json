@@ -1,0 +1,13 @@
+{
+  "name": "@tx402-dev/ttv",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Measures fresh-user time to value against a real settled testnet payment (SPEC §16).",
+  "bin": {
+    "tx402-ttv": "./index.js"
+  },
+  "dependencies": {
+    "@tx402-dev/test-merchant": "workspace:*"
+  }
+}

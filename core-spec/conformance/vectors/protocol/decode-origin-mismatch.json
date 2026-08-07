@@ -1,0 +1,20 @@
+{
+  "$schema": "../../../schemas/conformance-vector.schema.json",
+  "id": "protocol.decode-payment-required.origin-mismatch",
+  "kind": "protocol.decode-payment-required",
+  "milestone": "M1",
+  "title": "A challenge naming a different origin than the one requested is rejected",
+  "description": "Method binding is local, but URL binding is not — the challenge asserts its own resource URL, and a merchant able to name someone else's origin could induce a payment intended for a resource the caller never asked for (ADR-010 decision 2).",
+  "spec": ["SPEC §6.2", "ADR-010"],
+  "input": {
+    "requestUrl": "https://api.example.com/v1/completions",
+    "requestMethod": "POST",
+    "header": "eyJ4NDAyVmVyc2lvbiI6MiwicmVzb3VyY2UiOnsidXJsIjoiaHR0cHM6Ly9ldmlsLmV4YW1wbGUubmV0L3YxL2NvbXBsZXRpb25zIn0sImFjY2VwdHMiOlt7InNjaGVtZSI6ImV4YWN0IiwibmV0d29yayI6ImVpcDE1NTo4NDUzIiwiYXNzZXQiOiIweDgzMzU4OWZDRDZlRGI2RTA4ZjRjN0MzMkQ0ZjcxYjU0YmRBMDI5MTMiLCJhbW91bnQiOiI1MDAwMCIsInBheVRvIjoiMHgxMjM0NTY3ODkwQWJjZEVGMTIzNDU2Nzg5MGFCY2RlZjEyMzQ1Njc4IiwibWF4VGltZW91dFNlY29uZHMiOjYwLCJleHRyYSI6e319XX0=",
+    "clockEpochMs": 1785711360000
+  },
+  "expected": {
+    "outcome": "invalid",
+    "errorCode": "TX402_PAYMENT_REQUIRED_INVALID",
+    "reason": "resource-origin-mismatch"
+  }
+}

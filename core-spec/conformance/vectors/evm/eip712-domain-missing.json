@@ -1,0 +1,29 @@
+{
+  "$schema": "https://tx402.dev/schemas/v1/conformance-vector.schema.json",
+  "id": "evm.authorization-plan.eip712-domain-missing",
+  "kind": "evm.authorization-plan",
+  "milestone": "M3",
+  "title": "A requirement without the token's EIP-712 domain is unusable",
+  "description": "Upstream's EIP-3009 flow signs over the token's domain name and version, which arrive in `extra`. Without them there is nothing to sign, and the offer is declined before an address is resolved or a balance is read.",
+  "spec": ["SPEC §7.1", "ADR-010"],
+  "input": {
+    "networkId": "eip155:8453",
+    "requirement": {
+      "index": 0,
+      "scheme": "exact",
+      "network": "eip155:8453",
+      "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+      "amountAtomic": "50000",
+      "payTo": "0x1234567890AbcdEF1234567890aBcdef12345678",
+      "maxTimeoutSeconds": 60,
+      "extra": {}
+    },
+    "payer": "0x00000000000000000000000000000000000000A1",
+    "nowEpochMs": 1785715200000
+  },
+  "expected": {
+    "outcome": "invalid",
+    "errorCode": "TX402_PAYMENT_REQUIRED_INVALID",
+    "reason": "eip712-domain-missing"
+  }
+}

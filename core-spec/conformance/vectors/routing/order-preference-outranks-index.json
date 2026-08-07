@@ -1,0 +1,48 @@
+{
+  "$schema": "https://tx402.dev/schemas/v1/conformance-vector.schema.json",
+  "id": "routing.candidate-order.preference-outranks-index",
+  "kind": "routing.candidate-order",
+  "milestone": "M5",
+  "title": "A configured network preference outranks the merchant's requirement order",
+  "description": "Two candidates that are viable and identical in every scored dimension. The merchant offered Base first, so requirement index alone would select it; `routing.preferNetworks` names Solana, and SPEC \u00a76.4 step 18 places policy preference above the index tie-break. The Solana identifier here is the canonical genesis-hash CAIP-2 rather than the `solana:mainnet` alias, because preference matching happens after normalization (ADR-010 decision 4).",
+  "spec": ["SPEC \u00a76.4", "SPEC \u00a74.3", "SPEC T-004"],
+  "input": {
+    "preferNetworks": ["solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"],
+    "candidates": [
+      {
+        "requirementIndex": 0,
+        "network": "eip155:8453",
+        "scheme": "exact",
+        "assetId": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "amountAtomic": "50000",
+        "estimatedFeeAtomic": "0",
+        "healthScore": 0.8,
+        "circuitState": "closed",
+        "viable": true,
+        "rejectionReasons": [],
+        "signerId": "evm:0x1111111111111111111111111111111111111111",
+        "balanceAtomic": "5000000",
+        "observedLatencyMs": 40
+      },
+      {
+        "requirementIndex": 1,
+        "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+        "scheme": "exact",
+        "assetId": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/token:EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "amountAtomic": "50000",
+        "estimatedFeeAtomic": "0",
+        "healthScore": 0.8,
+        "circuitState": "closed",
+        "viable": true,
+        "rejectionReasons": [],
+        "signerId": "solana:9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin",
+        "balanceAtomic": "5000000",
+        "observedLatencyMs": 40
+      }
+    ]
+  },
+  "expected": {
+    "order": [1, 0],
+    "selected": 1
+  }
+}

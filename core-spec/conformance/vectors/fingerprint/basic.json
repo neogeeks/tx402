@@ -1,0 +1,19 @@
+{
+  "$schema": "https://tx402.dev/schemas/v1/conformance-vector.schema.json",
+  "id": "request.fingerprint.basic",
+  "kind": "request.fingerprint",
+  "milestone": "M2",
+  "title": "Fingerprint canonicalizes method and URL while binding body and challenge",
+  "spec": ["SPEC SEC-009", "ADR-005"],
+  "input": {
+    "method": "POST",
+    "url": "HTTPS://Example.COM:443/a/../pay?b=2&a=1#ignored",
+    "body": "hello",
+    "challengeHash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "expected": {
+    "normalizedUrl": "https://example.com/pay?b=2&a=1",
+    "bodyHash": "sha256:2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
+    "fingerprint": "sha256:45273f4b398b31a47b40b398133055d8d39d92b1f7ec753ec3b679746303f061"
+  }
+}

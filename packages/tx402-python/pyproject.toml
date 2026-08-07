@@ -1,0 +1,125 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "tx402"
+version = "0.1.0"
+description = "Resilient x402 buyer SDK — deterministic multi-chain payment routing, local spend guardrails, and a drop-in httpx wrapper for autonomous agents."
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.10"
+keywords = ["x402", "http-402", "payments", "usdc", "stablecoin", "ai-agents", "base", "solana", "httpx", "sdk"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
+]
+
+# Core install stays minimal: protocol codec, HTTP transport, and Ed25519 verification.
+# Chain support is an extra so that web3/solders are only paid for by callers who need them
+# (mirrors the TypeScript subpath-export split — ADR-009).
+#
+# `cryptography` is required rather than optional: SPEC §5.4 makes offline manifest
+# signature verification a precondition of client construction, SPEC §3.2 forbids
+# implementing Ed25519 from scratch, and CPython's standard library has no Ed25519. Node
+# gets this from `node:crypto` for free, which is why only the Python side carries the
+# dependency. See ADR-012.
+dependencies = [
+    "x402>=2.17,<2.18",
+    "httpx>=0.27",
+    "cryptography>=42",
+]
+
+[project.optional-dependencies]
+evm = ["x402[evm]>=2.17,<2.18"]
+# `solders` is declared directly rather than relied on transitively: tx402 compiles and
+# validates the SPL transfer itself (ADR-013), so the SPL primitives it uses are a
+# first-party dependency of this package, not an implementation detail of x402's extra.
+# The same reasoning put `@solana-program/token` in the TypeScript optional peers at S6.
+svm = ["x402[svm]>=2.17,<2.18", "solders>=0.27,<1"]
+all = ["tx402[evm,svm]"]
+
+[project.scripts]
+tx402 = "tx402.cli:run"
+
+[project.urls]
+Homepage = "https://tx402.io"
+Documentation = "https://docs.tx402.io"
+Repository = "https://github.com/neogeeks/tx402"
+Issues = "https://github.com/neogeeks/tx402/issues"
+Security = "https://github.com/neogeeks/tx402/security/advisories/new"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "mypy>=1.13",
+    "ruff>=0.8",
+    # Validates conformance fixtures against core-spec/schemas (JSON Schema 2020-12).
+    # Test-only: the SDK's own manifest validator is hand-written so that no schema
+    # library enters the install path — see tx402/manifest.py.
+    "jsonschema>=4.20",
+    # stdlib tomllib is 3.11+; the 3.10 CI leg needs the backport.
+    "tomli>=2.0; python_version < '3.11'",
+    "types-jsonschema>=4.26.0.20260518",
+    "pytest-cov>=7.1.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/tx402"]
+
+[tool.ruff]
+line-length = 92
+target-version = "py310"
+src = ["src", "tests"]
+# Tool-owned formatting: emitted by `node tools/manifest-signer/index.js embed`. Its content
+# is a signed document, so reflowing it here would only put ruff and the generator in a
+# loop. mypy still checks it.
+extend-exclude = ["src/tx402/bundled_manifest.py"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "B", "A", "C4", "PT", "RET", "SIM", "TID", "RUF"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+warn_unreachable = true
+files = ["src", "tests"]
+
+# The tomli backport is only installed on the 3.10 leg (stdlib tomllib is 3.11+), so it is
+# absent from the environment mypy itself runs in.
+[[tool.mypy.overrides]]
+module = ["tomli"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+addopts = "--cov --cov-report=term-missing"
+
+# SPEC §12.1: >=90% line and branch coverage in core modules. Enforced from M0 (PLAN.md
+# open item O11) rather than deferred — the gate is far cheaper to hold from the first core
+# module onward than to reach retroactively across eight milestones.
+[tool.coverage.run]
+branch = true
+source = ["src/tx402"]
+# Nothing is omitted. `src/tx402/cli.py` was exempt until M7 because the command surface
+# did not exist; it landed at S12 and joined the gate in the same change, so the exit-code
+# table and the `--dry-run` signer guarantee are held to the same 90 % threshold as the
+# core modules they front.
+
+[tool.coverage.report]
+fail_under = 90
+show_missing = true
+exclude_lines = [
+    "pragma: no cover",
+    # Type-checking-only imports never execute at runtime.
+    "if TYPE_CHECKING:",
+]

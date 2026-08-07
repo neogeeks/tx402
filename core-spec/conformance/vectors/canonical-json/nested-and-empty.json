@@ -1,0 +1,32 @@
+{
+  "$schema": "../../../schemas/conformance-vector.schema.json",
+  "id": "canonical-json.nested-and-empty",
+  "kind": "canonical-json",
+  "milestone": "M0",
+  "title": "Nesting, empty containers, and booleans round-trip with no insignificant whitespace",
+  "description": "Empty objects and arrays are `{}` and `[]` rather than being elided. Array order is preserved — only object keys are sorted.",
+  "spec": ["ADR-012"],
+  "input": {
+    "document": {
+      "emptyObject": {},
+      "emptyArray": [],
+      "nested": [
+        {
+          "b": [1, 2, 3],
+          "a": {}
+        },
+        [],
+        [[null]]
+      ],
+      "flags": {
+        "on": true,
+        "off": false,
+        "nothing": null
+      }
+    }
+  },
+  "expected": {
+    "canonical": "{\"emptyArray\":[],\"emptyObject\":{},\"flags\":{\"nothing\":null,\"off\":false,\"on\":true},\"nested\":[{\"a\":{},\"b\":[1,2,3]},[],[[null]]]}",
+    "sha256": "sha256:24339e8fa4d71d48dc4de6fb4512a0f28ace19db1537fd1295c3c48c235d4eda"
+  }
+}

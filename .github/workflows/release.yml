@@ -1,0 +1,295 @@
+name: Release
+
+# Publishing is triggered by a tag and by nothing else. There is deliberately no
+# `workflow_dispatch` with a version input: a release that can be produced by filling in a
+# form is a release whose provenance attests to a form submission.
+on:
+  push:
+    tags: ["v*.*.*"]
+
+# Least privilege at the top; each job widens only what it needs. `id-token: write` is what
+# makes OIDC trusted publishing work, and it is granted per job rather than here.
+#
+# **Every action in this file is pinned to a commit SHA** (PLAN.md O48). A mutable tag like
+# `@v7` is a pointer somebody else can move, and these jobs hold an OIDC identity that can
+# publish to two registries — so a moved tag is a supply-chain compromise with publish
+# rights, not an inconvenience. The trailing comment records which release each SHA was, so
+# a bump stays reviewable. `tools/workflow-lint` fails this file if a tag reappears.
+permissions:
+  contents: read
+
+env:
+  PNPM_VERSION: "10.34.5"
+  # The published SDK's floor. Every job that exercises the *package* runs on it, because
+  # publishing from a runtime no user is promised is how a support claim rots.
+  NODE_VERSION_DEFAULT: "20"
+  # The workspace's floor. `pnpm check` builds the documentation site, and Astro requires
+  # 22.12+. Until S15d the verify job below ran `pnpm check` on Node 20, so the release
+  # gate would have failed on the tag at its very last step (PLAN.md O60).
+  NODE_VERSION_WORKSPACE: "22"
+
+jobs:
+  # Nothing is published until the same gates CI enforces have passed *on the tagged
+  # commit*. A green CI run on `main` is not evidence about a tag: the tag may not point at
+  # the commit that was tested.
+  verify:
+    name: Verify the tagged commit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      # The workspace runtime, not the package's: this job runs the aggregate `pnpm check`.
+      # The package's own Node 20 support is proven by CI's matrix and by the publish jobs
+      # below, which stay on `NODE_VERSION_DEFAULT`.
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: ${{ env.NODE_VERSION_WORKSPACE }}
+          cache: pnpm
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          enable-cache: true
+          prune-cache: true
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      # Every gate, in the order CI runs them (PLAN.md open item O38).
+      - name: Full check
+        run: pnpm check
+
+      - name: Python suite
+        working-directory: packages/tx402-python
+        run: |
+          uv sync --all-extras
+          uv run ruff check .
+          uv run ruff format --check .
+          uv run mypy
+          uv run pytest -q
+
+      # Back to the published SDK's runtime for the measured gates. SPEC §12.3's thresholds
+      # were calibrated on Node 20 and the budget-rejection gate includes a loopback 402, so
+      # what it measures depends on the runtime's own HTTP stack, not only on tx402: locally
+      # the same commit reports 0.169 ms on Node 20 and 2.18 ms on Node 22, against a 2 ms
+      # gate, and the plain-`fetch` baseline moves with it. Measuring the SDK on the runtime
+      # its users are promised is the defensible choice; PLAN.md O61 tracks re-calibrating.
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: ${{ env.NODE_VERSION_DEFAULT }}
+          cache: pnpm
+
+      - name: Release gates
+        run: |
+          pnpm fuzz
+          pnpm perf
+          pnpm supply-chain
+          pnpm reproducible
+
+      # The tag, both package manifests, and both generated CLI version modules must agree.
+      # They are five separate places a number appears, and `--expect` folds the tag into
+      # the same check the working tree is held to rather than giving it a weaker one of
+      # its own (PLAN.md O51).
+      - name: Tag matches every declared version
+        run: node tools/version-sync/index.js check --expect "${GITHUB_REF_NAME}"
+
+      # Every documented install, packed and installed into an empty directory, with every
+      # entry point it advertises imported. `pnpm check` runs the *documentation* half of
+      # this; the packing half needs the built artifact and a network, so it runs here
+      # (PLAN.md O47).
+      - name: Documented installs load their entry points
+        run: pnpm install-smoke
+
+      # PLAN.md open item O12. The development key `tx402-release-1` must never sign a
+      # published release, and the check is by key id rather than by intention.
+      - name: Release manifest is signed by the release key, not the dev key
+        run: |
+          set -euo pipefail
+          pnpm manifest:verify
+          key_id=$(node -p "require('./core-spec/manifests/bundled.manifest.json').signature.keyId")
+          echo "manifest signed by: $key_id"
+          if [ "$key_id" = "tx402-release-1" ]; then
+            echo "::error::The bundled manifest is signed by the development key." \
+                 "Rotate to the release key before publishing — docs/operations/release-manifest.md"
+            exit 1
+          fi
+
+  # SPEC §12.4 requires published documentation before release, and O49 found nothing
+  # enforcing it: the docs workflow was allowed to skip its own deploy and this workflow
+  # neither depended on it nor looked at the site. Its own job, so the log says plainly
+  # which page was missing, and a `needs` of both publish jobs so a dead site stops a tag.
+  docs-published:
+    name: Documentation is published
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: ${{ env.NODE_VERSION_DEFAULT }}
+
+      # The probe itself is proven able to fail before it is trusted to pass.
+      - name: The probe can fail
+        run: node tools/docs-live/index.js selftest
+
+      - name: Every required page is reachable
+        run: node tools/docs-live/index.js check
+
+  npm:
+    name: Publish to npm
+    needs: [verify, docs-published]
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      contents: read
+      # Required for provenance. Without it npm publishes without an attestation and the
+      # `publishConfig.provenance: true` in package.json fails the publish outright.
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: ${{ env.NODE_VERSION_DEFAULT }}
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm --filter tx402 build
+
+      # No `--no-provenance`, and no NODE_AUTH_TOKEN. The S1 placeholder was published from
+      # a laptop with `--no-provenance` because provenance needs CI OIDC; this is that CI.
+      # Publishing here relies on the npm trusted publisher configured for this repository
+      # and this workflow file, so no long-lived token exists to leak (PLAN.md O10/O23).
+      - name: Publish
+        run: pnpm --filter tx402 publish --access public --no-git-checks
+
+  pypi:
+    name: Publish to PyPI
+    needs: [verify, docs-published]
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          enable-cache: true
+          prune-cache: true
+
+      - name: Build sdist and wheel
+        working-directory: packages/tx402-python
+        run: uv build
+
+      # PyPI trusted publishing: the workflow's OIDC identity is exchanged for a short-lived
+      # upload token. The exposed long-lived token was revoked at S11 and deliberately never
+      # replaced (PLAN.md O23).
+      - name: Publish
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # release/v1
+        with:
+          packages-dir: packages/tx402-python/dist
+
+  # Published artifacts are verified from a clean environment before the release is
+  # announced. Installing what was just published is the only check that covers the
+  # registry itself — everything before this verified the repository.
+  smoke:
+    name: Install from the registries
+    needs: [npm, pypi]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: ${{ env.NODE_VERSION_DEFAULT }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+
+      - name: npm install and CLI smoke
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          # Registry propagation is not instantaneous; retry rather than fail on a race.
+          for attempt in 1 2 3 4 5; do
+            npm install --no-save "tx402@$version" && break
+            echo "attempt $attempt failed, waiting"
+            sleep 20
+          done
+          npx --yes "tx402@$version" --version
+          node -e "import('tx402').then(m => { if (typeof m.createTx402Client !== 'function') throw new Error('missing export'); console.log('npm ok'); })"
+
+      - name: PyPI install and CLI smoke
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          for attempt in 1 2 3 4 5; do
+            uv venv && uv pip install "tx402==$version" && break
+            echo "attempt $attempt failed, waiting"
+            sleep 20
+          done
+          uv run tx402 --version
+          uv run python -c "import tx402; print('pypi ok', tx402.PACKAGE_NAME)"
+
+      # The chain entry points, from the registry, with the peers the README names. The
+      # core-only smoke above cannot see O47: `import "tx402"` succeeded on a package whose
+      # every advertised chain path failed to load.
+      - name: Documented chain installs load from the registry
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          for row in "evm:@x402/evm viem:tx402/evm tx402/signers" \
+                     "solana:@solana-program/token @solana/kit @x402/svm viem:tx402/solana tx402/signers"; do
+            id="${row%%:*}"; rest="${row#*:}"
+            peers="${rest%%:*}"; entries="${rest#*:}"
+            dir="$(mktemp -d)"
+            ( cd "$dir"
+              npm init -y >/dev/null
+              npm pkg set type=module >/dev/null
+              npm install --no-audit --no-fund "tx402@$version" $peers
+              for entry in $entries; do
+                node --input-type=module -e "await import('$entry'); console.log('$id ok: $entry')"
+              done )
+            rm -rf "$dir"
+          done
+
+      - name: npm provenance attestation is present and names this workflow
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          # Asserted, not printed. Against the unattested 0.0.0 placeholder this exact
+          # command returned empty output and exit status 0, so the step that "checked
+          # provenance" would have passed on a package with none (PLAN.md O48).
+          npm audit signatures
+          attestations="$(npm view "tx402@$version" dist.attestations --json)"
+          echo "$attestations"
+          node -e '
+            const raw = process.argv[1];
+            if (raw === undefined || raw.trim() === "") {
+              throw new Error("npm reported no dist.attestations for the published version");
+            }
+            const value = JSON.parse(raw);
+            const url = value?.url ?? "";
+            if (typeof url !== "string" || url === "") {
+              throw new Error("dist.attestations carries no url");
+            }
+            const provenance = (value?.provenance ?? {}).predicateType ?? "";
+            if (!String(provenance).includes("slsa.dev/provenance")) {
+              throw new Error(`unexpected predicateType: ${JSON.stringify(provenance)}`);
+            }
+            console.log("provenance ok:", url, provenance);
+          ' "$attestations"

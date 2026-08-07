@@ -1,0 +1,15 @@
+{
+  "name": "@tx402-dev/conformance",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Builds and integrity-checks the core-spec/conformance vector index (ADR-005, SEC-007). Not published.",
+  "type": "module",
+  "main": "index.js",
+  "bin": {
+    "tx402-conformance": "./index.js"
+  },
+  "dependencies": {
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1"
+  }
+}

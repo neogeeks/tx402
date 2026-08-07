@@ -1,0 +1,383 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # Reproducible builds are a release gate (SPEC §12.4). Pin the toolchain here.
+  PNPM_VERSION: "10.34.5"
+  NODE_VERSION_DEFAULT: "20"
+
+jobs:
+  typescript:
+    name: TypeScript (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # SPEC §12.1 compatibility matrix: Node 20 and 22.
+        node: ["20", "22"]
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+
+      - name: Install (frozen lockfile)
+        run: pnpm install --frozen-lockfile
+
+      # Built before lint and typecheck, not after. `examples/typescript` consumes `tx402`
+      # exactly as a user does — through the package's emitted declarations — so with no
+      # `dist/` every import resolves to `any`, every `no-unsafe-*` rule fires, and the
+      # examples fail to typecheck. A local run hides this by inheriting a previous build,
+      # which is precisely how it reached CI.
+      - name: Build
+        run: pnpm build
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Format check
+        run: pnpm format:check
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      # PLAN.md O25: four raw NUL bytes once reached two adapters and passed every other
+      # gate. Git treats such a file as binary, so it cannot be diffed or grepped — the
+      # failure is unreviewable source, which no linter looks for.
+      - name: No NUL bytes in tracked text files (O25)
+        run: pnpm nul-check
+
+      # A workflow is the one file here whose mistakes cannot be found by running it
+      # locally. An invalid job-level context rejects the *entire* file before any job is
+      # created, which surfaces as a run with zero jobs and no readable error (O37).
+      - name: Workflow validity (O37)
+        run: pnpm workflow-lint
+
+      # `check` also fails when release-facing prose claims a different vector count from
+      # the index, and `selftest` proves that half can fail (PLAN.md O59).
+      - name: Conformance index integrity (SEC-007)
+        run: |
+          pnpm conformance:check
+          pnpm conformance:selftest
+
+      - name: Release manifest signature (SEC-007)
+        run: pnpm manifest:verify
+
+      # Diagnostic: an intermittent failure in this suite could not be reproduced locally,
+      # and job logs are not readable without admin rights on the repository. Emitting the
+      # failing lines as workflow annotations surfaces them through the checks API, which is
+      # readable. Remove once the cause is settled (PLAN.md open item O21).
+      - name: Test
+        run: |
+          set -o pipefail
+          if ! pnpm test 2>&1 | tee /tmp/vitest.log; then
+            echo "::error::pnpm test failed — first failure lines follow"
+            grep -E "FAIL|AssertionError|Error:|timed out|Hook timed out" /tmp/vitest.log \
+              | head -25 \
+              | while IFS= read -r line; do echo "::error::$line"; done
+            exit 1
+          fi
+
+      - name: Coverage thresholds (SPEC §12.1)
+        run: pnpm --filter tx402 exec vitest run --coverage
+
+      - name: Size gate (ADR-008)
+        run: pnpm size
+
+      # The error reference and the API surface page are emitted from shipped source. A
+      # taxonomy or exit-code change that is not regenerated would leave the published docs
+      # claiming a code the binary does not return.
+      - name: Generated docs are current
+        run: pnpm docs:check
+
+  python:
+    name: Python ${{ matrix.python }}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/tx402-python
+    strategy:
+      fail-fast: false
+      matrix:
+        # SPEC §12.1 compatibility matrix: CPython 3.10-3.13.
+        python: ["3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v9.0.0
+        with:
+          enable-cache: true
+          # v9 changed the default to false; retain the prior cache-footprint behavior.
+          prune-cache: true
+
+      - name: Sync (locked)
+        run: uv sync --all-extras --python ${{ matrix.python }}
+
+      - name: Lint
+        run: uv run ruff check .
+
+      - name: Format check
+        run: uv run ruff format --check .
+
+      - name: Typecheck
+        run: uv run mypy
+
+      # Coverage thresholds are enforced through pytest addopts (SPEC §12.1).
+      - name: Test
+        run: uv run pytest -q
+
+      - name: Build distributions
+        run: uv build
+
+  # PLAN.md O7. Linux-only was defensible while nothing in the SDK touched a path or a
+  # shell: the CLI changed that. `--body @file` reads from disk, the console script is
+  # resolved by the platform's launcher, and line endings differ — so the CLI and the
+  # package contract are exercised on all three platforms before release. The full matrix
+  # stays on Linux; these legs answer "does it work at all off Linux", which is the
+  # question that was actually open.
+  cross-platform:
+    # The Node version is not interpolated into this name. A job-level `name` may only read
+    # the github/needs/strategy/matrix/vars/inputs contexts — `env` is not among them, and
+    # using it is an *invalid workflow* rather than an empty string: the run completes as a
+    # failure with zero jobs, which looks nothing like a syntax error and cost one red run
+    # to identify. Keep literals here and let the steps read `env`.
+    name: ${{ matrix.os }} (Node 20, Python 3.12)
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION_DEFAULT }}
+          cache: pnpm
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v9.0.0
+        with:
+          enable-cache: true
+          prune-cache: true
+
+      - name: Install TypeScript workspace
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+
+      - name: TypeScript suite
+        run: pnpm --filter tx402 test
+
+      - name: CLI smoke (resolves and exits per SPEC §11)
+        shell: bash
+        run: |
+          set -uo pipefail
+          node packages/tx402/dist/cli/index.js --version
+          node packages/tx402/dist/cli/index.js --help
+          # An unknown command must exit 2 on every platform, not merely fail. Captured
+          # explicitly rather than through `&& exit 1`, which under `set -e` fails the step
+          # on the *expected* non-zero status and so asserts nothing.
+          node packages/tx402/dist/cli/index.js nonsense && code=0 || code=$?
+          echo "unknown command exited $code"
+          test "$code" -eq 2
+
+      - name: Python suite
+        working-directory: packages/tx402-python
+        run: |
+          uv sync --all-extras --python 3.12
+          uv run pytest -q
+
+      - name: Python CLI smoke
+        working-directory: packages/tx402-python
+        shell: bash
+        run: |
+          uv run tx402 --version
+          uv run tx402 --help
+
+  # The documentation site. Astro requires Node 22+, which is why this is its own job
+  # rather than a step in the Node 20 matrix leg. Building it in CI is what keeps a broken
+  # MDX page or a dead internal link from reaching the published site.
+  docs:
+    name: Docs site
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      # Runs here because this is the only job on the runtime the aggregate local gate
+      # declares. It checks that the workspace floor, the docs package, the installed
+      # Astro, the published SDK floor and this workflow's own Node matrix still describe
+      # one coherent contract (PLAN.md O60).
+      - name: Toolchain contract
+        run: |
+          pnpm toolchain:check
+          pnpm toolchain:selftest
+
+      # The generated pages are built from the package's own exports, so the package has to
+      # exist before they can be checked.
+      - name: Build the SDK
+        run: pnpm --filter tx402 build
+
+      - name: Generated pages are current
+        run: pnpm docs:check
+
+      - name: Build the site
+        run: pnpm docs:build
+
+  # Cross-language parity is a release gate (SPEC §12.4, ADR-005). Both SDKs execute the
+  # same vectors from core-spec/conformance; this job runs the two suites side by side so a
+  # parity break is reported as one failure rather than two unrelated ones.
+  conformance:
+    name: Conformance parity (TS ↔ Python)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION_DEFAULT }}
+          cache: pnpm
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v9.0.0
+        with:
+          enable-cache: true
+          prune-cache: true
+
+      - name: Install TypeScript workspace
+        run: pnpm install --frozen-lockfile
+
+      - name: Conformance index integrity
+        run: pnpm conformance:check
+
+      # Diagnostic: an intermittent failure in this suite could not be reproduced locally,
+      # and job logs are not readable without admin rights on the repository. Emitting the
+      # failing lines as workflow annotations surfaces them through the checks API, which is
+      # readable. Remove once the cause is settled (PLAN.md open item O21).
+      - name: TypeScript conformance + package contract
+        run: |
+          set -o pipefail
+          if ! pnpm --filter tx402 test 2>&1 | tee /tmp/vitest.log; then
+            echo "::error::TypeScript suite failed — first failure lines follow"
+            grep -E "FAIL|AssertionError|Error:|timed out|Hook timed out" /tmp/vitest.log \
+              | head -25 \
+              | while IFS= read -r line; do echo "::error::$line"; done
+            exit 1
+          fi
+
+      - name: Python conformance + package contract
+        working-directory: packages/tx402-python
+        run: |
+          uv sync --all-extras
+          uv run pytest -q
+
+  # SPEC §12.4 release gates that are cheap enough to run on every push. Kept in one job
+  # rather than folded into the TypeScript matrix leg: these are release evidence, and a
+  # release gate that only ran as a side effect of a compatibility leg is hard to point at
+  # when someone asks whether it passed.
+  release-gates:
+    name: Release gates (fuzz, perf, supply chain)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION_DEFAULT }}
+          cache: pnpm
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v9.0.0
+        with:
+          enable-cache: true
+          prune-cache: true
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+
+      # SPEC §12.1's fuzz/property layer. Seeded, so a failure here reproduces exactly: the
+      # run prints the seed and the command that replays it.
+      - name: Fuzz and property gates
+        run: pnpm fuzz
+        env:
+          TX402_FUZZ_N: "200000"
+
+      # SPEC §12.3. `--expose-gc` is what makes the memory gate a measurement rather than a
+      # skip: retained heap can only be compared after a forced collection.
+      - name: Performance gates
+        run: pnpm perf
+
+      - name: Python environment for the SBOM
+        working-directory: packages/tx402-python
+        run: uv sync --all-extras
+
+      # SBOM, licence policy, and vulnerability scan. Findings in the development tree are
+      # reported and do not fail the gate — SPEC §12.4 scopes it to reachable production
+      # code, and vitest cannot reach a user.
+      - name: SBOM, licences, vulnerabilities
+        run: pnpm supply-chain
+
+      # Two clean builds of the published package must be byte-identical (SPEC §12.4).
+      - name: Reproducible build
+        run: pnpm reproducible
+
+      # Every documented npm install, packed and installed into an empty directory outside
+      # the workspace, with every entry point it advertises imported (PLAN.md O47). This
+      # needs a network and the built artifact, which is why it lives here rather than in
+      # `pnpm check`.
+      - name: Documented installs load their entry points
+        run: pnpm install-smoke
+
+      - name: Upload SBOM and build digest
+        uses: actions/upload-artifact@v7
+        with:
+          name: sbom
+          path: sbom/
+          if-no-files-found: error

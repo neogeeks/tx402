@@ -1,0 +1,385 @@
+---
+title: Quickstart
+description: Make a real paid call on a public testnet in under five minutes, without reading any source.
+sidebar:
+  order: 1
+---
+
+import { Tabs, TabItem } from "@astrojs/starlight/components";
+
+{/*
+  Starlight's `<Steps>` component is deliberately not used on this page, and `<Tabs>` is
+never nested inside a markdown list. Prettier's MDX formatter reindents JSX inside list
+items in a way Astro's MDX parser then rejects — the two disagree, and the result is a
+page that formats cleanly and fails to build. Headings cost nothing and cannot break.
+*/}
+
+This page is the one tx402 is measured against: **a fresh user gets to a real settled payment
+in under five minutes without reading source code**. If it takes longer than that,
+that is a bug in this page.
+
+Everything here happens on **testnets** with valueless tokens. Nothing on this page can spend
+real money.
+
+## Before you start
+
+You need one funded testnet wallet. Pick either chain — you do not need both.
+
+- **Base Sepolia** — a little Sepolia ETH for gas, and some testnet USDC.
+  Faucets: [Coinbase](https://portal.cdp.coinbase.com/products/faucet) for ETH,
+  [Circle](https://faucet.circle.com/) for USDC.
+- **Solana Devnet** — some Devnet SOL and Devnet USDC.
+  `solana airdrop 1 <address> --url devnet`, then Circle's faucet for USDC.
+
+:::caution[Use a dedicated wallet]
+Make a **new** wallet for this and keep the balance small. The quickstart puts a private key
+in an environment variable, which is convenient and is not how you should run anything that
+matters. See [Key management](../../security/keys/) for the real answer.
+:::
+
+## 1. Install
+
+<Tabs syncKey="lang">
+  <TabItem label="TypeScript">
+
+```bash
+# Base / EVM — what the rest of this page uses
+npm install tx402 @x402/evm viem
+```
+
+```bash
+# Solana instead
+npm install tx402 @solana-program/token @solana/kit @x402/svm viem
+```
+
+Node 20 or newer. The adapters ship in the same package behind subpath exports, but the chain
+runtimes they call are **optional peer dependencies**, so npm does not install them for you —
+that is what keeps `import "tx402"` free of any chain library.
+
+`npm install tx402` on its own gives you the core and the CLI, and **not** a chain adapter. Pick
+a row above before step 4: every command on this page that reaches a chain — including
+`--dry-run`, which ranks routes by reading balances — needs one. The keyless, chainless question
+is `client.inspect()`, which decodes and validates a merchant's challenge and stops there.
+
+  </TabItem>
+  <TabItem label="Python">
+
+```bash
+pip install "tx402[evm]"     # or tx402[svm], or tx402[all]
+```
+
+Python 3.10 or newer. The bare `tx402` install has no chain library; the extra adds one. Install
+the extra before step 4 — a chain adapter is what `--dry-run` needs to rank routes, and the bare
+install cannot do it. `client.inspect()` is the call that needs neither a key nor an adapter.
+
+  </TabItem>
+</Tabs>
+
+## 2. Start a merchant to pay
+
+x402 is young enough that public demo merchants come and go, so this page does not send you
+to one it cannot promise is up. Run one instead — it is a single command, it speaks real
+x402 v2, and with `--facilitator` it performs a **real settlement on the testnet**, so the
+payment below moves real testnet USDC and shows up on a block explorer.
+
+```bash
+git clone --depth 1 https://github.com/neogeeks/tx402 && cd tx402
+node tools/test-merchant/cli.js \
+  --requirements baseSepolia \
+  --facilitator https://x402.org/facilitator
+```
+
+It prints one JSON line and keeps running:
+
+```json
+{ "url": "http://127.0.0.1:54321", "port": 54321, "scenario": "pay-once", "settles": true }
+```
+
+Use that `url` wherever this page says `<merchant-url>` — the path is `/resource`, so the
+full URL is `http://127.0.0.1:54321/resource`. Swap `--requirements baseSepolia` for
+`solanaDevnet` to be offered a Solana route instead, or pass both, comma-separated, so the
+merchant offers both. The CLI pays a single route you name with `--network` (step 4); ranking
+across several offered routes is the SDK router's job — see [Routing](../../guides/routing/).
+
+:::note[Why `http://` is accepted here]
+The SDK requires HTTPS everywhere except localhost, where the CLI opts in explicitly. A
+merchant on any other host must be `https://`, and there is no flag to change that.
+:::
+
+## 3. Point tx402 at your key
+
+```bash
+# Base Sepolia — 0x-prefixed 32-byte hex
+export TX402_DEV_PRIVATE_KEY=0x...
+
+# Solana Devnet — the JSON array a `solana-keygen` file contains, or its base58 form
+export TX402_DEV_SOLANA_KEYPAIR="$(cat ~/.config/solana/id.json)"
+```
+
+Set whichever matches the chain you funded. Setting both is fine: tx402 offers the router
+two signers and the merchant's own offer decides which one is used.
+
+tx402 prints a warning to stderr **every time** it reads this variable. That is deliberate, not
+noise: anything that can read this process's environment can read the key.
+
+The CLI accepts **no flag that carries a key**, and never will — a flag lands in shell history,
+in `ps` output, and in CI logs.
+
+## 4. See what the merchant is asking, without paying
+
+No signature and no money — just the challenge and what tx402 would do with it:
+
+```bash
+npx tx402 call <merchant-url> \
+  --network eip155:84532 \
+  --max-spend "0.10 USDC" --dry-run
+```
+
+Use `--network solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1` for the Solana route instead.
+
+You will see the requirement count, the route tx402 would take, the atomic amount, and the
+candidate ranking. `--dry-run` **never invokes a signer** and **never reserves budget**, so you
+can run it as many times as you like.
+
+Add `--json` to get one machine-readable object on stdout instead.
+
+:::note[Why `--network`, and why the key had to come first]
+Two things about this command are not obvious, and both are deliberate.
+
+**`--network` is required here, not optional.** tx402's default policy allows only the
+**production** networks — Base and Solana mainnet. A testnet is never allowed by
+default, because the one thing worse than refusing a payment is silently falling back from the
+network you meant to a different one. Without the flag you get
+`TX402_SCHEME_UNSUPPORTED` and exit `5`, listing what the merchant offered.
+
+**A dry run needs a configured key, even though it never signs with it.** `--dry-run` plans
+routes, and planning means reading your address and your balance on each offered chain in order
+to rank them — a route it cannot price is a route it cannot rank. So the key must already be set,
+which is why it is step 3 and not step 5. What `--dry-run` guarantees is narrower and stronger
+than "no key": it **never invokes a signer**, enforced structurally rather than by convention.
+:::
+
+## 5. Make the paid call
+
+```bash
+npx tx402 call <merchant-url> --network eip155:84532 --max-spend "0.10 USDC"
+```
+
+The response body goes to stdout and nothing else does, so `> out.json` gives you a clean file.
+Diagnostics go to stderr.
+
+Exit `0` means the resource was delivered. Any other code is classified — see the
+[error reference](../../reference/errors/).
+
+:::note[Your wallet will show no transactions, and that is correct]
+x402 on EVM uses **EIP-3009** `transferWithAuthorization`: you sign an authorization
+_off-chain_ and the facilitator broadcasts it and pays the gas. So your wallet's outbound
+transaction count stays at zero and a block explorer's **Transactions** tab stays empty — the
+payment appears under **Token Transfers (ERC-20)** instead, and your ETH balance never moves.
+
+To confirm a payment landed, check your token balance or the explorer's token-transfer tab,
+not its transaction list.
+:::
+
+## 6. Do the same from code
+
+**Use the block that matches the row you installed in step 1 and the key you set in step 3.**
+Each one configures exactly one chain, so it runs with only that chain's dependencies present
+and only that chain's key exported. Configuring a chain you did not install is what makes the
+other block fail, not anything about your wallet.
+
+<Tabs syncKey="lang">
+  <TabItem label="TypeScript">
+
+The snippet is ESM and uses top-level `await`, so the project has to be a module. `npm init -y`
+alone is **not** enough — without `"type": "module"` you get `Top-level await is currently not
+supported with the "cjs" output format` before any of your code runs.
+
+```bash
+mkdir tx402-quickstart && cd tx402-quickstart
+npm init -y
+npm pkg set type=module
+npm install tx402 @x402/evm viem   # the Base row from step 1
+npm install --save-dev tsx         # runs a .ts file directly
+```
+
+```ts title="quickstart.ts — Base Sepolia"
+import { createTx402Client } from "tx402";
+import { privateKeyToEvmSigner } from "tx402/signers";
+
+const tx402 = createTx402Client({
+  signers: {
+    evm: privateKeyToEvmSigner(process.env.TX402_DEV_PRIVATE_KEY as `0x${string}`),
+  },
+  policy: {
+    maxPerRequest: "0.10 USDC",
+    maxPerHour: "1.00 USDC",
+    allowedNetworks: ["eip155:84532"],
+  },
+  // Only because the merchant above is on localhost. Never set this for a real merchant.
+  allowInsecureLocalhost: true,
+});
+
+const response = await tx402.fetch("<merchant-url>");
+console.log(response.status, await response.text());
+```
+
+For Solana, install the Solana row from step 1 instead and use this:
+
+```ts title="quickstart.ts — Solana Devnet"
+import { createTx402Client } from "tx402";
+import { keypairToSolanaSigner } from "tx402/signers";
+
+const tx402 = createTx402Client({
+  signers: {
+    solana: await keypairToSolanaSigner(process.env.TX402_DEV_SOLANA_KEYPAIR!),
+  },
+  policy: {
+    maxPerRequest: "0.10 USDC",
+    maxPerHour: "1.00 USDC",
+    allowedNetworks: ["solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1"],
+  },
+  // Only because the merchant above is on localhost. Never set this for a real merchant.
+  allowInsecureLocalhost: true,
+});
+
+const response = await tx402.fetch("<merchant-url>");
+console.log(response.status, await response.text());
+```
+
+Then run it:
+
+```bash
+npx tsx quickstart.ts
+```
+
+  </TabItem>
+  <TabItem label="Python">
+
+```bash
+mkdir tx402-quickstart && cd tx402-quickstart
+python3 -m venv .venv && source .venv/bin/activate
+pip install "tx402[evm]"           # the row from step 1
+```
+
+```python title="quickstart.py — Base Sepolia"
+import os
+
+from tx402 import Policy, Tx402Client
+from tx402.signers import private_key_to_evm_signer
+
+with Tx402Client(
+    evm_signer=private_key_to_evm_signer(os.environ["TX402_DEV_PRIVATE_KEY"]),
+    policy=Policy(
+        max_per_request="0.10 USDC",
+        max_per_hour="1.00 USDC",
+        allowed_networks=["eip155:84532"],
+    ),
+    # Only because the merchant above is on localhost. Never set this for a real merchant.
+    allow_insecure_localhost=True,
+) as tx402:
+    response = tx402.get("<merchant-url>")
+    print(response.status_code, response.text)
+```
+
+For Solana, `pip install "tx402[svm]"` instead and use this:
+
+```python title="quickstart.py — Solana Devnet"
+import os
+
+from tx402 import Policy, Tx402Client
+from tx402.signers import keypair_to_solana_signer
+
+with Tx402Client(
+    solana_signer=keypair_to_solana_signer(os.environ["TX402_DEV_SOLANA_KEYPAIR"]),
+    policy=Policy(
+        max_per_request="0.10 USDC",
+        max_per_hour="1.00 USDC",
+        allowed_networks=["solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1"],
+    ),
+    # Only because the merchant above is on localhost. Never set this for a real merchant.
+    allow_insecure_localhost=True,
+) as tx402:
+    response = tx402.get("<merchant-url>")
+    print(response.status_code, response.text)
+```
+
+Then run it:
+
+```bash
+python quickstart.py
+```
+
+  </TabItem>
+</Tabs>
+
+Runnable versions of both are in
+[`examples/`](https://github.com/neogeeks/tx402/tree/main/examples).
+
+## What just happened
+
+1. tx402 sent your request normally. The merchant answered `402` with a `PAYMENT-REQUIRED`
+   header listing what it accepts.
+2. tx402 decoded and validated that challenge strictly — size, depth, duplicate keys, the
+   resource origin against the URL you asked for.
+3. **Your policy ran**, in a fixed order: domain, network, scheme and asset, per-request cap,
+   rolling hourly cap. Nothing had touched a key yet.
+4. tx402 read your balance on each offered chain, concurrently, and ranked the routes.
+5. It **reserved** the amount from your local budget — atomically, before signing.
+6. Your signer produced exactly one authorization, with a fresh nonce.
+7. tx402 retried the request once, carrying `PAYMENT-SIGNATURE`.
+8. The merchant settled and answered. tx402 read `PAYMENT-RESPONSE` and **committed** the
+   reservation.
+
+Steps 3 and 5 happening before step 6 is the property the whole design is built around. See
+[the request lifecycle](../../guides/lifecycle/) for the full picture.
+
+## If it did not work
+
+| Exit | What it means                    | Try                                                                    |
+| ---- | -------------------------------- | ---------------------------------------------------------------------- |
+| `3`  | Your own cap refused it          | Raise `--max-spend`, or accept it — this is the guardrail working      |
+| `4`  | Wallet cannot cover it           | Fund the wallet, and check you funded the network the merchant offered |
+| `5`  | No usable route or bad challenge | Read the message — it says which of the four causes below it is        |
+| `7`  | Network failure                  | Transient; retry is safe here                                          |
+| `8`  | **Ambiguous**                    | Money may have moved. Do not retry — reconcile with the merchant first |
+| `9`  | **No resource, and `--json` says whether you paid for it** | Read `error.context.paid` before you act — it is `true` and `false` for different merchants on this same code |
+
+Exit `5` is the one worth expanding, because it is the code you are most likely to see and it
+covers four unrelated causes. The message names which:
+
+| Message                                             | What is actually wrong                                                                       |
+| :-------------------------------------------------- | :------------------------------------------------------------------------------------------- |
+| `No allowed payment network was offered`            | You omitted `--network`, or pointed it at a network this merchant does not offer. The error prints `offeredNetworks` directly beneath it — copy one from there |
+| `No offered network has a configured signer…`       | No key is exported for any offered chain, or the chain's optional peer dependency is missing — `@x402/evm` + `viem` for Base, and `@solana-program/token` + `@solana/kit` + `@x402/svm` + `viem` for Solana. **`viem` is on both rows**: `tx402/signers` imports it whichever chain you pay on, so a Solana-only install without it fails here too |
+| `…requirement is unusable: eip712-domain-missing`   | The **merchant's** challenge is malformed: it did not publish the token's EIP-712 domain. Nothing on your side fixes this |
+| `Solana requirement is missing an address`          | The same, on Solana: the merchant's challenge names no fee payer                              |
+
+The last two are merchant defects, not yours. `--json` puts the machine-readable form of any of
+them on stdout, and `details.schemaPath` points at the exact field.
+
+Exit `9` is worth expanding for the opposite reason: it looks like one outcome, and is five
+merchant behaviours falling into two dispositions that want opposite actions. It means "you did not get the resource" — it does **not** mean
+"you paid". Run it again with `--json` and read `error.context.paid`:
+
+| `context.paid` | `settlement` | What happened                                                         | Do                                                                             |
+| :------------- | :----------- | :--------------------------------------------------------------------- | :------------------------------------------------------------------------------ |
+| `false`        | `null`       | The merchant did not accept the payment — four behaviours produce this, tabulated below. **No money moved**: a signature was produced and transmitted, but nothing settled | Retrying is safe. Your budget reservation was already released |
+| `true`         | an object    | The payment settled and the merchant then failed to deliver             | **Do not retry.** Reconcile with the merchant, quoting `settlement.transaction` and `settlement.payer` — both are also printed to stderr without `--json` |
+
+`details.reason` names which merchant behaviour it was. **Four of the five mean no money moved,
+and only one means it did** — `context.paid` above is the field to branch on, and this table is
+what each value can be caused by:
+
+| `details.reason`                         | `context.paid` | The merchant…                                              |
+| :--------------------------------------- | :------------- | :----------------------------------------------------------- |
+| `settlement-unsuccessful`                | `false`        | …reported the settlement as unsuccessful                    |
+| `max-paid-attempts-exhausted`            | `false`        | …re-challenged until the permitted attempts ran out         |
+| `paid-request-rejected`                  | `false`        | …refused the signed request outright                        |
+| `rechallenge-undecodable`                | `false`        | …re-challenged with a `PAYMENT-REQUIRED` that does not decode |
+| `settlement-succeeded-resource-unusable` | `true`         | …reported a **successful** settlement and then failed to deliver |
+
+When money did move, tx402 prints the identifiers to stderr on its own, so establishing that
+never requires re-running a payment.
+
+Full detail for every code is in the [error reference](../../reference/errors/).

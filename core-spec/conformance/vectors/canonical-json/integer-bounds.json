@@ -1,0 +1,23 @@
+{
+  "$schema": "../../../schemas/conformance-vector.schema.json",
+  "id": "canonical-json.integer-bounds",
+  "kind": "canonical-json",
+  "milestone": "M0",
+  "title": "Integers serialize minimally at both ends of the safe range, and negative zero normalizes",
+  "description": "`-0` is the interesting entry: JSON text `-0` parses to the JavaScript value `-0` but to the Python value `0`. Both must serialize to `0`, or a document containing it would produce two different signatures. Money never travels as a number (ADR-006), but manifest fields such as `chainId` and `decimals` do.",
+  "spec": ["ADR-006", "ADR-012"],
+  "input": {
+    "document": {
+      "zero": 0,
+      "negativeZero": 0,
+      "one": 1,
+      "negative": -8453,
+      "maxSafe": 9007199254740991,
+      "minSafe": -9007199254740991
+    }
+  },
+  "expected": {
+    "canonical": "{\"maxSafe\":9007199254740991,\"minSafe\":-9007199254740991,\"negative\":-8453,\"negativeZero\":0,\"one\":1,\"zero\":0}",
+    "sha256": "sha256:a8302e1fdd97978b178ec0a3a483327b34b9ba591d189e04764b2204cd13810e"
+  }
+}

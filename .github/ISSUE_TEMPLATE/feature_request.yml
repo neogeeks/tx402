@@ -1,0 +1,41 @@
+name: Feature request
+description: Propose a capability or change to tx402.
+title: "feat: <short summary>"
+labels: ["enhancement", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        tx402 is a buyer-side x402 SDK with a deliberately small, safe surface. Proposals that
+        keep money in integer atomic units, keep signing behind the caller's own signer, and keep
+        policy evaluated before any signer call are the easiest to accept.
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What are you trying to do that tx402 makes hard or impossible today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What would you like tx402 to do? An API sketch helps.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Workarounds you have tried, or other designs you weighed.
+    validations:
+      required: false
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope check
+      options:
+        - label: This keeps tx402 buyer-side — it does not ask the SDK to run a facilitator, bridge, swap, or broadcast settlement.
+          required: false
+        - label: I would be willing to help implement this.
+          required: false

@@ -1,0 +1,15 @@
+{
+  "$schema": "../../../schemas/conformance-vector.schema.json",
+  "id": "policy.host-normalization.unicode-idn",
+  "kind": "policy.host-normalization",
+  "milestone": "M0",
+  "title": "A Unicode host and its punycoded twin normalize to one string",
+  "description": "The ADR-018 amendment (PLAN.md O58): TypeScript normalizes through `new URL`, Python through httpx, and both must land on the punycoded A-label. Otherwise a Unicode allowlist entry and a Unicode request URL would compare unequal in one language and equal in the other.",
+  "spec": ["SPEC §6.3", "ADR-018"],
+  "input": {
+    "url": "https://BÜCHER.Example/resource"
+  },
+  "expected": {
+    "host": "xn--bcher-kva.example"
+  }
+}

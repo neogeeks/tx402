@@ -1,0 +1,132 @@
+---
+title: Security model
+description: What tx402 defends against, what it does not, and the properties you can rely on.
+sidebar:
+  order: 1
+  label: Overview
+---
+
+tx402 signs payment authorizations on behalf of software that may be running unattended for
+hours. That makes its security properties load-bearing in a way an ordinary HTTP client's are
+not. This page states them plainly, including the limits.
+
+## The position tx402 is in
+
+It is **buyer-side and non-custodial**. tx402 never holds funds and never has custody of a key
+it did not receive from you. It calls **no** facilitator endpoint — `/verify` and `/settle` are
+the merchant's business, not the buyer's — so the buyer's attack surface is the merchant's
+challenge, the RPC endpoints it reads balances from, and its own configuration.
+
+The threat that shapes the design is the one the target users actually face: an **autonomous
+agent** running a long loop, reading untrusted content, and able to make HTTP requests. If that
+content can induce a payment, the agent's wallet is only as safe as the guardrails between the
+request and the signature.
+
+## Properties you can rely on
+
+### Guardrails run before keys
+
+Policy evaluation and the atomic budget reservation both complete before any signer is invoked,
+on every attempt. A refused request produces **zero signatures** — the signer is never called,
+so a hardware wallet never prompts and a KMS never records a use. The test suite asserts a
+signer call count of zero for every policy, planning, liquidity, and chain-identity refusal.
+
+### One signature per attempt, always fresh
+
+Each paid attempt produces exactly one authorization with a cryptographically fresh 32-byte
+nonce, and no authorization is ever transmitted twice. A re-challenge re-plans and re-signs from
+scratch rather than reusing anything.
+
+### Authorizations are bounded
+
+Lifetime is `min(60 seconds, merchant's stated bound)` and can never exceed the merchant's own.
+The bound is computed **after** the message that it constrains exists, so it is true by
+construction rather than by timing.
+
+### The signer sees what it is signing
+
+Before the external signer is invoked, tx402 re-derives the approved plan and asserts **every
+field** of the payload against it — chain, token contract, domain, payer, recipient, amount,
+validity window, nonce length. On Solana it decodes the **serialized** transaction rather than
+inspecting the builder's own objects, so a construction bug is caught rather than agreed with.
+
+Alongside that, the signer receives a human-readable presentation: domain, asset, atomic and
+decimal amount, recipient, network, expiry, and request hash. A hardware wallet can show a
+person what they are approving.
+
+### Redirects are never followed after a signature
+
+**No redirect is followed on a paid retry — and by the time one arrives, your signature is
+already with the merchant.** A redirect is a response, so the request that provoked it had to be
+sent first. What tx402 refuses is the *second* request, to the redirect target.
+
+That makes both kinds of redirect an **exit `8`** outcome, with `context.paid` of `"unknown"` and
+the budget reservation **retained** until its TTL. Treat them exactly as the error reference tells
+you to treat exit 8: money may have moved, do not retry blindly, reconcile with the merchant.
+
+| Redirect       | Error                    | Details it carries                                            |
+| :------------- | :----------------------- | :-------------------------------------------------------------- |
+| Cross-origin   | `TX402_REDIRECT_BLOCKED` | `fromOrigin`, `toOrigin`, `causeCategory`, `reservationExpiresAtEpochMs` |
+| Same-origin    | `TX402_PAYMENT_AMBIGUOUS` | `causeCategory` (`redirect-not-followed`), `reservationExpiresAtEpochMs` |
+
+Both **throw**. You do not get the response back, and the same-origin error does not carry the
+`Location` — so a merchant that redirects a paid retry is a merchant you reconcile with, not one
+you follow.
+
+Same-origin is refused as well as cross-origin, and that is a deliberate v0.1 narrowing rather
+than an oversight: re-sending a request that already carries a payment signature means tx402
+cannot know whether the merchant treats the second URL as the same operation or a new one, so a
+redirect that looks like a formality could be a second charge. Lifting this would require a
+merchant-side idempotency signal the protocol does not currently define.
+
+### Nothing sensitive is logged
+
+Signatures, private keys, complete signed transactions, and authorization payloads are never
+written to the event stream, never embedded in an error, and never serialized. `toJSON` /
+`to_dict` on a tx402 error deliberately omits the cause and the traceback, which is where a URL
+with credentials would otherwise appear.
+
+This is tested rather than asserted: the suite seeds a real secret into every input the request
+path touches — signing key, bearer token, query credential, body, settlement id — then searches
+the entire serialised event stream for each one, in hex, base64, and base64url, on the success
+path and on the refusal path.
+
+### Untrusted input is parsed defensively
+
+The `PAYMENT-REQUIRED` header is decoded under hard limits: strict base64, ≤64 KiB decoded, JSON
+depth ≤16, duplicate keys rejected, ≤32 requirements. The resource URL's origin is validated
+against the URL you requested, and the challenge is bound to the method **tx402 itself issued**
+rather than to one the challenge claims.
+
+### The network list is signed
+
+Networks, token contracts, decimals, and RPC endpoints come from a release manifest that is
+Ed25519-signed and verified offline at client construction, against keys compiled into the
+package. A tampered manifest fails construction rather than routing a payment to an attacker's
+contract.
+
+## What tx402 does not defend against
+
+Stated plainly, because a security page that only lists strengths is not useful.
+
+- **A compromised process.** A key in your process memory is readable by anything that can read
+  your process. tx402 reduces how often it is _needed_, not what an attacker with code execution
+  can do. Use an external signer.
+- **A malicious merchant charging what it said it would.** tx402 enforces _your_ caps and the
+  protocol's rules. If you allow $0.10 and the merchant asks for $0.10 for nothing, you pay
+  $0.10 for nothing. Caps bound the damage; they do not judge value.
+- **Settlement outcomes.** tx402 does not call the facilitator, so it knows what the merchant
+  tells it. `AmbiguousPaymentError` exists because sometimes the merchant tells it nothing.
+- **A hostile RPC endpoint's data, beyond chain identity.** tx402 proves the chain, caps the
+  time, and fails over. It does not independently verify a returned balance.
+- **Cross-process budget.** The default ledger is in-memory and per-client. Two processes have
+  two budgets, and the hourly window resets on restart.
+- **Anything after v0.1's scope**: no cross-chain swaps, no asynchronous settlement, no
+  streaming payments.
+
+## Reporting a vulnerability
+
+Use **GitHub Private Vulnerability Reporting** on
+[neogeeks/tx402](https://github.com/neogeeks/tx402/security/advisories/new). Please do not open a
+public issue for a security problem. The full policy, including scope and what to expect, is in
+[`SECURITY.md`](https://github.com/neogeeks/tx402/blob/main/SECURITY.md).

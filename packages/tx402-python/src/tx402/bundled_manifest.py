@@ -1,0 +1,105 @@
+"""GENERATED FILE — do not edit.
+
+Emitted by `node tools/manifest-signer/index.js embed` from
+core-spec/manifests/bundled.manifest.json, which is the signed source of truth.
+Edit that file, re-sign it, then re-run embed.
+"""
+
+from __future__ import annotations
+
+from typing import Any, Final
+
+#: The signed release manifest shipped with this build (SPEC §5.4).
+BUNDLED_MANIFEST: Final[dict[str, Any]] = {
+    "manifestVersion": 1,
+    "release": "0.1.0",
+    "issuedAt": "2026-08-02T00:00:00Z",
+    "expiresAt": "2027-08-02T00:00:00Z",
+    "networks": {
+        "eip155:8453": {
+            "environment": "production",
+            "chainId": 8453,
+            "rpcUrls": [
+                "https://mainnet.base.org",
+                "https://base-rpc.publicnode.com",
+            ],
+            "assets": [
+                {
+                    "symbol": "USDC",
+                    "address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+                    "decimals": 6,
+                    "eip712Version": "2",
+                    "schemes": [
+                        "exact",
+                    ],
+                },
+            ],
+        },
+        "eip155:84532": {
+            "environment": "test",
+            "chainId": 84532,
+            "rpcUrls": [
+                "https://sepolia.base.org",
+                "https://base-sepolia-rpc.publicnode.com",
+            ],
+            "assets": [
+                {
+                    "symbol": "USDC",
+                    "address": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+                    "decimals": 6,
+                    "eip712Version": "2",
+                    "schemes": [
+                        "exact",
+                    ],
+                },
+            ],
+        },
+        "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp": {
+            "environment": "production",
+            "genesisHash": "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d",
+            "rpcUrls": [
+                "https://api.mainnet-beta.solana.com",
+                "https://rpc.solanatracker.io/public",
+            ],
+            "assets": [
+                {
+                    "symbol": "USDC",
+                    "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+                    "decimals": 6,
+                    "tokenProgram": "spl-token",
+                    "schemes": [
+                        "exact",
+                    ],
+                },
+            ],
+        },
+        "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1": {
+            "environment": "test",
+            "genesisHash": "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG",
+            "rpcUrls": [
+                "https://api.devnet.solana.com",
+                "https://solana-devnet.api.onfinality.io/public",
+            ],
+            "assets": [
+                {
+                    "symbol": "USDC",
+                    "mint": "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
+                    "decimals": 6,
+                    "tokenProgram": "spl-token",
+                    "schemes": [
+                        "exact",
+                    ],
+                },
+            ],
+        },
+    },
+    "networkAliases": {
+        "solana:mainnet": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+        "solana:devnet": "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
+    },
+    "signature": {
+        "algorithm": "ed25519",
+        "keyId": "tx402-release-2",
+        "value": "lxXl/oLGlPsUfy79pZw2G5aWgYh1FU5TDPyIFXYyegpyQwFy9ggOPaTycOBIsvXXAA7NMcmN9N+tEfIIGIkZAw==",
+    },
+}

@@ -1,0 +1,42 @@
+{
+  "$schema": "https://tx402.dev/schemas/v1/conformance-vector.schema.json",
+  "id": "completion.paid-attempt.rechallenge-then-delivered",
+  "kind": "completion.paid-attempt",
+  "milestone": "M6",
+  "title": "A repeated 402 releases and re-plans; the second attempt commits",
+  "description": "The nominal T-010 path. The first signed attempt is answered with a fresh 402: the merchant is still asking to be paid, which is evidence that nothing settled, so the reservation is released and the loop is allowed another attempt. The second delivers with a successful PAYMENT-RESPONSE and commits. An implementation that retained the first reservation would count the same purchase twice against the rolling hourly cap even though only one payment ever settled.",
+  "spec": ["SPEC \u00a76.7", "SPEC T-010"],
+  "input": {
+    "maxPaidAttempts": 2,
+    "attempts": [
+      {
+        "attempt": 1,
+        "result": {
+          "kind": "response",
+          "status": 402,
+          "settlement": "absent"
+        }
+      },
+      {
+        "attempt": 2,
+        "result": {
+          "kind": "response",
+          "status": 200,
+          "settlement": "success"
+        }
+      }
+    ]
+  },
+  "expected": {
+    "dispositions": [
+      {
+        "kind": "rechallenge",
+        "reservation": "released"
+      },
+      {
+        "kind": "commit",
+        "reservation": "committed"
+      }
+    ]
+  }
+}

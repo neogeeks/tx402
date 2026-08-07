@@ -1,0 +1,10 @@
+{
+  "name": "@tx402-dev/nul-check",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Fails if any tracked text file contains a raw NUL byte (PLAN.md O25).",
+  "bin": {
+    "tx402-nul-check": "./index.js"
+  }
+}

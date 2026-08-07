@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/neogeeks/tx402/security/advisories/new
+    about: Please report vulnerabilities privately through GitHub's private vulnerability reporting, never as a public issue.
+  - name: Documentation
+    url: https://docs.tx402.io
+    about: Quickstart, guides, API reference, and the error reference.

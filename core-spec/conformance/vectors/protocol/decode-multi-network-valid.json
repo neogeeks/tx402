@@ -1,0 +1,51 @@
+{
+  "$schema": "../../../schemas/conformance-vector.schema.json",
+  "id": "protocol.decode-payment-required.multi-network-valid",
+  "kind": "protocol.decode-payment-required",
+  "milestone": "M1",
+  "title": "Two offered networks keep their wire ordering and their indices",
+  "description": "Input ordering is preserved rather than sorted. `index` is the final tie-break in route ordering (SPEC §6.4 step 18), so losing it would make route selection non-deterministic for otherwise equally ranked candidates.",
+  "spec": ["SPEC §5.1", "SPEC §6.4"],
+  "input": {
+    "requestUrl": "https://api.example.com/v1/completions",
+    "requestMethod": "POST",
+    "header": "eyJ4NDAyVmVyc2lvbiI6MiwicmVzb3VyY2UiOnsidXJsIjoiaHR0cHM6Ly9hcGkuZXhhbXBsZS5jb20vdjEvY29tcGxldGlvbnMifSwiYWNjZXB0cyI6W3sic2NoZW1lIjoiZXhhY3QiLCJuZXR3b3JrIjoiZWlwMTU1Ojg0NTMiLCJhc3NldCI6IjB4ODMzNTg5ZkNENmVEYjZFMDhmNGM3QzMyRDRmNzFiNTRiZEEwMjkxMyIsImFtb3VudCI6IjUwMDAwIiwicGF5VG8iOiIweDEyMzQ1Njc4OTBBYmNkRUYxMjM0NTY3ODkwYUJjZGVmMTIzNDU2NzgiLCJtYXhUaW1lb3V0U2Vjb25kcyI6NjAsImV4dHJhIjp7fX0seyJzY2hlbWUiOiJleGFjdCIsIm5ldHdvcmsiOiJzb2xhbmE6NWV5a3Q0VXNGdjhQOE5KZFRSRXBZMXZ6cUtxWkt2ZHAiLCJhc3NldCI6IkVQakZXZGQ1QXVmcVNTcWVNMnFOMXh6eWJhcEM4RzR3RUdHa1p3eVREdDF2IiwiYW1vdW50IjoiNTAwMDAiLCJwYXlUbyI6IjlXekRYd0JibWtnOFpUYk5NcVV4dlFSQXlyWnpEc0dZZExWTDl6WXRBV1dNIiwibWF4VGltZW91dFNlY29uZHMiOjYwLCJleHRyYSI6e319XX0=",
+    "clockEpochMs": 1785711360000
+  },
+  "expected": {
+    "outcome": "valid",
+    "normalized": {
+      "protocolVersion": 2,
+      "resource": {
+        "url": "https://api.example.com/v1/completions",
+        "method": "POST"
+      },
+      "requirements": [
+        {
+          "index": 0,
+          "scheme": "exact",
+          "network": "eip155:8453",
+          "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "amountAtomic": "50000",
+          "payTo": "0x1234567890AbcdEF1234567890aBcdef12345678",
+          "maxTimeoutSeconds": 60,
+          "extra": {},
+          "rawHash": "sha256:1b3cbd1c9ee1d600ac8501543786ff945ce924c12668ae23b33e8bc45da43f0c"
+        },
+        {
+          "index": 1,
+          "scheme": "exact",
+          "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+          "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+          "amountAtomic": "50000",
+          "payTo": "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
+          "maxTimeoutSeconds": 60,
+          "extra": {},
+          "rawHash": "sha256:81aa8cb3f111888f428ea076417a7eb5d81f3e3eb353942189dd51aeaff219bc"
+        }
+      ],
+      "receivedAt": "2026-08-02T22:56:00.000Z",
+      "headerHash": "sha256:4bc068a48d9a807ad8e4f9840591f821a6ef648e08f04dfb4574d148a8fd8398"
+    }
+  }
+}

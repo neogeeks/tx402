@@ -1,0 +1,919 @@
+/* tx402 documentation theme.
+ *
+ * The documentation and the landing page at tx402.io are one product, so they are one
+ * visual system. This file adapts the landing page's design language — its palette,
+ * type, spacing rhythm, radii and surface hierarchy — onto Starlight.
+ *
+ * **It is presentation only.** No rule here changes a route, a label, a heading, a word
+ * of copy, or what any control does. The page content is what `src/content/docs` says it
+ * is; this file only decides what it looks like.
+ *
+ * Two things to know before editing:
+ *
+ * 1. **The tokens are the interface.** Starlight's components are written against
+ *    `--sl-color-gray-1…7` and friends, so re-pointing that scale restyles the whole site
+ *    coherently instead of one selector at a time. Prefer adding a token over adding a
+ *    rule, and never target an `astro-*` class: those hashes change on every build.
+ *
+ * 2. **Unlayered beats layered.** Starlight ships inside `@layer starlight.*`; this file
+ *    is emitted outside any layer, so it wins at equal specificity without `!important`.
+ *    If a rule here needs `!important`, that is a sign it is fighting the wrong selector.
+ *
+ * Where the landing page and a documentation site genuinely disagree, the documentation
+ * wins: no scroll-triggered motion, no marketing hero density, and code blocks keep the
+ * colour scheme the reader chose rather than staying dark in light mode. Long-form
+ * technical reading is the job.
+ */
+
+/* ------------------------------------------------------------------ fonts --
+ * Self-hosted, same variable latin subsets the landing page serves, so the two
+ * sites render in the same voice and neither one calls a third-party font host.
+ * `swap` keeps text visible while they load; the fallback stack is metric-close
+ * enough that the swap is not a layout jump.
+ */
+@font-face {
+  font-family: "Inter";
+  src: url("/fonts/inter-latin-var.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("/fonts/jetbrainsmono-latin-var.woff2") format("woff2");
+  font-weight: 100 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ----------------------------------------------------------------- tokens --
+ * The left column is the landing page's token name, so a value can be traced back
+ * to its source when the two are compared side by side.
+ */
+
+:root {
+  --sl-font: "Inter";
+  --sl-font-mono: "JetBrains Mono";
+
+  /* radii, timings and the mono-caps treatment shared by every label below */
+  --tx-r-sm: 6px;
+  --tx-r: 10px;
+  --tx-r-lg: 14px;
+  --tx-r-pill: 999px;
+  --tx-t-fast: 120ms;
+  --tx-t: 200ms;
+  --tx-ease: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Wider than Starlight's 45rem default: these pages carry wide tables and long
+   * command lines, and the extra 3rem is the difference between a reference table
+   * fitting and scrolling. Still inside a comfortable measure for prose. */
+  --sl-content-width: 48rem;
+  --sl-nav-height: 3.5rem;
+  --sl-line-height: 1.75;
+  --sl-line-height-headings: 1.18;
+}
+
+/* Dark — the landing page's default and, like it, the scheme this palette was drawn for. */
+:root,
+::backdrop {
+  color-scheme: dark;
+
+  --tx-bg: #0a0c11; /* --bg */
+  --tx-bg-alt: #0d1018; /* --bg-alt */
+  --tx-surface: #12161f; /* --surface */
+  --tx-surface-2: #171c27; /* --surface-2 */
+  --tx-surface-3: #1c2230; /* --surface-3 */
+  --tx-border: #232a38; /* --border */
+  --tx-border-strong: #333d50; /* --border-strong */
+  --tx-text: #e9ecf3; /* --text */
+  --tx-text-muted: #99a2b6; /* --text-muted */
+  /* --text-faint. Carried so the mapping is complete and so Starlight's `gray-4` lands
+   * somewhere deliberate, but **not used for text here**: at the label sizes this file
+   * sets it measures 4.29:1 on the page background and 3.74:1 on a surface, under the
+   * 4.5:1 floor. A marketing page can spend that; a reference table cannot. Quiet text
+   * in these pages is `--tx-text-muted`, which measures 7.64:1 and 6.66:1. */
+  --tx-text-faint: #6d7689;
+
+  --tx-accent: #4da3ff; /* --accent */
+  --tx-accent-soft: rgba(77, 163, 255, 0.12); /* --accent-soft */
+  --tx-accent-line: rgba(77, 163, 255, 0.35); /* --accent-line */
+  --tx-accent-strong: #7abaff; /* --btn-bg-hover */
+  --tx-on-accent: #04070d; /* --btn-fg */
+
+  --tx-ok: #46c05a; /* --ok */
+  --tx-ok-soft: rgba(70, 192, 90, 0.12);
+  --tx-warn: #dda63c; /* --warn */
+  --tx-warn-soft: rgba(221, 166, 60, 0.12);
+  --tx-err: #f8746b; /* --err */
+  --tx-err-soft: rgba(248, 116, 107, 0.12);
+
+  --tx-grid-line: rgba(140, 165, 210, 0.055); /* --grid-line */
+  --tx-header-bg: rgba(10, 12, 17, 0.78); /* --header-bg */
+  --tx-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 16px 40px -24px rgba(0, 0, 0, 0.8);
+  --tx-code-bg: #080b10; /* the landing article's code surface */
+
+  /* Starlight's scale, re-pointed. Body copy sits a step below heading white so a long
+   * reference page does not glare; both stay far above the 4.5:1 floor on --tx-bg. */
+  --sl-color-white: #f2f5fa;
+  --sl-color-gray-1: var(--tx-text);
+  --sl-color-gray-2: #cfd6e4;
+  --sl-color-gray-3: var(--tx-text-muted);
+  --sl-color-gray-4: var(--tx-text-faint);
+  --sl-color-gray-5: var(--tx-border-strong);
+  --sl-color-gray-6: var(--tx-border);
+  --sl-color-gray-7: var(--tx-surface);
+  --sl-color-black: var(--tx-bg);
+
+  --sl-color-accent-low: #10233a;
+  --sl-color-accent: var(--tx-accent);
+  --sl-color-accent-high: #bfd4ff;
+
+  --sl-color-orange-low: var(--tx-warn-soft);
+  --sl-color-orange: var(--tx-warn);
+  --sl-color-orange-high: #f2cd85;
+  --sl-color-green-low: var(--tx-ok-soft);
+  --sl-color-green: var(--tx-ok);
+  --sl-color-green-high: #8edb9b;
+  --sl-color-blue-low: var(--tx-accent-soft);
+  --sl-color-blue: var(--tx-accent);
+  --sl-color-blue-high: #a8cfff;
+  --sl-color-red-low: var(--tx-err-soft);
+  --sl-color-red: var(--tx-err);
+  --sl-color-red-high: #ffada6;
+  /* The landing palette has no purple. `tip` is unused in these pages, but if one is ever
+   * written it should read as a sibling of `note`, not as a colour from another system. */
+  --sl-color-purple-low: var(--tx-accent-soft);
+  --sl-color-purple: #8fa8ff;
+  --sl-color-purple-high: #c2cfff;
+
+  /* Links are the landing's accent, not Starlight's pale tint of it. */
+  --sl-color-text: var(--sl-color-gray-2);
+  --sl-color-text-accent: var(--tx-accent);
+  --sl-color-text-invert: var(--tx-on-accent);
+  --sl-color-bg: var(--tx-bg);
+  --sl-color-bg-nav: var(--tx-header-bg);
+  --sl-color-bg-sidebar: var(--tx-bg);
+  --sl-color-bg-inline-code: var(--tx-surface-2);
+  --sl-color-bg-accent: var(--tx-accent);
+  --sl-color-hairline: var(--tx-border);
+  --sl-color-hairline-light: var(--tx-border);
+  --sl-color-hairline-shade: var(--tx-border);
+  --sl-color-backdrop-overlay: rgba(6, 8, 12, 0.72);
+
+  --sl-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --sl-shadow-md: var(--tx-shadow);
+  --sl-shadow-lg: var(--tx-shadow);
+}
+
+:root[data-theme="light"],
+[data-theme="light"] ::backdrop {
+  color-scheme: light;
+
+  --tx-bg: #fbfcfe;
+  --tx-bg-alt: #f3f6fa;
+  --tx-surface: #ffffff;
+  --tx-surface-2: #f7f9fc;
+  --tx-surface-3: #eef2f8;
+  --tx-border: #e0e6f0;
+  --tx-border-strong: #c3ccdd;
+  --tx-text: #0f141d;
+  --tx-text-muted: #545f77;
+  --tx-text-faint: #6f7a90;
+
+  --tx-accent: #0b62d6;
+  --tx-accent-soft: rgba(11, 98, 214, 0.08);
+  --tx-accent-line: rgba(11, 98, 214, 0.3);
+  --tx-accent-strong: #094fad;
+  --tx-on-accent: #ffffff;
+
+  --tx-ok: #10693a;
+  --tx-ok-soft: rgba(16, 105, 58, 0.1);
+  --tx-warn: #8a5a00;
+  --tx-warn-soft: rgba(138, 90, 0, 0.1);
+  --tx-err: #c22b21;
+  --tx-err-soft: rgba(194, 43, 33, 0.09);
+
+  --tx-grid-line: rgba(30, 60, 110, 0.06);
+  --tx-header-bg: rgba(251, 252, 254, 0.82);
+  --tx-shadow: 0 1px 2px rgba(15, 23, 42, 0.05), 0 14px 34px -22px rgba(15, 23, 42, 0.3);
+  --tx-code-bg: var(--tx-surface-2);
+
+  --sl-color-white: var(--tx-text);
+  --sl-color-gray-1: #1b2230;
+  --sl-color-gray-2: #2b3446;
+  --sl-color-gray-3: var(--tx-text-muted);
+  --sl-color-gray-4: var(--tx-text-faint);
+  --sl-color-gray-5: var(--tx-border-strong);
+  --sl-color-gray-6: var(--tx-border);
+  --sl-color-gray-7: var(--tx-surface-2);
+  --sl-color-black: var(--tx-bg);
+
+  --sl-color-accent-low: #d3e0ff;
+  --sl-color-accent: var(--tx-accent);
+  --sl-color-accent-high: #16305c;
+
+  --sl-color-orange-low: var(--tx-warn-soft);
+  --sl-color-orange: var(--tx-warn);
+  --sl-color-orange-high: #6b4600;
+  --sl-color-green-low: var(--tx-ok-soft);
+  --sl-color-green: var(--tx-ok);
+  --sl-color-green-high: #0b4f2b;
+  --sl-color-blue-low: var(--tx-accent-soft);
+  --sl-color-blue: var(--tx-accent);
+  --sl-color-blue-high: #0a4a9e;
+  --sl-color-red-low: var(--tx-err-soft);
+  --sl-color-red: var(--tx-err);
+  --sl-color-red-high: #94201a;
+  --sl-color-purple-low: var(--tx-accent-soft);
+  --sl-color-purple: #3d51c7;
+  --sl-color-purple-high: #26308a;
+
+  --sl-color-text: var(--sl-color-gray-2);
+  --sl-color-text-accent: var(--tx-accent);
+  --sl-color-text-invert: var(--tx-on-accent);
+  --sl-color-bg-nav: var(--tx-header-bg);
+  --sl-color-bg-sidebar: var(--tx-bg);
+  --sl-color-bg-inline-code: var(--tx-surface-2);
+  --sl-color-bg-accent: var(--tx-accent);
+  --sl-color-hairline: var(--tx-border);
+  --sl-color-hairline-light: var(--tx-border);
+  --sl-color-hairline-shade: var(--tx-border);
+  --sl-color-backdrop-overlay: rgba(15, 23, 42, 0.45);
+
+  --sl-shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
+  --sl-shadow-md: var(--tx-shadow);
+  --sl-shadow-lg: var(--tx-shadow);
+}
+
+/* ------------------------------------------------------------------- base -- */
+
+body {
+  background: var(--tx-bg);
+  font-synthesis-weight: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* The landing page's focus ring: the accent, offset so it never sits on the glyphs. */
+:focus-visible {
+  outline: 2px solid var(--tx-accent);
+  outline-offset: 3px;
+}
+
+/* --------------------------------------------------------------- headings --
+ * The landing page's headings are tight and slightly negative-tracked. Documentation
+ * headings are smaller than a marketing hero's, so the tracking is scaled with them:
+ * the same optical weight, not the same numbers.
+ */
+
+.sl-markdown-content :is(h1, h2, h3, h4, h5, h6),
+.content-panel h1,
+.hero h1 {
+  letter-spacing: -0.022em;
+  font-weight: 600;
+}
+
+.sl-markdown-content h1,
+.content-panel h1 {
+  letter-spacing: -0.03em;
+}
+
+/* Starlight's default top margins are generous enough to read as loose once the type is
+ * this tight. The landing page separates sections with a hairline and a clear step. */
+.sl-markdown-content
+  :is(h2):not(:where(.not-content *, :first-child, .sl-heading-wrapper + *)) {
+  margin-top: 2.75rem;
+  padding-top: 1.75rem;
+  border-top: 1px solid var(--tx-border);
+}
+.sl-markdown-content :is(.sl-heading-wrapper:has(h2)):not(:first-child) {
+  margin-top: 2.75rem;
+  padding-top: 1.75rem;
+  border-top: 1px solid var(--tx-border);
+}
+.sl-markdown-content .sl-heading-wrapper:has(h2) > h2 {
+  margin-top: 0;
+}
+/* Some pages separate their sections with an explicit `---`. That rule is the author's,
+ * and the automatic one above would print a second line directly under it. */
+.sl-markdown-content hr + .sl-heading-wrapper:has(h2):not(:first-child),
+.sl-markdown-content
+  hr
+  + h2:not(:where(.not-content *, :first-child, .sl-heading-wrapper + *)) {
+  border-top: 0;
+  padding-top: 0;
+  margin-top: 2.25rem;
+}
+
+/* ------------------------------------------------------------------ links -- */
+
+.sl-markdown-content a:not(:where(.not-content *)) {
+  text-decoration-color: var(--tx-accent-line);
+  text-underline-offset: 0.18em;
+}
+.sl-markdown-content a:not(:where(.not-content *)):hover {
+  text-decoration-color: currentColor;
+}
+
+/* ------------------------------------------------------------------ header --
+ * Sticky, translucent and blurred, exactly like the landing header once it is stuck.
+ * `backdrop-filter` is progressive: without it the rgba background still reads.
+ */
+
+/* `header.header`, not `.header`: Starlight nests a `<div class="header">` inside the
+ * `<header class="header">`. A bare class selector styles both, and the inner one is inset
+ * by the nav padding — so the bar gets a second, shorter rule drawn across it and a second
+ * coat of the translucent background. */
+header.header {
+  background: var(--tx-header-bg);
+  backdrop-filter: saturate(180%) blur(14px);
+  -webkit-backdrop-filter: saturate(180%) blur(14px);
+  border-bottom: 1px solid var(--tx-border);
+}
+
+/* The wordmark: the landing page sets `tx402` in bold mono next to the route mark. The
+ * mark is a decorative background image, so the accessible name stays the site title
+ * text that Starlight already renders. */
+.site-title {
+  font-family: var(--sl-font-mono), monospace;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--sl-color-white);
+  gap: 0.5rem;
+}
+.site-title::before {
+  content: "";
+  flex: none;
+  width: 22px;
+  height: 22px;
+  background-color: currentColor;
+  color: var(--tx-accent);
+  /* The landing page's route mark, inlined so the header paints in one request. */
+  -webkit-mask: var(--tx-mark) center / contain no-repeat;
+  mask: var(--tx-mark) center / contain no-repeat;
+}
+:root {
+  --tx-mark: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 12h5l2.5-5 3 10 2.5-5h5" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>');
+}
+.site-title:hover {
+  color: var(--tx-accent);
+}
+
+.social-icons a {
+  color: var(--tx-text-muted);
+}
+.social-icons a:hover {
+  color: var(--sl-color-white);
+}
+
+/* Search is the landing page's bordered control — but only where Starlight gives it a
+ * box to begin with. Below 50rem it is a bare icon button stretched by the header's flex
+ * row, and a border there draws a rule across the whole header. */
+@media (min-width: 50rem) {
+  site-search button[data-open-modal] {
+    border: 1px solid var(--tx-border);
+    border-radius: var(--tx-r-sm);
+    background: var(--tx-surface);
+    color: var(--tx-text-muted);
+    transition:
+      border-color var(--tx-t-fast) var(--tx-ease),
+      color var(--tx-t-fast) var(--tx-ease);
+  }
+  site-search button[data-open-modal]:hover {
+    border-color: var(--tx-border-strong);
+    color: var(--tx-text);
+  }
+}
+site-search button[data-open-modal] {
+  color: var(--tx-text-muted);
+}
+site-search button[data-open-modal]:hover {
+  color: var(--tx-text);
+}
+site-search button[data-open-modal] > kbd {
+  font-family: var(--sl-font-mono), monospace;
+  background: var(--tx-surface-3);
+  border-radius: 4px;
+}
+/* The `<dialog>` and the frame inside it are two boxes; leaving the outer one on
+ * Starlight's grey puts a halo round the panel. */
+site-search dialog {
+  background: var(--tx-surface);
+  border-color: var(--tx-border);
+}
+site-search .dialog-frame {
+  border: 1px solid var(--tx-border);
+  border-radius: var(--tx-r-lg);
+  background: var(--tx-surface);
+  box-shadow: var(--tx-shadow);
+}
+
+starlight-theme-select select,
+starlight-lang-select select {
+  color: var(--tx-text-muted);
+}
+starlight-theme-select:hover select,
+starlight-lang-select:hover select {
+  color: var(--tx-text);
+}
+
+/* Starlight's mobile menu button, matched to the same 1px control. Starlight ships it as
+ * a filled disc — page-coloured glyph on a text-coloured fill — so turning the fill into
+ * a surface means setting the glyph colour too, or it reads as an empty box. */
+starlight-menu-button button {
+  border: 1px solid var(--tx-border);
+  border-radius: var(--tx-r-sm);
+  background: var(--tx-surface);
+  color: var(--tx-text);
+  box-shadow: none;
+}
+starlight-menu-button button[aria-expanded="true"] {
+  border-color: var(--tx-accent);
+  color: var(--tx-accent);
+  background: var(--tx-accent-soft);
+}
+/* The open mobile menu is a full-bleed panel; give it the page background rather than
+ * Starlight's nav grey so it does not read as a floating sheet. */
+starlight-menu-button + .sidebar-pane,
+.sidebar-pane {
+  border-inline-end: 1px solid var(--tx-border);
+}
+
+/* ---------------------------------------------------------------- sidebar --
+ * Group labels borrow the landing page's kicker: mono, uppercase, wide-tracked, small.
+ * The current page borrows the selected-chip treatment — accent text on the accent tint
+ * with an accent rule — instead of Starlight's solid fill, which at this size reads as a
+ * button rather than a location.
+ */
+
+.sidebar-content .group-label .large {
+  font-family: var(--sl-font-mono), monospace;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--tx-text-muted);
+}
+.sidebar-content summary {
+  padding-block: 0.4rem;
+}
+.sidebar-content summary:hover .group-label .large {
+  color: var(--tx-text-muted);
+}
+
+.sidebar-content ul li {
+  border-inline-start: 1px solid var(--tx-border);
+}
+.sidebar-content ul.top-level > li {
+  border-inline-start: 0;
+}
+
+.sidebar-content a {
+  border-radius: var(--tx-r-sm);
+  color: var(--tx-text-muted);
+  padding-block: 0.35rem;
+  transition:
+    color var(--tx-t-fast) var(--tx-ease),
+    background var(--tx-t-fast) var(--tx-ease);
+}
+.sidebar-content a:hover {
+  color: var(--sl-color-white);
+  background: var(--tx-surface-2);
+}
+.sidebar-content a[aria-current="page"],
+.sidebar-content a[aria-current="page"]:hover,
+.sidebar-content a[aria-current="page"]:focus {
+  color: var(--tx-accent);
+  background: var(--tx-accent-soft);
+  font-weight: 600;
+}
+/* The position marker belongs on the rail the group already draws, not as an inset shadow
+ * on the rounded chip — on a rounded box that paints as a bracket rather than a bar. */
+.sidebar-content ul li:has(> a[aria-current="page"]) {
+  border-inline-start-color: var(--tx-accent);
+}
+
+/* --------------------------------------------------- table of contents --
+ * The landing article's aside: a hairline rail, a mono-caps title, quiet links.
+ */
+
+.right-sidebar-panel h2 {
+  font-family: var(--sl-font-mono), monospace;
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--tx-text-muted);
+}
+starlight-toc nav > ul {
+  border-inline-start: 1px solid var(--tx-border);
+  padding-inline-start: 0.25rem;
+}
+starlight-toc a {
+  border-inline-start: 0;
+  color: var(--tx-text-muted);
+  font-size: 0.79rem;
+  line-height: 1.45;
+  padding-block: 0.32rem;
+}
+starlight-toc a:hover {
+  color: var(--tx-text);
+}
+/* Colour and weight carry the current heading, as they do in the landing article's aside.
+ * Anything heavier competes with the accent links inside the prose beside it. */
+starlight-toc a[aria-current="true"],
+starlight-toc a[aria-current="true"]:hover {
+  color: var(--tx-accent);
+  font-weight: 600;
+}
+
+/* The narrow-viewport TOC dropdown is a surface, not a floating grey box. */
+mobile-starlight-toc nav {
+  background: var(--tx-bg-alt);
+  border-block-end: 1px solid var(--tx-border);
+}
+mobile-starlight-toc summary {
+  border-block-end: 1px solid var(--tx-border);
+}
+mobile-starlight-toc .dropdown {
+  background: var(--tx-surface);
+  border: 1px solid var(--tx-border);
+  border-radius: 0 0 var(--tx-r) var(--tx-r);
+  box-shadow: var(--tx-shadow);
+}
+
+/* -------------------------------------------------------------------- hero --
+ * The homepage hero carries the landing page's grid motif, masked to fade out before it
+ * reaches the body copy. It is a background: no motion, nothing to read, and it never
+ * intercepts a pointer.
+ */
+
+[data-has-hero] .content-panel:first-of-type {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border-bottom: 1px solid var(--tx-border);
+}
+[data-has-hero] .content-panel:first-of-type::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-image:
+    linear-gradient(to right, var(--tx-grid-line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--tx-grid-line) 1px, transparent 1px);
+  background-size: 56px 56px;
+  -webkit-mask-image: radial-gradient(ellipse 90% 75% at 40% 0%, #000 25%, transparent 80%);
+  mask-image: radial-gradient(ellipse 90% 75% at 40% 0%, #000 25%, transparent 80%);
+  pointer-events: none;
+}
+
+.hero h1 {
+  letter-spacing: -0.035em;
+}
+.hero .tagline {
+  color: var(--tx-text-muted);
+  max-width: 54ch;
+}
+
+/* Buttons: the landing page's 6px radius, 44px control, solid accent or bordered ghost. */
+.sl-link-button {
+  border-radius: var(--tx-r-sm);
+  min-height: 44px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  transition:
+    background var(--tx-t-fast) var(--tx-ease),
+    border-color var(--tx-t-fast) var(--tx-ease),
+    color var(--tx-t-fast) var(--tx-ease);
+}
+.sl-link-button.primary {
+  background: var(--tx-accent);
+  border-color: transparent;
+  color: var(--tx-on-accent);
+  box-shadow:
+    0 0 0 1px var(--tx-accent-line),
+    0 6px 22px -14px var(--tx-accent);
+}
+.sl-link-button.primary:hover {
+  background: var(--tx-accent-strong);
+  color: var(--tx-on-accent);
+}
+.sl-link-button.secondary {
+  border-color: var(--tx-border-strong);
+  color: var(--sl-color-white);
+}
+.sl-link-button.secondary:hover {
+  border-color: var(--tx-accent);
+  background: var(--tx-accent-soft);
+  color: var(--tx-accent);
+}
+.sl-link-button.minimal {
+  color: var(--tx-text);
+  padding-inline: 0.75rem;
+}
+.sl-link-button.minimal:hover {
+  color: var(--tx-accent);
+}
+
+/* ------------------------------------------------------------------- cards --
+ * The landing page's panel: a surface on the page, one hairline, a 10px radius, and an
+ * accent edge on hover. No lift — a card that moves under the cursor is noise on a page
+ * someone is reading.
+ */
+
+.card {
+  border: 1px solid var(--tx-border);
+  border-radius: var(--tx-r);
+  background: var(--tx-surface);
+  padding: 1.25rem;
+  transition:
+    border-color var(--tx-t) var(--tx-ease),
+    background var(--tx-t) var(--tx-ease);
+}
+.card:hover {
+  border-color: var(--tx-accent-line);
+  background: var(--tx-surface-2);
+}
+.card .title {
+  color: var(--sl-color-white);
+  font-size: var(--sl-text-lg);
+  letter-spacing: -0.015em;
+  align-items: center;
+}
+/* Starlight tints each card's icon from a four-colour cycle. The cycle is re-pointed by
+ * the token block above onto the landing page's status palette — amber, blue, green, red
+ * — which is the same vocabulary its route panels use, so this stays as it is and only
+ * the corner radius is brought into line. */
+.card .icon {
+  border-radius: var(--tx-r-sm);
+}
+.card .body {
+  color: var(--tx-text-muted);
+  font-size: 0.95rem;
+}
+
+/* ---------------------------------------------------------------- asides --
+ * Landing tint discipline: a soft wash rather than a saturated fill, a full hairline,
+ * and the coloured rule the reader is used to. This also lifts light-mode contrast,
+ * where Starlight's `-low` fills are strong enough to fight the body text.
+ */
+
+.starlight-aside {
+  border: 1px solid var(--sl-color-asides-border);
+  border-inline-start-width: 3px;
+  border-radius: var(--tx-r-sm);
+  color: var(--sl-color-text);
+  padding: 0.9rem 1.05rem;
+}
+.starlight-aside__title {
+  font-size: var(--sl-text-base);
+  letter-spacing: -0.01em;
+}
+.starlight-aside--note {
+  background-color: var(--tx-accent-soft);
+}
+.starlight-aside--tip {
+  background-color: var(--tx-accent-soft);
+}
+.starlight-aside--caution {
+  background-color: var(--tx-warn-soft);
+}
+.starlight-aside--danger {
+  background-color: var(--tx-err-soft);
+}
+.starlight-aside a {
+  text-decoration-color: currentColor;
+}
+
+/* -------------------------------------------------------------------- code --
+ * Inline code follows the landing article: a bordered chip in the accent, distinct from
+ * the surrounding prose without shouting. Fenced blocks keep Expressive Code's syntax
+ * theme — which is tuned per colour scheme, and is what makes a long sample readable —
+ * and take the landing page's frame: near-black on dark, the quiet surface on light,
+ * one hairline, 10px corners.
+ */
+
+.sl-markdown-content code:not(:where(.not-content *)) {
+  border: 1px solid var(--tx-border);
+  border-radius: 4px;
+  padding: 0.1em 0.35em;
+  color: var(--tx-accent);
+  background: var(--tx-surface-2);
+  font-size: 0.86em;
+}
+/* Headings that contain code should not be broken up by a chip inside them. */
+.sl-markdown-content :is(h1, h2, h3, h4, h5, h6) code:not(:where(.not-content *)) {
+  border: 0;
+  padding: 0;
+  background: none;
+  color: inherit;
+  font-size: 0.92em;
+}
+/* Links whose whole label is code keep the link colour, not the code colour. */
+.sl-markdown-content a > code:not(:where(.not-content *)) {
+  color: inherit;
+}
+
+.expressive-code {
+  --ec-brdRad: var(--tx-r);
+  --ec-brdCol: var(--tx-border);
+  --ec-codeBg: var(--tx-code-bg);
+  --ec-frm-edBg: var(--tx-code-bg);
+  --ec-frm-edTabBarBg: var(--tx-surface-2);
+  --ec-frm-edTabBarBrdCol: var(--tx-border);
+  --ec-frm-edTabBarBrdBtmCol: var(--tx-border);
+  --ec-frm-edActTabBg: var(--tx-code-bg);
+  --ec-frm-edActTabFg: var(--sl-color-white);
+  --ec-frm-edActTabIndTopCol: var(--tx-accent);
+  --ec-frm-edActTabBrdCol: var(--tx-border);
+  --ec-frm-trmBg: var(--tx-code-bg);
+  --ec-frm-trmTtbBg: var(--tx-surface-2);
+  --ec-frm-trmTtbBrdBtmCol: var(--tx-border);
+  --ec-frm-trmTtbFg: var(--tx-text-muted);
+  --ec-frm-inlBtnFg: var(--tx-text-muted);
+  --ec-frm-frameBoxShdCssVal: none;
+  --ec-focusBrd: var(--tx-accent);
+}
+/* On light backgrounds the near-black terminal chrome would be the only dark element on
+ * the page, so the frame follows the scheme and only the border carries the structure. */
+:root[data-theme="light"] .expressive-code {
+  --ec-brdCol: var(--tx-border-strong);
+}
+
+/* ------------------------------------------------------------------- tabs -- */
+
+starlight-tabs [role="tablist"] {
+  border-bottom: 1px solid var(--tx-border);
+}
+starlight-tabs [role="tab"] {
+  --sl-tab-color-border: transparent;
+  color: var(--tx-text-muted);
+  font-size: 0.9rem;
+  box-shadow: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: color var(--tx-t-fast) var(--tx-ease);
+}
+starlight-tabs [role="tab"]:hover {
+  color: var(--tx-text);
+}
+starlight-tabs [role="tab"][aria-selected="true"] {
+  color: var(--tx-accent);
+  border-bottom-color: var(--tx-accent);
+  box-shadow: none;
+}
+
+/* ----------------------------------------------------------------- tables --
+ * Reference pages live in these. The header is the landing page's mono-caps label; rows
+ * are separated by hairlines only, so a wide table stays scannable instead of becoming a
+ * grid of boxes. The wrapper keeps a wide table inside its own scroll region rather than
+ * widening the page — the one thing a reference table must never do on a phone.
+ */
+
+.sl-markdown-content table:not(:where(.not-content *)) {
+  /* `display: block` is what makes the table its own scroll container. The width has to
+   * be `fit-content` rather than `100%`: a block-level table still shrink-wraps its
+   * internal table box, so at `100%` a narrow table draws its border and header fill
+   * short of the box's right edge and leaves a dead strip inside its own frame. */
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+  border: 1px solid var(--tx-border);
+  border-radius: var(--tx-r);
+  font-size: 0.9rem;
+}
+.sl-markdown-content table th:not(:where(.not-content *)) {
+  background: var(--tx-surface-2);
+  border-bottom: 1px solid var(--tx-border);
+  color: var(--tx-text-muted);
+  font-family: var(--sl-font-mono), monospace;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  text-align: start;
+  vertical-align: bottom;
+  padding: 0.6rem 0.85rem;
+}
+.sl-markdown-content table td:not(:where(.not-content *)) {
+  border-top: 1px solid var(--tx-border);
+  padding: 0.6rem 0.85rem;
+  vertical-align: top;
+}
+.sl-markdown-content table tbody tr:first-child td:not(:where(.not-content *)) {
+  border-top: 0;
+}
+.sl-markdown-content table code:not(:where(.not-content *)) {
+  white-space: nowrap;
+}
+
+.sl-markdown-content hr:not(:where(.not-content *)) {
+  border: 0;
+  border-top: 1px solid var(--tx-border);
+}
+
+.sl-markdown-content blockquote:not(:where(.not-content *)) {
+  border-inline-start: 2px solid var(--tx-accent);
+  color: var(--sl-color-white);
+}
+
+/* Bullets in the landing page's accent, at the size that reads as punctuation. */
+.sl-markdown-content ul:not(:where(.not-content *)) {
+  list-style: none;
+  padding-inline-start: 1.25rem;
+}
+.sl-markdown-content ul:not(:where(.not-content *)) > li {
+  position: relative;
+}
+.sl-markdown-content ul:not(:where(.not-content *)) > li::before {
+  content: "";
+  position: absolute;
+  inset-inline-start: -0.95rem;
+  top: 0.66em;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--tx-accent);
+}
+.sl-markdown-content ol:not(:where(.not-content *)) > li::marker {
+  color: var(--tx-text-muted);
+  font-family: var(--sl-font-mono), monospace;
+  font-size: 0.85em;
+}
+
+/* ---------------------------------------------------------------- footer --
+ * Prev/next become the landing article's "next" card; the meta line stays quiet.
+ */
+
+.pagination-links a {
+  border: 1px solid var(--tx-border);
+  border-radius: var(--tx-r);
+  background: var(--tx-surface);
+  box-shadow: none;
+  transition:
+    border-color var(--tx-t) var(--tx-ease),
+    background var(--tx-t) var(--tx-ease);
+}
+.pagination-links a:hover {
+  border-color: var(--tx-accent-line);
+  background: var(--tx-surface-2);
+}
+.pagination-links a > span {
+  color: var(--sl-color-white);
+}
+.pagination-links .link-title {
+  color: var(--tx-text-muted);
+  font-family: var(--sl-font-mono), monospace;
+  font-size: 0.65rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.pagination-links svg {
+  color: var(--tx-accent);
+}
+
+footer .meta {
+  color: var(--tx-text-muted);
+  font-size: 0.78rem;
+}
+footer .meta a {
+  color: var(--tx-text-muted);
+}
+footer .meta a:hover {
+  color: var(--tx-accent);
+}
+
+/* -------------------------------------------------------- content classes --
+ * Referenced by name from the pages themselves, so the class names are content and are
+ * not renamed here.
+ *
+ * Atomic-unit figures are compared column-wise far more often than they are read as
+ * prose, so they get tabular figures: `50000` and `1000000` must line up. */
+.money td:last-child,
+.money code {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Exit codes are scanned, not read. */
+.exit-codes td:first-child {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* --------------------------------------------------------- reduced motion --
+ * Nothing here animates on scroll or on load, so this only has to neutralise the hover
+ * and focus transitions above. The grid motif is static by construction.
+ */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.001ms !important;
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

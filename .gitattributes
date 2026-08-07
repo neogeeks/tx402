@@ -1,0 +1,38 @@
+# Line-ending policy.
+#
+# Git on Windows defaults to `core.autocrlf=true`, which rewrites LF to CRLF on checkout.
+# For most repositories that is harmless. Here it is not: tx402 hashes files and verifies
+# signatures over their bytes, so a checkout that changes those bytes changes the hashes.
+#
+# The S13 cross-platform CI leg found this on its first run — the Windows job failed the
+# TypeScript suite while macOS and Linux passed. Reproduced locally by converting a single
+# vector to CRLF: `conformance:check` immediately reports the file as content-changed.
+# Without this file, a Windows contributor cannot get a green checkout of a clean tree.
+
+# Normalise everything to LF in the repository and on checkout, on every platform.
+* text=auto eol=lf
+
+# Belt and braces for the files whose *bytes* are load-bearing. `-text` tells git to treat
+# them as binary and never apply any conversion, so no future `core.autocrlf` setting, or
+# an editor's "fix line endings" button, can silently invalidate a hash or a signature.
+#
+#   - conformance vectors and their index carry per-file sha256 (SEC-007)
+#   - the release manifest is Ed25519-signed and verified offline at client construction
+core-spec/conformance/index.json          -text
+core-spec/conformance/vectors/**/*.json   -text
+core-spec/manifests/*.json                -text
+core-spec/manifests/keys/**               -text
+
+# Generated from the signed manifest by `tools/manifest-signer embed`; a test asserts they
+# still match their source, so a line-ending rewrite would fail that test rather than
+# corrupt anything — but there is no reason to let it get that far.
+packages/tx402/src/core/bundled-manifest.ts        -text
+packages/tx402-python/src/tx402/bundled_manifest.py -text
+
+# Shell scripts must keep LF even if a checkout is otherwise CRLF: a CRLF shebang line
+# makes the interpreter path unusable and the error message names a file that looks correct.
+*.sh text eol=lf
+
+# Lockfiles are tool-owned; keep them out of diffs.
+pnpm-lock.yaml -diff linguist-generated
+uv.lock        -diff linguist-generated

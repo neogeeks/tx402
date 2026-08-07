@@ -1,0 +1,15 @@
+{
+  "$schema": "../../../schemas/conformance-vector.schema.json",
+  "id": "policy.host-normalization.double-dot",
+  "kind": "policy.host-normalization",
+  "milestone": "M0",
+  "title": "Exactly one trailing dot is stripped, never all of them",
+  "description": "The case the `pnpm fuzz` gate and the implementation disagreed about for two sessions (PLAN.md O62). `normalizePolicyHost` removes **one** trailing dot, so `a.test..` becomes `a.test.` and not `a.test`; the gate asserted the output was a fixed point, which this input disproves. Pinned here because that disagreement was only visible on a wall-clock-seeded fuzz run, and because the two languages must agree on a value neither of them reaches through a normal request. Not an allowlist bypass in either direction: a pattern receives the same normalization, so `a.test..` matches the pattern `a.test..` and not the pattern `a.test`.",
+  "spec": ["SPEC §6.3", "ADR-018"],
+  "input": {
+    "url": "https://a.test../resource"
+  },
+  "expected": {
+    "host": "a.test."
+  }
+}

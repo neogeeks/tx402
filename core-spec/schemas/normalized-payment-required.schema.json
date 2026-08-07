@@ -1,0 +1,120 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tx402.dev/schemas/v1/normalized-payment-required.schema.json",
+  "title": "NormalizedPaymentRequired",
+  "description": "tx402's internal normalized form of an x402 v2 PaymentRequired challenge (SPEC §5.1).\n\nThis is NOT the wire format. The wire format is upstream's `PaymentRequired` — `{x402Version, error?, resource, accepts[], extensions?}` — decoded by `@x402/core/http`. tx402 maps it once, at the decoder boundary (ADR-010 decision 1):\n\n  upstream `accepts[]`  -> `requirements[]`\n  upstream `amount`     -> `amountAtomic`\n  upstream `x402Version`-> `protocolVersion`\n\n`resource.method` has no upstream counterpart. tx402 issued the request, so it populates the method from its own request rather than parsing it (ADR-010 decision 2).",
+
+  "type": "object",
+  "required": ["protocolVersion", "resource", "requirements", "receivedAt", "headerHash"],
+  "additionalProperties": false,
+
+  "properties": {
+    "protocolVersion": {
+      "description": "Exactly 2. Any other observed version raises UnsupportedProtocolError and is never heuristically parsed (ADR-004).",
+      "const": 2
+    },
+
+    "resource": {
+      "type": "object",
+      "required": ["url", "method"],
+      "additionalProperties": false,
+      "properties": {
+        "url": {
+          "description": "The challenge's declared resource URL. Its normalized origin MUST match the origin tx402 actually requested; a mismatch is InvalidPaymentRequiredError (ADR-010 decision 2).",
+          "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/resourceUrl"
+        },
+        "method": {
+          "description": "Populated by tx402 from the request it issued, uppercased. Not challenge-derived.",
+          "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/httpMethod"
+        }
+      }
+    },
+
+    "requirements": {
+      "description": "1–32 entries. Input ordering from `accepts[]` is preserved exactly; `index` records it so that route ordering can fall back to it deterministically (SPEC §6.4 step 18).",
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 32,
+      "items": { "$ref": "#/$defs/normalizedRequirement" }
+    },
+
+    "receivedAt": {
+      "description": "When tx402 received the challenge, by its injected clock. Not merchant-supplied — upstream v2 carries no timestamp (ADR-010 decision 3).",
+      "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/rfc3339"
+    },
+
+    "headerHash": {
+      "description": "SHA-256 of the raw PAYMENT-REQUIRED header bytes. Diagnostics and idempotency only — never authorization material.",
+      "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/sha256Digest"
+    },
+
+    "error": {
+      "description": "Upstream's optional human-readable `error` string, carried through untouched. Merchant-controlled text: it is never interpreted, and it is redacted from logs by default (SEC-003).",
+      "type": "string",
+      "maxLength": 2048
+    }
+  },
+
+  "$defs": {
+    "normalizedRequirement": {
+      "title": "NormalizedRequirement",
+      "type": "object",
+      "required": [
+        "index",
+        "scheme",
+        "network",
+        "asset",
+        "amountAtomic",
+        "payTo",
+        "maxTimeoutSeconds",
+        "extra",
+        "rawHash"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "index": {
+          "description": "Zero-based position in the upstream `accepts[]` array, preserved through normalization.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 31
+        },
+        "scheme": {
+          "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/scheme"
+        },
+        "network": {
+          "description": "Canonical CAIP-2, already alias-resolved. MUST be present in the signed release manifest.",
+          "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/caip2"
+        },
+        "asset": {
+          "description": "Contract address (EVM) or mint (SVM), exactly as offered. Validated by the network handler, not here.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "amountAtomic": {
+          "description": "Upstream `amount`, renamed. Unsigned base-10 integer string, strictly greater than zero (SPEC §5.1).",
+          "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/positiveAtomicAmount"
+        },
+        "payTo": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "maxTimeoutSeconds": {
+          "description": "Merchant's authorization lifetime bound. tx402's authorization lifetime is min(60s, this) and MUST never exceed it (SPEC §6.6).",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 86400
+        },
+        "extra": {
+          "description": "Scheme-specific opaque data, passed to the upstream scheme handler unmodified. Also the only place a challenge timestamp can appear, which is why `routing.maxQuoteAgeMs` is inert for standard v2 challenges (ADR-010 decision 3).",
+          "type": "object"
+        },
+        "rawHash": {
+          "description": "SHA-256 of this requirement's canonical upstream form. Diagnostics and idempotency only.",
+          "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/sha256Digest"
+        }
+      }
+    }
+  }
+}
