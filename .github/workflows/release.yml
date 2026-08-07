@@ -169,12 +169,24 @@ jobs:
       - name: Build
         run: pnpm --filter tx402 build
 
-      # No `--no-provenance`, and no NODE_AUTH_TOKEN. The S1 placeholder was published from
-      # a laptop with `--no-provenance` because provenance needs CI OIDC; this is that CI.
-      # Publishing here relies on the npm trusted publisher configured for this repository
-      # and this workflow file, so no long-lived token exists to leak (PLAN.md O10/O23).
+      # npm's OIDC trusted publishing needs the npm CLI >= 11.5.1; Node 20 ships npm 10.
+      # `pnpm publish` does not perform the OIDC token exchange — it expects an `_authToken`
+      # in `.npmrc` — so the first 0.1.0 attempt went out unauthenticated and the registry
+      # answered `E404 PUT .../tx402` (npm masks an unauthorized write to an existing package
+      # as a 404). PyPI's action does OIDC natively and published fine (PLAN.md O114).
+      #
+      # Fix: upgrade the npm CLI, pack with pnpm so the `workspace:` protocol and
+      # `publishConfig` are applied to the tarball, then publish that tarball with the npm CLI,
+      # which does the OIDC exchange and attaches provenance. Still no `NODE_AUTH_TOKEN` and no
+      # long-lived credential to leak (PLAN.md O10/O23).
+      - name: Upgrade npm for OIDC trusted publishing
+        run: npm install -g npm@latest
+
+      - name: Pack with pnpm to apply the workspace protocol and publishConfig
+        run: pnpm --filter tx402 pack --pack-destination "$RUNNER_TEMP"
+
       - name: Publish
-        run: pnpm --filter tx402 publish --access public --no-git-checks
+        run: npm publish "$RUNNER_TEMP"/tx402-*.tgz --access public --provenance
 
   pypi:
     name: Publish to PyPI
@@ -204,6 +216,10 @@ jobs:
         uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # release/v1
         with:
           packages-dir: packages/tx402-python/dist
+          # 0.1.0's sdist+wheel published on the first tag attempt; the npm leg failed and
+          # needs a re-tag (PLAN.md O114). A re-run must not fail here just because this
+          # version already exists — an immutable registry upload is idempotent by design.
+          skip-existing: true
 
   # Published artifacts are verified from a clean environment before the release is
   # announced. Installing what was just published is the only check that covers the
