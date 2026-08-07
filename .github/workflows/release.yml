@@ -179,8 +179,12 @@ jobs:
       # `publishConfig` are applied to the tarball, then publish that tarball with the npm CLI,
       # which does the OIDC exchange and attaches provenance. Still no `NODE_AUTH_TOKEN` and no
       # long-lived credential to leak (PLAN.md O10/O23).
+      # OIDC trusted publishing needs the npm CLI >= 11.5.1. Pin to the 11.x line rather than
+      # `@latest`: npm 12 dropped Node 20 (it requires `^22.22.2 || ^24 || >=26`), and this job
+      # runs on the SDK's Node-20 floor, so `npm@latest` fails EBADENGINE here. npm 11.x keeps
+      # Node 20 support (`^20.17.0 || >=22.9.0`) and has the OIDC token exchange (PLAN.md O114).
       - name: Upgrade npm for OIDC trusted publishing
-        run: npm install -g npm@latest
+        run: npm install -g "npm@^11.5.1"
 
       - name: Pack with pnpm to apply the workspace protocol and publishConfig
         run: pnpm --filter tx402 pack --pack-destination "$RUNNER_TEMP"
