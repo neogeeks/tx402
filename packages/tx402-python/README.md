@@ -1,16 +1,17 @@
 # tx402
 
-**Resilient x402 buyer SDK for Python.** Deterministic multi-chain payment routing, local spend
-guardrails, and a drop-in `httpx` wrapper for autonomous agents.
+**The spend-governance layer for x402, in Python.** Spend caps and budgets enforced before any
+key is signed, deterministic multi-chain routing, and a drop-in `httpx` wrapper for autonomous agents.
 
 Feature-complete and at behavioural parity with the TypeScript SDK — both execute the same 73
 language-neutral conformance fixtures.
 
 ## What it does
 
-An AI agent running a 50-step workflow cannot afford to have step 45 die because one payment
-facilitator rate-limited it or the merchant wanted USDC on a chain the agent wasn't configured
-for. `tx402` wraps a normal HTTP client and handles the `402 Payment Required` handshake:
+An AI agent is a loop with a private key. Making one payment is easy — the hard part is trusting the
+ten-thousandth, unattended: a per-request cap says nothing about the total, and a budget checked
+_after_ you've signed is a receipt, not a control. `tx402` wraps a normal HTTP client and handles the
+`402 Payment Required` handshake, with your spend policy as the first thing it enforces:
 
 ```python
 from tx402 import Policy, Tx402Client

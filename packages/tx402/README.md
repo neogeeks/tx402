@@ -1,7 +1,7 @@
 # tx402
 
-**Resilient x402 buyer SDK for TypeScript.** Deterministic multi-chain payment routing, local spend
-guardrails, and a drop-in `fetch` wrapper for autonomous agents.
+**The spend-governance layer for x402, in TypeScript.** Spend caps and budgets enforced before any
+key is signed, deterministic multi-chain routing, and a drop-in `fetch` wrapper for autonomous agents.
 
 [Documentation](https://docs.tx402.io) · [Quickstart](https://docs.tx402.io/start/quickstart/) ·
 [Errors](https://docs.tx402.io/reference/errors/) ·
@@ -10,9 +10,10 @@ guardrails, and a drop-in `fetch` wrapper for autonomous agents.
 
 ## Why
 
-An AI agent running a fifty-step workflow cannot afford to have step 45 die because the merchant
-wanted USDC on a chain it wasn't configured for, or because an RPC endpoint went dark. `tx402`
-wraps a normal HTTP client and completes the `402 Payment Required` handshake:
+An AI agent is a loop with a private key. Making one payment is easy — the hard part is trusting the
+ten-thousandth, unattended: a per-request cap says nothing about the total, and a budget checked
+_after_ you've signed is a receipt, not a control. `tx402` wraps a normal HTTP client and completes
+the `402 Payment Required` handshake, with your spend policy as the first thing it enforces:
 
 ```ts
 import { createTx402Client } from "tx402";

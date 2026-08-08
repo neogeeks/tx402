@@ -2,10 +2,10 @@
 
 # tx402
 
-**A resilient, non-custodial buyer-side SDK for the x402 HTTP payment protocol — in TypeScript and Python.**
+**The spend-governance layer for x402 — a non-custodial buyer SDK in TypeScript and Python.**
 
-Wrap your HTTP client. Get spend caps that are enforced before a key is touched, deterministic
-payment routing across whatever chains the merchant offered, and one signature per payment.
+Give an agent a wallet it can't overspend: caps and budgets enforced before any key is touched,
+deterministic payment routing across whatever chains the merchant offered, and one signature per payment.
 
 [![npm](https://img.shields.io/npm/v/tx402?label=npm%20tx402&color=cb3837)](https://www.npmjs.com/package/tx402)
 [![PyPI](https://img.shields.io/pypi/v/tx402?label=PyPI%20tx402&color=3775a9)](https://pypi.org/project/tx402/)
@@ -22,13 +22,15 @@ payment routing across whatever chains the merchant offered, and one signature p
 
 ## The problem
 
-An agent running a fifty-step workflow cannot afford to have step 45 die because the merchant
-wanted USDC on a chain it wasn't configured for, or because an RPC endpoint went dark. The usual
-answer is ~100 lines of bespoke glue per integration: parse the `402`, hope you can pay, sign
-something, retry, and discover afterwards whether money moved.
+Making one x402 payment work is easy — the reference client does that. The hard part is trusting
+the _ten-thousandth_, unattended. An agent is a loop with a private key: a per-request cap says
+nothing about the total, and a budget check that runs _after_ you've signed is a receipt, not a
+control.
 
-The protocol layer is settled — x402 v2 exists and works. The gap is everything around it:
-**resilience, spend control, and knowing what happened.**
+The protocol layer is settled — x402 v2 exists and works — and it deliberately leaves the buyer's
+hard parts out of scope: budgets, route selection, balance checks, and error handling. The gap is
+everything around the payment: **spend governance first, then resilience, then knowing exactly what
+happened.**
 
 ## Install
 
