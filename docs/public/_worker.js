@@ -4,12 +4,14 @@
  * Static assets are served by `env.ASSETS`; this only adds machine-readability on top:
  *   1. Content negotiation — a page requested with `Accept: text/markdown` returns that
  *      page's Markdown mirror as `text/markdown`.
- *   2. `.md` mirrors are served as `text/markdown` with a `Link: …; rel="canonical"` header.
+ *   2. Markdown mirrors are served as `text/markdown` with a `Link: …; rel="canonical"`
+ *      header, and the `<dir>/.md` convention (e.g. `/.md`, `/guides/policy/.md`) is mapped
+ *      onto the built `<dir>/index.md` mirror so either URL shape resolves.
  *   3. HTML pages carry a `Link: …; rel="alternate"; type="text/markdown"` header.
  *
  * It always falls back to `env.ASSETS.fetch(request)`, so any bug degrades to plain static
  * serving rather than breaking the site. `_headers`/`_redirects` are inert in advanced mode,
- * so the sitemap alias is unnecessary — `sitemap.xml` is a real generated file.
+ * so `sitemap.xml` is a real generated file rather than an alias.
  */
 export default {
   async fetch(request, env) {
@@ -18,8 +20,8 @@ export default {
     const accept = request.headers.get("accept") || "";
     const looksLikePage = p.endsWith("/") || !/\.[a-z0-9]+$/i.test(p);
 
-    const pageToMd = (pagePath) => {
-      const s = pagePath.replace(/\/$/, "");
+    const pageToMd = (path) => {
+      const s = path.replace(/\/$/, "");
       return s === "" ? "/index.md" : `${s}.md`;
     };
     const mdToCanonical = (mdPath) => {
@@ -39,15 +41,19 @@ export default {
       }
     }
 
-    const res = await env.ASSETS.fetch(request);
-
-    // 2. Markdown mirror responses.
+    // 2. Markdown mirror requests.
     if (p.endsWith(".md")) {
+      // Map the `<dir>/.md` shape onto the built `<dir>/index.md` file.
+      const assetUrl = new URL(url);
+      if (p.endsWith("/.md")) assetUrl.pathname = `${p.slice(0, -".md".length)}index.md`;
+      const res = await env.ASSETS.fetch(new Request(assetUrl, request));
       const h = new Headers(res.headers);
       h.set("content-type", "text/markdown; charset=utf-8");
-      h.set("link", `<${mdToCanonical(p)}>; rel="canonical"`);
+      h.set("link", `<${mdToCanonical(assetUrl.pathname)}>; rel="canonical"`);
       return new Response(res.body, { status: res.status, headers: h });
     }
+
+    const res = await env.ASSETS.fetch(request);
 
     // 3. Alternate link on HTML pages.
     if ((res.headers.get("content-type") || "").includes("text/html")) {

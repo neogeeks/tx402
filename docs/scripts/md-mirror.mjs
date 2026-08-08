@@ -161,11 +161,24 @@ for (const p of pages) {
       : path.join(distDir, p.slug, "index.html");
   if (existsSync(htmlOut)) {
     let html = readFileSync(htmlOut, "utf8");
+    let changed = false;
     if (!html.includes('type="text/markdown"')) {
       const tag = `<link rel="alternate" type="text/markdown" href="/${p.mdRel}" title="Markdown">`;
-      writeFileSync(htmlOut, html.replace("</head>", `${tag}</head>`));
+      html = html.replace("</head>", `${tag}</head>`);
       links += 1;
+      changed = true;
     }
+    // Expressive Code renders `<pre data-language="ts"><code>`; also stamp the conventional
+    // `class="language-ts"` onto the inner <code> so code-block scanners recognize the language.
+    const withClasses = html.replace(
+      /<pre\b([^>]*\bdata-language="([^"]+)"[^>]*)>(\s*)<code\b(?![^>]*\bclass="language-)/g,
+      (_m, preAttrs, lang, ws) => `<pre${preAttrs}>${ws}<code class="language-${lang}"`,
+    );
+    if (withClasses !== html) {
+      html = withClasses;
+      changed = true;
+    }
+    if (changed) writeFileSync(htmlOut, html);
   }
 }
 
