@@ -1,0 +1,2 @@
+# Expose a conventional /sitemap.xml — Astro emits the sitemap as /sitemap-index.xml.
+/sitemap.xml  /sitemap-index.xml  200

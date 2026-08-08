@@ -1,0 +1,33 @@
+# tx402 documentation
+
+> tx402 is the spend-governance layer for x402 buyers: a non-custodial SDK (TypeScript + Python) that lets AI agents pay for HTTP 402-protected APIs safely — per-request caps, hourly budgets, and allowlists enforced *before* any key is signed, plus deterministic multi-chain routing (Base + Solana), RPC-endpoint failover, and typed, ambiguity-safe outcomes. Buyer-side only: it never custodies funds, calls a facilitator's verify/settle, or bridges/swaps. This site is the official documentation. A clean Markdown version of any page is available by appending `.md` to its path (e.g. `/guides/policy.md`).
+
+## Start
+- [Quickstart](https://docs.tx402.io/start/quickstart/): install and make a first paid call in minutes
+
+## Guides
+- [Payment lifecycle](https://docs.tx402.io/guides/lifecycle/): the 402 handshake — decode, policy, reserve, sign, retry, commit
+- [Policy](https://docs.tx402.io/guides/policy/): spend caps, budgets, and allowlists enforced before signing
+- [Routing](https://docs.tx402.io/guides/routing/): deterministic multi-chain routing and RPC-endpoint failover
+- [CLI](https://docs.tx402.io/guides/cli/): the `tx402` command-line interface
+
+## Reference
+- [Configuration](https://docs.tx402.io/reference/configuration/): every client and policy option
+- [Errors](https://docs.tx402.io/reference/errors/): the typed error taxonomy and exit codes
+- [TypeScript API](https://docs.tx402.io/reference/api-typescript/): exported types and functions
+
+## Security
+- [Security model](https://docs.tx402.io/security/): trust boundary and non-custodial design
+- [Key handling](https://docs.tx402.io/security/keys/): signer abstraction and key management
+
+## Operations
+- [Running the test merchant](https://docs.tx402.io/operations/running/)
+- [Base testnet](https://docs.tx402.io/operations/base-testnet/)
+- [Releasing](https://docs.tx402.io/operations/releasing/)
+- [Release manifest](https://docs.tx402.io/operations/release-manifest/)
+- [Publishing](https://docs.tx402.io/operations/publishing/)
+
+## Source and packages
+- [GitHub repository](https://github.com/neogeeks/tx402): source, issues, and full history (Apache-2.0)
+- [npm: tx402](https://www.npmjs.com/package/tx402) · [PyPI: tx402](https://pypi.org/project/tx402/)
+- [Changelog](https://github.com/neogeeks/tx402/blob/main/CHANGELOG.md) · [Security policy](https://github.com/neogeeks/tx402/blob/main/SECURITY.md)
