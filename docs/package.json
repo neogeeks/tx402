@@ -10,6 +10,7 @@
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",
+    "postbuild": "node scripts/md-mirror.mjs",
     "preview": "astro preview",
     "check": "astro check"
   },
