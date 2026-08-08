@@ -11,33 +11,57 @@ tx402 wraps an HTTP client and completes the `402 Payment Required` handshake fo
 - License: Apache-2.0
 - Source: https://github.com/neogeeks/tx402
 
-## Using tx402 (as a consumer)
+## Installation
 
-Install (chain support is optional):
+Chain support is optional, so the install command depends on the chain you pay on:
 
 ```bash
-npm install tx402 @x402/evm viem     # TypeScript, Base
-pip install "tx402[evm]"             # Python, Base
+# TypeScript (Node 20+)
+npm install tx402                                                   # core + CLI, no chain
+npm install tx402 @x402/evm viem                                    # Base / EVM
+npm install tx402 @solana-program/token @solana/kit @x402/svm viem # Solana
+
+# Python (3.10+)
+pip install tx402            # core, no chain
+pip install "tx402[evm]"     # Base / EVM
+pip install "tx402[solana]"  # Solana
+pip install "tx402[all]"     # both
 ```
 
-Minimal usage:
+## Configuration
+
+A client is configured with signers and a spend policy; the policy is enforced before any signer runs.
 
 ```ts
 import { createTx402Client } from "tx402";
 
 const tx402 = createTx402Client({
-  signers: { evm },
+  signers: { evm, solana },
   policy: {
-    maxPerRequest: "0.50 USDC",
-    maxPerHour: "10.00 USDC",
-    allowedNetworks: ["eip155:8453"],
+    maxPerRequest: "0.50 USDC", // per-request cap
+    maxPerHour: "10.00 USDC", // cumulative hourly budget
+    allowedNetworks: ["eip155:8453", "solana:mainnet"], // chain allowlist
   },
 });
+```
 
+Amounts are always integer atomic units (never floats). Additional options include a domain allowlist and `maxPaidAttempts`; see the full [configuration reference](https://docs.tx402.io/reference/configuration/).
+
+## Usage
+
+```ts
+// Drop-in: completes the 402 handshake within policy, or returns a typed error.
 const res = await tx402.fetch(url, init);
 ```
 
-See the [Quickstart](https://docs.tx402.io/start/quickstart/).
+Command line:
+
+```bash
+# Plan a payment without signing (no key is touched):
+npx tx402 call <url> --max-spend "0.10 USDC" --dry-run
+```
+
+See the [Quickstart](https://docs.tx402.io/start/quickstart/) for an end-to-end paid call.
 
 ## Developing tx402 (in the repository)
 
@@ -61,4 +85,4 @@ Report vulnerabilities privately through [GitHub Security Advisories](https://gi
 
 ## Documentation
 
-Full docs: https://docs.tx402.io — a clean Markdown version of any page is available by appending `.md` to its path. Machine-readable index: https://docs.tx402.io/llms.txt
+Full docs: https://docs.tx402.io — a clean Markdown version of any page is available by appending `.md` to its path, or by requesting the page with `Accept: text/markdown`. Machine indexes: https://docs.tx402.io/llms.txt and https://docs.tx402.io/llms-full.txt

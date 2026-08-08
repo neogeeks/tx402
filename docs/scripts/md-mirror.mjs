@@ -1,17 +1,19 @@
 /**
- * Post-build: emit a Markdown mirror of every docs page and link to it.
+ * Post-build AI-readiness generator for the tx402 docs.
  *
- * For each `src/content/docs/**​/*.{md,mdx}` this writes a clean `.md` file into `dist`
- * at the page's own path (e.g. `/guides/policy.md`) and injects
- * `<link rel="alternate" type="text/markdown" href="…">` into that page's built HTML.
+ * After `astro build` this emits, for machine consumers:
+ *   - a Markdown mirror of every page, with YAML frontmatter and a trailing docs-map
+ *     section, at BOTH `/<slug>.md` and `/<slug>/index.md` (covers either URL convention);
+ *   - `<link rel="alternate" type="text/markdown">` injected into each page's HTML head;
+ *   - `sitemap.xml` with `<lastmod>` per page (git commit date of the source);
+ *   - `sitemap.md` — a human/agent-readable index grouped by section;
+ *   - `llms-full.txt` — the full text of every page concatenated for LLM context.
  *
- * The point is machine readability: an agent can fetch the raw Markdown of any page instead
- * of parsing rendered HTML. MDX frontmatter, `import` lines, and bare component tags are
- * stripped so the mirror is plain Markdown; prose, lists, and code fences are kept verbatim.
- *
- * Runs as `postbuild` (see package.json), so `astro build` produces `dist` first.
+ * Content negotiation, Link headers, and `.md` Content-Type are handled at request time by
+ * `public/_worker.js` (Cloudflare Pages advanced mode). Runs as `postbuild` (see package.json).
  */
 import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync } from "node:fs";
+import { execSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -19,51 +21,64 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const docsRoot = path.resolve(here, "..");
 const contentDir = path.join(docsRoot, "src/content/docs");
 const distDir = path.join(docsRoot, "dist");
+const SITE = "https://docs.tx402.io";
 
-/** Recursively list files under a directory. */
+/** Top-level directory -> section label (order is the display order). */
+const SECTIONS = [
+  ["", "Overview"],
+  ["start", "Start here"],
+  ["guides", "Guides"],
+  ["reference", "Reference"],
+  ["security", "Security"],
+  ["operations", "Operations"],
+];
+const sectionLabel = (slug) =>
+  (SECTIONS.find(([dir]) => dir === slug.split("/")[0]) || [, "Docs"])[1];
+
 function walk(dir) {
-  /** @type {string[]} */
   const out = [];
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) out.push(...walk(full));
+  for (const e of readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, e.name);
+    if (e.isDirectory()) out.push(...walk(full));
     else out.push(full);
   }
   return out;
 }
 
-/** Turn an MDX/MD source into plain Markdown (frontmatter title becomes the H1). */
-function toMarkdown(source) {
-  let body = source;
+function parseFrontmatter(src) {
   let title = "";
-  const fm = body.match(/^---\n([\s\S]*?)\n---\n?/);
-  if (fm) {
-    const t = fm[1].match(/^title:\s*(.+)$/m);
+  let description = "";
+  let body = src;
+  const m = src.match(/^---\n([\s\S]*?)\n---\n?/);
+  if (m) {
+    const t = m[1].match(/^title:\s*(.+)$/m);
     if (t) title = t[1].trim().replace(/^["']|["']$/g, "");
-    body = body.slice(fm[0].length);
+    const d = m[1].match(/^description:\s*(.+)$/m);
+    if (d) description = d[1].trim().replace(/^["']|["']$/g, "");
+    body = src.slice(m[0].length);
   }
-  const lines = body.split("\n");
+  return { title, description, body };
+}
+
+/** Strip MDX imports and bare component tags; keep prose, lists, and code fences verbatim. */
+function cleanBody(body) {
   const kept = [];
   let inFence = false;
-  for (const line of lines) {
+  for (const line of body.split("\n")) {
     if (/^\s*```/.test(line)) inFence = !inFence;
     if (!inFence) {
-      // Drop MDX import/export lines.
       if (/^\s*(import|export)\s.+\bfrom\b.+;?\s*$/.test(line)) continue;
-      // Drop lines that are only a JSX component open/close/self-close tag (capitalized).
       if (/^\s*<\/?[A-Z][A-Za-z0-9]*(\s[^>]*)?\/?>\s*$/.test(line)) continue;
     }
     kept.push(line);
   }
-  const md = kept
+  return kept
     .join("\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
-  return (title ? `# ${title}\n\n` : "") + md + "\n";
 }
 
-/** src-relative path (e.g. "guides/cli.mdx") -> route slug ("guides/cli", "" for root). */
-function toSlug(rel) {
+function slugOf(rel) {
   const base = rel
     .replace(/\.(md|mdx)$/i, "")
     .split(path.sep)
@@ -73,34 +88,120 @@ function toSlug(rel) {
   return base;
 }
 
-let mirrors = 0;
-let links = 0;
+function gitDate(file) {
+  try {
+    const out = execSync(`git log -1 --format=%cI -- "${file}"`, {
+      cwd: docsRoot,
+      stdio: ["ignore", "pipe", "ignore"],
+    })
+      .toString()
+      .trim();
+    return out || null;
+  } catch {
+    return null;
+  }
+}
 
+const today = new Date().toISOString().slice(0, 10);
+
+const pages = [];
 for (const file of walk(contentDir)) {
   if (!/\.(md|mdx)$/i.test(file)) continue;
   const rel = path.relative(contentDir, file);
-  const slug = toSlug(rel);
+  const slug = slugOf(rel);
+  const { title, description, body } = parseFrontmatter(readFileSync(file, "utf8"));
+  pages.push({
+    slug,
+    title,
+    description,
+    clean: cleanBody(body),
+    url: slug === "" ? `${SITE}/` : `${SITE}/${slug}/`,
+    mdRel: slug === "" ? "index.md" : `${slug}.md`,
+    mdUrl: slug === "" ? `${SITE}/index.md` : `${SITE}/${slug}.md`,
+    lastmod: (gitDate(file) || today).slice(0, 10),
+    section: sectionLabel(slug),
+  });
+}
 
-  const mdRel = slug === "" ? "index.md" : `${slug}.md`;
-  const mdHref = "/" + mdRel;
-  const mdOut = path.join(distDir, mdRel);
-  mkdirSync(path.dirname(mdOut), { recursive: true });
-  writeFileSync(mdOut, toMarkdown(readFileSync(file, "utf8")));
+// Order pages by section, then title.
+const order = SECTIONS.map(([, label]) => label).concat("Docs");
+pages.sort(
+  (a, b) =>
+    order.indexOf(a.section) - order.indexOf(b.section) || a.title.localeCompare(b.title),
+);
+
+let mirrors = 0;
+let links = 0;
+for (const p of pages) {
+  const fm =
+    `---\ntitle: ${JSON.stringify(p.title)}\n` +
+    `description: ${JSON.stringify(p.description)}\n` +
+    `source: ${p.url}\n---\n\n`;
+  const mapSection =
+    `\n\n## More documentation\n\n` +
+    `- Documentation index (Markdown): ${SITE}/sitemap.md\n` +
+    `- Machine index: ${SITE}/llms.txt · full text: ${SITE}/llms-full.txt\n` +
+    `- This page: ${p.url}\n`;
+  const md = fm + (p.title ? `# ${p.title}\n\n` : "") + p.clean + mapSection + "\n";
+
+  const primary = path.join(distDir, p.mdRel);
+  mkdirSync(path.dirname(primary), { recursive: true });
+  writeFileSync(primary, md);
   mirrors += 1;
+  if (p.slug !== "") {
+    const alt = path.join(distDir, p.slug, "index.md");
+    mkdirSync(path.dirname(alt), { recursive: true });
+    writeFileSync(alt, md);
+    mirrors += 1;
+  }
 
   const htmlOut =
-    slug === "" ? path.join(distDir, "index.html") : path.join(distDir, slug, "index.html");
+    p.slug === ""
+      ? path.join(distDir, "index.html")
+      : path.join(distDir, p.slug, "index.html");
   if (existsSync(htmlOut)) {
     let html = readFileSync(htmlOut, "utf8");
     if (!html.includes('type="text/markdown"')) {
-      const tag = `<link rel="alternate" type="text/markdown" href="${mdHref}" title="Markdown">`;
-      html = html.replace("</head>", `${tag}</head>`);
-      writeFileSync(htmlOut, html);
+      const tag = `<link rel="alternate" type="text/markdown" href="/${p.mdRel}" title="Markdown">`;
+      writeFileSync(htmlOut, html.replace("</head>", `${tag}</head>`));
       links += 1;
     }
   }
 }
 
+// sitemap.xml with lastmod.
+const urlset = pages
+  .map(
+    (p) =>
+      `  <url>\n    <loc>${p.url}</loc>\n    <lastmod>${p.lastmod}</lastmod>\n  </url>`,
+  )
+  .join("\n");
+writeFileSync(
+  path.join(distDir, "sitemap.xml"),
+  `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urlset}\n</urlset>\n`,
+);
+
+// sitemap.md grouped by section.
+let smd = `# tx402 documentation — sitemap\n\n> A structured index of the tx402 documentation. Every page also has a Markdown mirror (append \`.md\` to its path).\n\n`;
+for (const label of order) {
+  const inSec = pages.filter((p) => p.section === label);
+  if (!inSec.length) continue;
+  smd += `## ${label}\n\n`;
+  for (const p of inSec)
+    smd += `- [${p.title}](${p.url}) — [markdown](${p.mdUrl})${p.description ? `: ${p.description}` : ""}\n`;
+  smd += "\n";
+}
+writeFileSync(path.join(distDir, "sitemap.md"), smd);
+
+// llms-full.txt: full concatenated text.
+let full = `# tx402 — full documentation\n\n> The complete text of the tx402 documentation, concatenated for LLM context. Canonical site: ${SITE}\n`;
+for (const label of order) {
+  const inSec = pages.filter((p) => p.section === label);
+  for (const p of inSec)
+    full += `\n\n---\n\n# ${p.title}\n\nSource: ${p.url}\n\n${p.clean}\n`;
+}
+writeFileSync(path.join(distDir, "llms-full.txt"), full);
+
 console.log(
-  `md-mirror: wrote ${mirrors} Markdown mirrors, injected ${links} alternate links`,
+  `postbuild: ${pages.length} pages -> ${mirrors} md mirrors, ${links} alternate links, sitemap.xml (+lastmod), sitemap.md, llms-full.txt`,
 );
