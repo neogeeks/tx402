@@ -29,6 +29,12 @@ export default {
 
 ```jsonc title="wrangler.jsonc"
 {
+  "name": "tx402-store",
+  "main": "src/index.ts",
+  "compatibility_date": "2024-11-01",
+  // REQUIRED. `tx402/durable-object` reaches `core/ledger`, which imports `node:crypto`;
+  // without this flag the Worker fails to boot with `No such module "node:crypto"`.
+  "compatibility_flags": ["nodejs_compat"],
   "durable_objects": {
     "bindings": [{ "name": "SPEND_DO", "class_name": "Tx402SpendStoreDO" }]
   },
@@ -36,6 +42,11 @@ export default {
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Tx402SpendStoreDO"] }]
 }
 ```
+
+`compatibility_flags: ["nodejs_compat"]` is not optional. `tx402/durable-object` reaches
+`core/ledger`, which imports `node:crypto`, so a Worker deploying the DO fails at startup
+without it — see [the gateway runbook](../gateway/#option-b--a-worker-gateway-in-front-of-a-durable-object)
+for which entry point needs the flag and which does not.
 
 There is no `url`, `namespace`, or `topology` option — the store is configured entirely by the
 `locate` function you pass and one capability flag. That is the whole surface.
