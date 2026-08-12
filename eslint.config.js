@@ -73,7 +73,7 @@ export default tseslint.config(
     },
   },
   {
-    // The CLI is the one place in the *SDK* allowed to write to stdout/stderr (SPEC §11).
+    // The CLI is the one place in the *SDK* allowed to write to stdout/stderr.
     files: ["packages/tx402/src/cli/**/*.ts"],
     rules: { "no-console": "off" },
   },

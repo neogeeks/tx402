@@ -138,7 +138,7 @@ class HealthIndex:
         return len(self._entries)
 
     def reset(self) -> None:
-        """Clears every observation. Never touches the spend ledger (SPEC §4.1)."""
+        """Clears every observation. Never touches the spend ledger."""
         self._entries.clear()
 
     def forget(self, endpoint_id: str) -> None:

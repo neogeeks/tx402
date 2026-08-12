@@ -1,7 +1,7 @@
 [build-system]
 # Pinned so the build backend itself is reproducible: an unpinned backend can produce a
-# different wheel/sdist on a different day, which the reproducible-build gate would then flag
-# (O31). Bump deliberately, in lockstep with the reproducible-build evidence.
+# different wheel/sdist on a different day, which the reproducible-build gate would then flag.
+# Bump deliberately, in lockstep with the reproducible-build evidence.
 requires = ["hatchling==1.31.0"]
 build-backend = "hatchling.build"
 
@@ -43,11 +43,11 @@ dependencies = [
 [project.optional-dependencies]
 evm = ["x402[evm]>=2.17,<2.18"]
 # `solders` is declared directly rather than relied on transitively: tx402 compiles and
-# validates the SPL transfer itself (ADR-013), so the SPL primitives it uses are a
+# validates the SPL transfer itself, so the SPL primitives it uses are a
 # first-party dependency of this package, not an implementation detail of x402's extra.
 # The same reasoning put `@solana-program/token` in the TypeScript optional peers at S6.
 svm = ["x402[svm]>=2.17,<2.18", "solders>=0.27,<1"]
-# The reference durable store (SPEC §12.1/§12.2). redis-py 5+ ships BOTH the sync client
+# The reference durable store. redis-py 5+ ships BOTH the sync client
 # (`redis.Redis`) and the async client (`redis.asyncio.Redis`), which back `RedisSpendStore`
 # and `AsyncRedisSpendStore` respectively — one dependency, both arms.
 redis = ["redis>=5"]
@@ -77,7 +77,7 @@ dev = [
     "tomli>=2.0; python_version < '3.11'",
     "types-jsonschema>=4.26.0.20260518",
     "pytest-cov>=7.1.0",
-    # The durable-store harness (SPEC §3.6/§12.2) drives a live Redis; redis-py 5+ provides
+    # The durable-store harness drives a live Redis; redis-py 5+ provides
     # both the sync and asyncio clients the two adapter arms are checked against.
     "redis>=5",
 ]
@@ -115,8 +115,8 @@ testpaths = ["tests"]
 asyncio_mode = "auto"
 addopts = "--cov --cov-report=term-missing"
 
-# SPEC §12.1: >=90% line and branch coverage in core modules. Enforced from M0 (PLAN.md
-# open item O11) rather than deferred — the gate is far cheaper to hold from the first core
+# >=90% line and branch coverage in core modules, enforced from the first core module
+# rather than deferred — the gate is far cheaper to hold from the first core
 # module onward than to reach retroactively across eight milestones.
 [tool.coverage.run]
 branch = true
@@ -126,7 +126,7 @@ source = ["src/tx402"]
 # signer guarantee are held to the same 90 % threshold as the core modules they front.
 #
 # The durable Redis adapters (`src/tx402/stores/`) are the ONE exclusion: their correctness is
-# proven by the durable-harness (SPEC §3.6/§12.2) running `check_durable_spend_store` against a
+# proven by the durable-harness running `check_durable_spend_store` against a
 # LIVE Redis (the `durable-store` CI job + a local instance), not by the no-Redis unit matrix,
 # which skips them for lack of a backend. This mirrors the TypeScript coverage scope, which
 # measures only `src/{core,evm,solana,signers}` and likewise excludes `src/redis` (ADR-008/§12.1).

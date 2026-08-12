@@ -134,7 +134,7 @@ published only to hold the name.
   rejected at planning.
 - **A typed error for every failure.** Fifteen codes covering configuration, protocol, policy,
   liquidity, signer, transport, ambiguity, and resource delivery, with `retryable` derived from a
-  six-value classification (ADR-011).
+  six-value classification.
 - **`tx402 call` CLI** in both languages, at parity: `--dry-run` (which never invokes a signer),
   `--json`, `--max-spend`, `--network`, `--timeout`, and SPEC §11's exit-code table.
 - **Redacting diagnostics.** A structured event stream that never carries signatures, keys, or
@@ -150,7 +150,7 @@ published only to hold the name.
 - The core API accepts signer abstractions only; no public entry point takes a private key string,
   and no CLI flag carries one. Key-loading convenience adapters are isolated in a separate entry
   point that must be imported on purpose, and warn on stderr every time they read the environment.
-- Paid retries follow **no** redirect, same-origin included (ADR-014), rather than re-transmitting
+- Paid retries follow **no** redirect, same-origin included, rather than re-transmitting
   one authorization to a second URL.
 - A timeout, reset, or blocked redirect _after_ the signature is transmitted produces
   `AmbiguousPaymentError` with the reservation retained to its TTL — never an automatic retry.

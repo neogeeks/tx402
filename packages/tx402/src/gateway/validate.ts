@@ -1,6 +1,6 @@
 /**
- * A tiny, dependency-free JSON-Schema-subset validator for the capability-gateway wire protocol
- * (SPEC §12.5). `ajv` is a dev-only dependency (it validates the golden in tests), so it is NOT
+ * A tiny, dependency-free JSON-Schema-subset validator for the capability-gateway wire protocol.
+ * `ajv` is a dev-only dependency (it validates the golden in tests), so it is NOT
  * available to consumers of the `tx402/gateway` subpath at runtime — the gateway therefore cannot
  * import it. This validator covers exactly the keyword subset the wire schema in `./schema.ts` uses
  * (`type`, `properties`, `required`, `additionalProperties: false`, `$ref`, `pattern`, `minLength`,
@@ -9,17 +9,17 @@
  *
  * - a gateway validates each request body against `methods[method].request` BEFORE dispatch, so a
  *   missing/mistyped/extra field or an over-width amount is a `400` instead of reaching the store as
- *   an `undefined` argument (O23); and
+ *   an `undefined` argument; and
  * - a client validates each response envelope against `methods[method].response`, so a mistyped
  *   result (a string `"false"` where a boolean is required) or a malformed error is rejected as a
- *   protocol violation instead of being coerced (O24).
+ *   protocol violation instead of being coerced.
  *
  * It is intentionally structural (no format/number-bound features beyond `minimum`, no `$id`
  * resolution): the schema is closed and known, and `test/gateway-validate.test.ts` pins that this
  * validator agrees with `ajv` (2020-12) on ACCEPT and REJECT over the full cross-product of every
  * method's request AND response schema × every committed golden body, plus targeted reject mutations
  * (extra field, over-width amount, string-for-boolean, two-key envelope). It is the security
- * boundary, so a divergence from `ajv` — in either direction — fails that suite (O23/O24/O39).
+ * boundary, so a divergence from `ajv` — in either direction — fails that suite.
  */
 
 type Schema = Record<string, unknown>;

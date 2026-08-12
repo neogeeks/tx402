@@ -13,7 +13,7 @@ export const RESERVATION_TTL_MS = 120_000;
 export const ROLLING_WINDOW_MS = 3_600_000;
 
 /**
- * The reservation lifecycle (SPEC §3.1). `exposed` (ADR-026, D-A2) is the durable
+ * The reservation lifecycle. `exposed` (ADR-026, D-A2) is the durable
  * pre-transmission fence: a reservation that has been marked exposed no longer expires and
  * keeps consuming budget until an operator resolves it to `committed` or `released`.
  */
@@ -50,7 +50,7 @@ export interface BudgetState extends SpendTotals {
   readonly entries: readonly SpendEntry[];
   readonly reservations: readonly SpendReservation[];
   /**
-   * The ledger these totals describe — the normalized merchant host (ADR-018).
+   * The ledger these totals describe — the normalized merchant host.
    *
    * Absent only on the empty snapshot a client returns before it has paid anything. A
    * snapshot that reports figures always says which scope and asset they are for; the
@@ -58,9 +58,9 @@ export interface BudgetState extends SpendTotals {
    */
   readonly policyScope?: string;
   readonly assetId?: string;
-  /** Sum of exposed (maybe-settled) reservations for this scope+asset (SPEC §7, ADR-026). */
+  /** Sum of exposed (maybe-settled) reservations for this scope+asset. */
   readonly exposedAtomic?: string;
-  /** Lifetime committed for this scope+asset — survives the rolling window (ADR-025). */
+  /** Lifetime committed for this scope+asset — survives the rolling window. */
   readonly cumulativeCommittedAtomic?: string;
   /** `cumulativeCommitted + exposedTotal + reservedOnly`, every amount in exactly one term. */
   readonly cumulativeConsumedAtomic?: string;
@@ -72,7 +72,7 @@ export interface BudgetState extends SpendTotals {
   readonly availablePerHourAtomic?: string;
   /** Computed when a cumulative limit is known: `max(0, limit − cumulativeConsumed)`. */
   readonly availableCumulativeAtomic?: string;
-  /** True when `policyScope` OR the global `"*"` scope is frozen (ADR-027). */
+  /** True when `policyScope` OR the global `"*"` scope is frozen. */
   readonly frozen?: boolean;
 }
 
@@ -87,21 +87,21 @@ export interface ReserveSpendInput {
   /** NEW (D-A1, ADR-025). Absent ⇒ no cumulative cap from the caller. */
   readonly maxTotalAtomic?: string;
   /**
-   * NEW (ADR-028). The recipient the client is about to pay, asserted atomically inside
-   * `reserve` against the store's authoritative recipient set (SPEC §6.2). Sent for BOTH
+   * NEW. The recipient the client is about to pay, asserted atomically inside
+   * `reserve` against the store's authoritative recipient set. Sent for BOTH
    * allowlist and TOFU modes. Recipient enforcement is authoritative in reserve.
    */
   readonly recipientNetwork?: string;
   readonly recipientCanonical?: string;
   /**
-   * NEW (ADR-028). The caller's configured recipient-enforcement disposition; governs only
+   * NEW. The caller's configured recipient-enforcement disposition; governs only
    * the no-record branch (SPEC §3.4 step 3). ABSENT is treated as `"off"`.
    */
   readonly recipientEnforcement?: "off" | "allowlist" | "tofu";
   /**
    * For a {@link MemorySpendStore} the caller's clock is authoritative (one process, one
    * clock). For a DURABLE store this is advisory only — the backend clock windows the
-   * rolling hour so fleet clock skew cannot double-spend the cap (SPEC §3.4a, ADR-030).
+   * rolling hour so fleet clock skew cannot double-spend the cap.
    */
   readonly nowEpochMs: number;
 }
@@ -109,7 +109,7 @@ export interface ReserveSpendInput {
 /**
  * `reserve` returns a RESULT, not the bare reservation, so `recipientPinEstablished` is
  * response-only and never persisted — an idempotent ID-reuse replay returns `false` and does
- * not re-emit `recipient.pinned` (SPEC §3.2, ADR-028).
+ * not re-emit `recipient.pinned`.
  */
 export interface ReserveSpendResult {
   readonly reservation: SpendReservation;
@@ -118,7 +118,7 @@ export interface ReserveSpendResult {
 
 export interface CommitSpendInput {
   readonly reservationId: string;
-  /** The ref fields (SPEC §3.1): the full `{policyScope, assetId, reservationId}` triple IS
+  /** The ref fields: the full `{policyScope, assetId, reservationId}` triple IS
    *  the reservation identity, because a sharded store routes by scope+asset. */
   readonly policyScope: string;
   readonly assetId: string;
@@ -145,28 +145,28 @@ export interface ReservationRef {
   readonly assetId: string;
 }
 
-/** Caps only (SPEC §3.1, ADR-025). Recipient policy has its own admin setters and is NOT here. */
+/** Caps only. Recipient policy has its own admin setters and is NOT here. */
 export interface BudgetLimits {
   readonly maxPerHourAtomic?: string;
   readonly maxTotalAtomic?: string;
 }
 
-/** Declared store capabilities (SPEC §3.1, ADR-027). `atomicGlobalFreeze` gates the `"*"` freeze. */
+/** Declared store capabilities. `atomicGlobalFreeze` gates the `"*"` freeze. */
 export interface StoreCapabilities {
   readonly atomicGlobalFreeze: boolean;
 }
 
 /**
- * The pluggable spend ledger — the DATA plane (SPEC §3.1, §4.3, §5.3). Implement this to
+ * The pluggable spend ledger — the DATA plane. Implement this to
  * share one budget across processes; the built-in {@link MemorySpendStore} is process-local.
  *
  * This is what `createTx402Client` accepts and what the agent process needs. The admin-plane
  * operations (freeze, administered limits, pin rotation, exposed reconciliation) live on the
  * separate {@link SpendStoreAdmin} interface with SEPARATE credentials and are never handed
- * to the agent path (ADR-029).
+ * to the agent path.
  *
  * The contract an adapter must honour, stated once so the Python `SpendStore` protocol and
- * this interface say the same thing (ADR-018):
+ * this interface say the same thing:
  *
  *  - **`policyScope` is the normalized merchant host.** It is opaque to the store — the
  *    store must only ever compare it for equality, never parse it — but it is the key that
@@ -175,7 +175,7 @@ export interface StoreCapabilities {
  *  - **The full `{policyScope, assetId, reservationId}` triple IS the reservation identity.**
  *    A sharded store cannot detect a *wrong* scope — it routes to that scope's shard and
  *    finds nothing — so a ref whose triple names no record is a single typed
- *    `reservation-not-found` outcome, identical across every adapter (SPEC §3.1).
+ *    `reservation-not-found` outcome, identical across every adapter.
  *  - **`reserve` is atomic.** The cap comparison and the insert are one operation, or a
  *    concurrent pair of callers can both pass a cap only one of them fits under.
  *  - **`reserve` rejects an over-cap request with `BudgetExceededError`.** Any other
@@ -183,7 +183,7 @@ export interface StoreCapabilities {
  *    `TransportError`, because nothing has been signed yet.
  *  - **`commit`, `release` and `expose` are idempotent** for a reservation already in that
  *    terminal state; a replay returns the record and touches no counter.
- *  - **`resolveExposed` is NOT idempotent on replay** (U17). It transitions an `exposed`
+ *  - **`resolveExposed` is NOT idempotent on replay**. It transitions an `exposed`
  *    reservation exactly once; a second call — the reservation already committed/released —
  *    REFUSES with `ConfigurationError (reason: "reservation-already-terminal")`, so a retried
  *    reconciliation script must catch that refusal (SPEC §7, exposed-reconciliation runbook).
@@ -194,14 +194,14 @@ export interface StoreCapabilities {
  */
 export interface SpendStore {
   readonly kind: string;
-  /** Declared capabilities. `atomicGlobalFreeze` gates the `"*"` freeze (SPEC §5.2). */
+  /** Declared capabilities. `atomicGlobalFreeze` gates the `"*"` freeze. */
   readonly capabilities: StoreCapabilities;
   /** The cap comparison and reservation insert MUST be one atomic operation. */
   reserve(input: ReserveSpendInput): Promise<ReserveSpendResult>;
   commit(input: CommitSpendInput): Promise<SpendEntry>;
   release(ref: ReservationRef, nowEpochMs: number): Promise<SpendReservation>;
   /**
-   * The durable PRE-transmission fence (SPEC §7, ADR-026). Records exposure BEFORE the
+   * The durable PRE-transmission fence. Records exposure BEFORE the
    * signature is transmitted; the reservation becomes non-expiring. Returns the fenced
    * reservation. The client wires the fence.
    */
@@ -235,10 +235,10 @@ export interface RecipientPinStore {
 }
 
 /**
- * The admin plane (SPEC §3.1, ADR-029). Operator only, SEPARATE credentials, NEVER handed to
+ * The admin plane. Operator only, SEPARATE credentials, NEVER handed to
  * the agent path. The reference {@link MemorySpendStore} implements this on the same object —
  * in-process it has no credential separation, which is acceptable and documented as
- * test-only; production separation requires a durable store with ACLs (SPEC §12).
+ * test-only; production separation requires a durable store with ACLs.
  */
 export interface SpendStoreAdmin {
   freeze(scope: string, nowEpochMs: number): Promise<void>;
@@ -271,7 +271,7 @@ export interface SpendStoreAdmin {
    * source="admin-allowlist", a TOFU claim (only when enabled) writes source="tofu".
    */
   setTofuEnabled(scope: string, enabled: boolean, nowEpochMs: number): Promise<void>;
-  /** Reconcile an exposed reservation once the operator has checked the chain (SPEC §7). */
+  /** Reconcile an exposed reservation once the operator has checked the chain. */
   resolveExposed(
     ref: ReservationRef,
     outcome: "committed" | "released",
@@ -602,7 +602,7 @@ export class MemorySpendStore implements SpendStore, RecipientPinStore, SpendSto
     // Treat an empty `recipientCanonical` as NOT presented (guard on `undefined` OR ""), so the
     // assertion-required gate below fails closed — matching the durable Redis (`recipientCanonical
     // ~= ''`) and DO (truthiness) stores. Without the "" case the reference/default store would be
-    // the permissive one on a safety gate (O56); an empty recipient also matches no real allowlist.
+    // the permissive one on a safety gate; an empty recipient also matches no real allowlist.
     const presentedRecipient =
       input.recipientCanonical === undefined ||
       input.recipientCanonical === "" ||
@@ -723,7 +723,7 @@ export class MemorySpendStore implements SpendStore, RecipientPinStore, SpendSto
       reservationId: input.reservationId ?? uuidV7(input.nowEpochMs),
       policyScope: input.policyScope,
       requestFingerprint: input.requestFingerprint,
-      // Stored canonical (SPEC §6.4, U16) so every adapter round-trips one form; the client threads
+      // Stored canonical so every adapter round-trips one form; the client threads
       // this back for commit/release/expose and the key derivation canonicalizes again (idempotent).
       assetId: canonicalizeAsset(input.assetId),
       amountAtomic: input.amountAtomic,
@@ -735,7 +735,7 @@ export class MemorySpendStore implements SpendStore, RecipientPinStore, SpendSto
       refKey(reservation.policyScope, reservation.assetId, reservation.reservationId),
       reservation,
     );
-    // `recipientPinEstablished` is response-only and never persisted (ADR-028): a later id-reuse
+    // `recipientPinEstablished` is response-only and never persisted: a later id-reuse
     // replay returns the record above with the flag false and re-emits no `recipient.pinned`.
     return Object.freeze({ reservation, recipientPinEstablished });
   }
@@ -769,7 +769,7 @@ export class MemorySpendStore implements SpendStore, RecipientPinStore, SpendSto
       amountAtomic: reservation.amountAtomic,
       committedAtEpochMs: input.committedAtEpochMs,
       // An empty settlementId is "no settlement id" — omit it, matching Redis/DO so every adapter
-      // round-trips an empty id as absent, not `""` (O27).
+      // round-trips an empty id as absent, not `""`.
       ...(input.settlementId ? { settlementId: input.settlementId } : {}),
     });
     this.#entries.set(key, entry);
@@ -920,11 +920,11 @@ export class MemorySpendStore implements SpendStore, RecipientPinStore, SpendSto
     return this.peekBudgetState(query);
   }
 
-  // ── Admin plane (SPEC §3.1). In-process, no credential separation (test-only, SPEC §3.5). ──
+  // ── Admin plane. In-process, no credential separation (test-only, SPEC §3.5). ──
 
   // eslint-disable-next-line @typescript-eslint/require-await
   async freeze(scope: string, _nowEpochMs?: number): Promise<void> {
-    // atomicGlobalFreeze is true, so "*" is a permitted scope here (ADR-027).
+    // atomicGlobalFreeze is true, so "*" is a permitted scope here.
     this.#frozen.add(scope);
   }
 

@@ -1,5 +1,5 @@
 /**
- * T-015: the logger receives seeded secrets and none of them appear (SPEC §12.2, §10).
+ * T-015: the logger receives seeded secrets and none of them appear.
  *
  * Mirrors `packages/tx402-python/tests/test_diagnostics.py`. Per ADR-005 the two SDKs must
  * emit the same event stream, so the same properties are asserted in both languages and the

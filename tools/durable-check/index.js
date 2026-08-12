@@ -4,15 +4,15 @@
  *
  *   node tools/durable-check/index.js [redis|do|all]     (default: all)
  *
- * **Why this exists as a script and not a CI job name.** `PLAN-0.2.0.md` §14 requires the new
+ * **Why this exists as a script and not a CI job name.** The release gates require the new
  * durable/gateway suites to hang off a *stable root script* (`tools/durable-check`,
  * `tools/gateway-golden`) rather than a prose-only CI job, so the same command runs locally and
  * in CI and cannot drift from what the workflow claims to run. This is the S1 **skeleton**: it
  * wires the command, the package.json script, and the CI jobs so they are green from the first
  * commit; the real `checkDurableSpendStore` arms land with their features —
  *
- *   - `redis`  → `SPEC-0.2.0.md` §12.2, session **S7** (`tx402/redis`, `tx402.stores.redis`)
- *   - `do`     → `SPEC-0.2.0.md` §12.3, session **S8** (`tx402/durable-object`, local Workers runtime)
+ *   - `redis`  → the Redis reference store (`tx402/redis`, `tx402.stores.redis`)
+ *   - `do`     → the Durable Object reference store (`tx402/durable-object`, local Workers runtime)
  *   - behind the gateway → §12.5, session **S9** (see `tools/gateway-golden`)
  *
  * The `redis` arm is REAL as of S7a and grew the S7b governance arms. When `TX402_TEST_REDIS_URL`
@@ -36,7 +36,7 @@
  *
  * The `do` arm is REAL as of S8: the Durable Object adapter and its harness run in a LOCAL Workers
  * runtime (workerd via `@cloudflare/vitest-pool-workers` ~0.12 — O8), needing no Cloudflare account
- * and no network (O2). `pnpm durable:check do` runs the whole `checkDurableSpendStore` on BOTH
+ * and no network. `pnpm durable:check do` runs the whole `checkDurableSpendStore` on BOTH
  * topologies — id-per-scope (`atomicGlobalFreeze:false`, the incapable global-freeze arm) and
  * single-coordinator (`atomicGlobalFreeze:true`, the capable arm) — plus the single-plane
  * `checkSpendStore` twin, admin-token denial, fail-closed overload, and a local throughput baseline
@@ -48,7 +48,7 @@ import net from "node:net";
 import tls from "node:tls";
 
 /**
- * Mask any `user:password@` credential in a DSN before it is printed to a CI log (O28). A DSN with
+ * Mask any `user:password@` credential in a DSN before it is printed to a CI log. A DSN with
  * no userinfo is returned unchanged. Every rendering of `TX402_TEST_REDIS_URL` /
  * `TX402_TEST_REDIS_CLUSTER` goes through this — a password Redis / Upstash `rediss://` URL must
  * never appear in the build output.

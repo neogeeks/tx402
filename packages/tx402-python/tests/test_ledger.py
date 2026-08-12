@@ -1,9 +1,9 @@
-"""Unit tests for MemorySpendStore v2 — the SPEC §3 contract-v2 behaviour (ADR-023).
+"""Unit tests for MemorySpendStore v2 — the SPEC §3 contract-v2 behaviour.
 
 The cross-language conformance vectors (spend-ledger.behavior) and the base contract suite
 cover reserve/commit/release; these run the *new* 0.2.0 surface directly: the exposure
 transition matrix, the lifetime counters, capabilities, the ref-based locator, and the admin
-plane the reference store implements on the same object (SPEC §3.5).
+plane the reference store implements on the same object.
 """
 
 from __future__ import annotations
@@ -349,8 +349,8 @@ def test_scope_and_asset_partition_the_ledger() -> None:
 
 
 # The cumulative-cap vectors drive the caller-cap path cross-language; the administered
-# precedence (SPEC §4.3) is not expressible in a ledger vector (no admin verbs in the op
-# set), so it is proven here against MemorySpendStore directly (ADR-023).
+# precedence is not expressible in a ledger vector (no admin verbs in the op
+# set), so it is proven here against MemorySpendStore directly.
 
 
 def test_cumulative_cap_refuses_what_per_hour_admits() -> None:

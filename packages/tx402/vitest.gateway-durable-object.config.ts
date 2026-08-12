@@ -2,7 +2,7 @@ import { defineWorkersConfig } from "@cloudflare/vitest-pool-workers/config";
 
 /**
  * Runs `test/gateway-durable-object.test.ts` — the capability gateway over a Durable Object — in a
- * LOCAL Cloudflare Workers runtime (SPEC §12.5/§12.3). It is a SEPARATE config from
+ * LOCAL Cloudflare Workers runtime. It is a SEPARATE config from
  * `vitest.durable-object.config.ts` on purpose: `@cloudflare/vitest-pool-workers` reloads the shared
  * worker between test files in a single run, which invalidates the DO instances the earlier DO
  * adapter suite created ("…invalidating this Durable Object. Please retry…"). Giving this suite its

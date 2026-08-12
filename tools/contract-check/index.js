@@ -4,11 +4,11 @@
  *
  *   node tools/contract-check/index.js
  *
- * **Why this exists as a script (PLAN-0.2.0.md §14, O9).** The single-plane SpendStore contract
+ * **Why this exists as a script.** The single-plane SpendStore contract
  * must be *invocable* in both languages, not merely defined. This runs:
  *
  *   - Python: `python -m tx402.spend_store_contract` — the real `__main__` entry point that
- *     replaces the old zero-check no-op (O9), against `MemorySpendStore` v2.
+ *     replaces the old zero-check no-op, against `MemorySpendStore` v2.
  *   - TypeScript: the `checkSpendStore` twin via vitest, against `MemorySpendStore` v2.
  *
  * so the same command runs the contract in both languages locally and in CI and cannot drift

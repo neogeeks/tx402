@@ -98,7 +98,7 @@ export interface TestMerchantOptions {
   validateRetries?: boolean;
   /**
    * Offered instead of `requirements` once at least one signed attempt has arrived, so a
-   * re-challenge can genuinely differ from the first challenge (SPEC §6.7). A paid attempt
+   * re-challenge can genuinely differ from the first challenge. A paid attempt
    * is validated against the union of both sets.
    */
   rechallengeRequirements?: Record<string, unknown>[];

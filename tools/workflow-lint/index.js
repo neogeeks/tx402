@@ -25,7 +25,7 @@
  *    wholesale rather than reported per-job.
  * 4. **A matrix expression refers to a key the matrix declares**, which catches a renamed
  *    matrix axis leaving a dangling `${{ matrix.node }}`.
- * 5. **Any job holding `id-token: write` uses only SHA-pinned actions** (PLAN.md O48). Such
+ * 5. **Any job holding `id-token: write` uses only SHA-pinned actions**. Such
  *    a job can exchange the repository's OIDC identity for publish rights on npm and PyPI,
  *    so an action referenced by a mutable tag is a third party who can rewrite what runs
  *    with those rights. This check is what stops a later edit reintroducing `@v7`: it is
@@ -64,7 +64,7 @@ const CONTEXT = /\$\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\.([a-zA-Z0-9_-]+)/g;
  * publish to npm/PyPI; `write-all` grants it (and everything else) too, so both are publish-capable.
  * Both the SHA-pinning check and the O30 gate-dependency check must use this same definition — the
  * O30 check once keyed only on `id-token: write`, so a `write-all` publish job slipped past the
- * `needs:` requirement (O41i).
+ * `needs:` requirement.
  */
 function isPublishPrivileged(job) {
   const permissions = job?.permissions ?? {};

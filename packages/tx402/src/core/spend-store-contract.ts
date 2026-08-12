@@ -1,6 +1,6 @@
 /**
  * A runnable conformance suite for third-party {@link SpendStore} adapters — the TypeScript
- * twin of `tx402.spend_store_contract` (SPEC §3.6). Published from `tx402/spend-store-contract`
+ * twin of `tx402.spend_store_contract`. Published from `tx402/spend-store-contract`
  * (off the size-gated core path, like the chain adapters) so an adapter author, who is not a
  * contributor to this repository, can import it.
  *
@@ -43,7 +43,7 @@ import {
 const NOW = 1_800_000_000_000;
 const ASSET = "eip155:8453/erc20:0x833589fcd6edb6e08f4c7c32d4f71b54bda02913";
 // The EIP-55 CHECKSUMMED form of the SAME erc20 contract as ASSET — the casing the signed manifest
-// carries. The store MUST key both on the canonical (lowercased) asset (U16), so a cap/reservation
+// carries. The store MUST key both on the canonical (lowercased) asset, so a cap/reservation
 // under one casing addresses the same ledger as the other.
 const ASSET_CHECKSUMMED = "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
 const OTHER_ASSET = "solana:mainnet/spl:EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";

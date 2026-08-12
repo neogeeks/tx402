@@ -1,10 +1,10 @@
-"""The complete tx402 error taxonomy (SPEC §8).
+"""The complete tx402 error taxonomy.
 
 Mirrors ``packages/tx402/src/core/errors.ts`` exactly. Frozen at M0 as fifteen; extended
 to **seventeen** at 0.2.0 when the kill switch and recipient pinning each added one code
 (SPEC §8 — ``TX402_SPEND_FROZEN``, ``TX402_RECIPIENT_UNPINNED``). The seventeen codes and
 seventeen class names are a cross-language contract, and the conformance vector
-``errors.taxonomy.frozen`` fails if either language drifts (ADR-005).
+``errors.taxonomy.frozen`` fails if either language drifts.
 
 Two rules that are easy to get wrong, both recorded in ADR-011:
 
@@ -69,10 +69,10 @@ __all__ = [
 # Codes
 # ----------------------------------------------------------------------------------------
 
-#: Every tx402 error code (SPEC §8).
+#: Every tx402 error code.
 #:
-#: Adding a code is a minor release; changing or removing one is a breaking change
-#: (SPEC §15). Callers switch on these rather than on class identity, because the code is
+#: Adding a code is a minor release; changing or removing one is a breaking change.
+#: Callers switch on these rather than on class identity, because the code is
 #: what survives a serialization boundary.
 TX402_ERROR_CODES: Final[Mapping[str, str]] = MappingProxyType(
     {
@@ -91,7 +91,7 @@ TX402_ERROR_CODES: Final[Mapping[str, str]] = MappingProxyType(
         "resource_delivery": "TX402_RESOURCE_DELIVERY",
         "redirect_blocked": "TX402_REDIRECT_BLOCKED",
         "transport": "TX402_TRANSPORT",
-        # 0.2.0 additions (SPEC §8). Kill switch (SPEC §5) + recipient pinning (SPEC §6);
+        # 0.2.0 additions. Kill switch + recipient pinning;
         # both are policy/exit 3, retryability "no".
         "spend_frozen": "TX402_SPEND_FROZEN",
         "recipient_unpinned": "TX402_RECIPIENT_UNPINNED",
@@ -116,13 +116,13 @@ Retryability = Literal[
     "caller-policy",
 ]
 
-#: Request-execution phase (SPEC §8), aligned to the SPEC §6 state machine.
+#: Request-execution phase, aligned to the SPEC §6 state machine.
 Phase = Literal["initial", "parse", "policy", "route", "sign", "retry", "complete"]
 
 
 @dataclass(frozen=True, slots=True)
 class Tx402ErrorContext:
-    """The fixed diagnostic envelope carried by every tx402 error (SPEC §8).
+    """The fixed diagnostic envelope carried by every tx402 error.
 
     Deliberately closed. Per-error data goes in ``details``.
     """
@@ -134,7 +134,7 @@ class Tx402ErrorContext:
     amount_atomic: str | None = None
     asset_id: str | None = None
     #: ``"unknown"`` is a real third state, not a missing boolean — it is precisely what an
-    #: ambiguous outcome reports (SPEC §6.7).
+    #: ambiguous outcome reports.
     paid: bool | Literal["unknown"] | None = None
     reservation_id: str | None = None
 
@@ -172,7 +172,7 @@ class Tx402ErrorDescriptor:
 
 
 def _is_retryable(retryability: Retryability) -> bool:
-    """The single derivation rule for ``retryable`` (ADR-011).
+    """The single derivation rule for ``retryable``.
 
     Only a transport failure can be retried without the caller doing something first.
     """
@@ -289,7 +289,7 @@ TX402_ERROR_TAXONOMY: Final[tuple[Tx402ErrorDescriptor, ...]] = (
         "caller-policy",
         ("causeCategory",),
     ),
-    # ── 0.2.0 additions (SPEC §8), appended in specification order. ──
+    # ── 0.2.0 additions, appended in specification order. ──
     _descriptor(
         TX402_ERROR_CODES["spend_frozen"],
         "SpendScopeFrozenError",
@@ -319,7 +319,7 @@ TX402_ERROR_DESCRIPTORS: Final[Mapping[str, Tx402ErrorDescriptor]] = MappingProx
 
 
 class Tx402Error(Exception):
-    """Base class for every typed tx402 error (SPEC §4.2).
+    """Base class for every typed tx402 error.
 
     ``cause`` is retained for debugging but is **never** serialized by :meth:`to_dict`: the
     underlying error frequently comes from a signer or an HTTP client and may carry a
@@ -397,19 +397,19 @@ def is_tx402_error(error: object) -> bool:
 
 
 class ConfigurationError(Tx402Error):
-    """Invalid configuration. Raised eagerly from the client constructor (SPEC §4.2)."""
+    """Invalid configuration. Raised eagerly from the client constructor."""
 
     code = TX402_ERROR_CODES["config_invalid"]
 
 
 class ReservedHeaderError(Tx402Error):
-    """The caller supplied a protocol-owned header (SPEC §6.1)."""
+    """The caller supplied a protocol-owned header."""
 
     code = TX402_ERROR_CODES["reserved_header"]
 
 
 class NonReplayableRequestError(Tx402Error):
-    """The request body cannot be replayed on the paid retry (SPEC §6.1).
+    """The request body cannot be replayed on the paid retry.
 
     Raised *before* the initial request, not after — discovering this after a 402 would
     mean the caller's stream had already been consumed.
@@ -419,19 +419,19 @@ class NonReplayableRequestError(Tx402Error):
 
 
 class UnsupportedProtocolError(Tx402Error):
-    """Observed a protocol version this build does not implement (ADR-004)."""
+    """Observed a protocol version this build does not implement."""
 
     code = TX402_ERROR_CODES["protocol_unsupported"]
 
 
 class UnsupportedSchemeError(Tx402Error):
-    """No offered scheme/network pair is supported (ADR-004). Reports what was offered."""
+    """No offered scheme/network pair is supported. Reports what was offered."""
 
     code = TX402_ERROR_CODES["scheme_unsupported"]
 
 
 class InvalidPaymentRequiredError(Tx402Error):
-    """The challenge failed strict decoding, schema validation, or binding (SPEC §6.2)."""
+    """The challenge failed strict decoding, schema validation, or binding."""
 
     code = TX402_ERROR_CODES["payment_required_invalid"]
 
@@ -469,7 +469,7 @@ class SignerError(Tx402Error):
 
 
 class ClockSkewError(Tx402Error):
-    """Observed clock skew above the 15 s threshold (SPEC §6.6).
+    """Observed clock skew above the 15 s threshold.
 
     The SDK never adjusts the system clock.
     """
@@ -478,7 +478,7 @@ class ClockSkewError(Tx402Error):
 
 
 class AmbiguousPaymentError(Tx402Error):
-    """The signature was transmitted but the outcome is unknown (SPEC §6.7).
+    """The signature was transmitted but the outcome is unknown.
 
     The reservation is deliberately **retained** rather than released: the payment may have
     settled, and releasing would let it be spent twice against the cap. ``context.paid`` is
@@ -486,11 +486,11 @@ class AmbiguousPaymentError(Tx402Error):
 
     ``details["reservationExpiresAtEpochMs"]`` carries the reservation's **declared**
     expiry. It is a frozen §8 required detail, so it is always present — but once the
-    pre-transmission exposure fence has run (SPEC §7, ADR-026) an ambiguous outcome leaves
+    pre-transmission exposure fence has run an ambiguous outcome leaves
     the reservation ``exposed``, and an exposed reservation **does not expire**: it is held
     until an operator's ``resolve_exposed``. So the timestamp is **advisory once the
     reservation is exposed** — the declared expiry the reservation would have had, not a
-    time the record will actually reach (O13). Money disposition is unaffected; the
+    time the record will actually reach. Money disposition is unaffected; the
     reservation is correctly retained either way.
     """
 
@@ -498,7 +498,7 @@ class AmbiguousPaymentError(Tx402Error):
 
 
 class ResourceDeliveryError(Tx402Error):
-    """Settlement succeeded but the resource response was unusable (SPEC §5.3).
+    """Settlement succeeded but the resource response was unusable.
 
     The spend stays committed and ``context.paid`` is ``True``. The money moved regardless
     of what came back.
@@ -520,7 +520,7 @@ class TransportError(Tx402Error):
 
 
 class SpendScopeFrozenError(Tx402Error):
-    """``reserve`` was denied because the scope — or the whole store — is frozen (SPEC §5).
+    """``reserve`` was denied because the scope — or the whole store — is frozen.
 
     A stop-future-authorization control, never a chain rollback: an existing reservation,
     including an exposed one, keeps counting across a freeze (KS-7). The store raises it
@@ -536,17 +536,17 @@ class SpendScopeFrozenError(Tx402Error):
 
 
 class RecipientUnpinnedError(Tx402Error):
-    """``reserve`` refused an unpinned recipient (SPEC §6).
+    """``reserve`` refused an unpinned recipient.
 
     Authoritative in ``reserve``, driven by the store's administered pin record, so a
     compromised caller cannot relax it (SPEC §3.4 step 3). The behaviour is in reserve; the
-    code, class and taxonomy row land now (SPEC §8).
+    code, class and taxonomy row land now.
 
     ``details["merchantScope"]`` and ``details["reason"]`` (``not-allowlisted`` |
     ``pin-mismatch`` | ``assertion-required``) are always present. ``details["network"]``,
     ``details["presentedRecipient"]`` and ``details["expectedRecipients"]`` are required
     together for ``not-allowlisted``/``pin-mismatch`` and absent for ``assertion-required``
-    (SPEC §6.5) — a conditional the schema enforces.
+     — a conditional the schema enforces.
     """
 
     code = TX402_ERROR_CODES["recipient_unpinned"]

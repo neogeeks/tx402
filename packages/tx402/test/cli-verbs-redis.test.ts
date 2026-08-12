@@ -1,5 +1,5 @@
 /**
- * The operator verbs (SPEC §10) against a LIVE store — both a raw `redis://` DSN AND a gateway
+ * The operator verbs against a LIVE store — both a raw `redis://` DSN AND a gateway
  * URL fronting the same Redis (SPEC §9.1's two topologies), with real data/admin credentials.
  *
  * Skipped unless `TX402_TEST_REDIS_URL` is set (mirrors `redis-store.test.ts` / `tools/durable

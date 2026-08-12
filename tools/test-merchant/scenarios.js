@@ -29,8 +29,8 @@ export const FACILITATOR_FEE_PAYER = "CKPKJWNdJEqa81x7CkZ14BVPiY6y16Sxs7owznqtWY
  * version for EIP-3009, and SVM needs the fee payer that will pay for the transfer. All
  * four shipped `extra: {}` through S16, which made the quickstart's merchant emit a
  * challenge tx402 itself rejects — `eip712-domain-missing` and `svm-feePayer-missing` — so
- * the one command the docs tell a stranger to run could not settle on either chain
- * (PLAN.md O64).
+ * the one command the docs tell a stranger to run could not settle on either chain.
+ *
  *
  * That survived every green gate because `tools/ttv`, which measures SPEC §16 and reports
  * PASS, builds its own requirement object and never reads this one. The parity is now

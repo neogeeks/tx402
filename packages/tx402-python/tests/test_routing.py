@@ -1,4 +1,4 @@
-"""Deterministic route planning (SPEC §6.4).
+"""Deterministic route planning.
 
 The four ``routing.candidate-order`` vectors pin the ordering key cascade itself; this
 suite covers the planner around it — concurrency, balance deduplication, the retention of
@@ -272,7 +272,7 @@ class TestCandidateRetention:
 
 
 class TestOrderingIsAPureFunction:
-    """SPEC §6.4 step 19, stated as the property it actually is (PLAN.md O34).
+    """SPEC §6.4 step 19, stated as the property it actually is.
 
     Step 19 requires identical output for identical inputs *and health state*. That is a
     property of :func:`order_route_candidates` alone, so it is asserted here on fixed

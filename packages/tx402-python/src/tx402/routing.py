@@ -1,4 +1,4 @@
-"""Deterministic route planning (SPEC §6.4, §5.2).
+"""Deterministic route planning.
 
 Port of ``packages/tx402/src/core/routing.ts``. The planner is reached only after the
 policy engine has approved a set of requirements — SPEC §6.3 step 13 makes that ordering a
@@ -70,7 +70,7 @@ T = TypeVar("T")
 
 @dataclass(frozen=True, slots=True)
 class RouteCandidate:
-    """One scored route (SPEC §5.2). Every field here is redaction-safe."""
+    """One scored route. Every field here is redaction-safe."""
 
     requirement_index: int
     network: str

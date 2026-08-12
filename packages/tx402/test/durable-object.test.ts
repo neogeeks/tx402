@@ -1,7 +1,7 @@
 /**
  * `Tx402SpendStoreDO` against a LOCAL Cloudflare Workers runtime (workerd via
  * `@cloudflare/vitest-pool-workers` — SPEC §12.3/§12.4, ADR-023 — tests that RUN the behaviour). No
- * Cloudflare account: the DO + its SQLite storage run entirely in the local runtime (O2/O8). Runs
+ * Cloudflare account: the DO + its SQLite storage run entirely in the local runtime. Runs
  * via `vitest.durable-object.config.ts`, not the default node config (which EXCLUDES this file).
  *
  * The whole `checkDurableSpendStore` (the S7b harness — plane separation, skew, locator, cumulative,

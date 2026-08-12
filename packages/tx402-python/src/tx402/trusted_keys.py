@@ -1,4 +1,4 @@
-"""Public keys this build trusts to sign a release manifest (SPEC §5.4).
+"""Public keys this build trusts to sign a release manifest.
 
 Compiled in, deliberately. A key shipped *alongside* a manifest would authenticate nothing
 — an attacker who can replace the manifest can replace an adjacent key file just as easily.
@@ -31,7 +31,7 @@ TRUSTED_MANIFEST_KEYS: Final[Mapping[str, str]] = MappingProxyType(
     }
 )
 
-#: Domain separation prefix for manifest signatures (ADR-012).
+#: Domain separation prefix for manifest signatures.
 #:
 #: Prepended to the canonical bytes so a signature over a tx402 manifest can never be
 #: replayed as a signature over a different document the same key signs. The ``/v1`` suffix

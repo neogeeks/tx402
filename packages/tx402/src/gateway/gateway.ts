@@ -1,19 +1,19 @@
 /**
- * The reference capability gateway's backend-agnostic core (SPEC §12.5). `handleGatewayRequest`
+ * The reference capability gateway's backend-agnostic core. `handleGatewayRequest`
  * turns a `POST /v1/{method}` into a call on the store it fronts and serializes the §12.5 wire
  * response — one function shared by BOTH reference gateways (the Cloudflare Worker fronting a DO,
  * `./worker.ts`; the Node process fronting Redis, `./node.ts`), so the two are byte-identical and
  * the golden pins them both. Isomorphic: web `Request`/`Response` only, no `node:*`/`cloudflare:*`.
  *
- * **The gateway is the durable data/admin boundary (SPEC §9.1).** It holds the raw backend
+ * **The gateway is the durable data/admin boundary.** It holds the raw backend
  * credential server-side (a Redis admin DSN, or the DO admin token via `TX402_DO_ADMIN_SECRET`) and
  * exposes only capabilities to callers, authenticated by an opaque bearer token whose scope it
  * checks PER METHOD: a data token reaches the data methods; an admin method attempted with a data
  * token is refused `403` before the backend is ever touched. This closes the admin-state tampering
  * path (a client cannot unfreeze itself, override a pin, or raise a limit). It does NOT close the
- * compromised-application spending path — that is 0.3.0 (SPEC §1).
+ * compromised-application spending path — that is 0.3.0.
  *
- * **Error discipline (SPEC §12.5).** A tx402 typed error the STORE raised (frozen, over-cap,
+ * **Error discipline.** A tx402 typed error the STORE raised (frozen, over-cap,
  * unpinned, a lifecycle/not-found/admin `ConfigurationError`) is a domain outcome and comes back at
  * HTTP 200 as `{ error: Tx402Error.toJSON() }` — the client rethrows the exact typed error. Only
  * UNAVAILABILITY (a store outage, a backend `TransportError`, an unexpected throw) is a `503` with
@@ -52,7 +52,7 @@ export interface GatewayBackend {
 type Json = Record<string, unknown>;
 
 /**
- * The request-body ceiling (O51). The Node gateway caps at the socket before it ever builds the
+ * The request-body ceiling. The Node gateway caps at the socket before it ever builds the
  * `Request` (`node.ts`); the isomorphic core caps here too, so the Worker gateway — which hands
  * the raw platform `Request` straight to {@link handleGatewayRequest} — is held to the SAME 64 KiB
  * limit instead of buffering + parsing up to the Cloudflare platform bound. Single source of truth:
@@ -136,9 +136,9 @@ function versionRejected(request: Request): boolean {
 }
 
 /**
- * Whether the request declares `Content-Type: application/json` (SPEC §12.5). A `charset` parameter
+ * Whether the request declares `Content-Type: application/json`. A `charset` parameter
  * is tolerated (`application/json; charset=utf-8`); a missing or non-JSON media type is a `400`, so
- * an arbitrary body can never reach the store just because it happened to parse as JSON (O23).
+ * an arbitrary body can never reach the store just because it happened to parse as JSON.
  */
 function isJsonContentType(request: Request): boolean {
   const header = request.headers.get("content-type");
@@ -242,7 +242,7 @@ async function dispatch(
 }
 
 /**
- * Serve one `POST /v1/{method}` against the fronted backend (SPEC §12.5). The gates run in order —
+ * Serve one `POST /v1/{method}` against the fronted backend. The gates run in order —
  * version (`426`) → routable method + `POST` (`400`) → known token (`401`) → admin scope for an
  * admin method (`403`) → JSON object body (`400`) → dispatch — so no request reaches the backend
  * without a valid credential of sufficient scope.

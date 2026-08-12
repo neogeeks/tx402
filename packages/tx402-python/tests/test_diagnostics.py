@@ -1,4 +1,4 @@
-"""T-015: the logger receives seeded secrets and none of them appear (SPEC §12.2, §10).
+"""T-015: the logger receives seeded secrets and none of them appear.
 
 The approach is deliberately adversarial rather than illustrative. Every input the request
 path touches is seeded with a unique, searchable marker — the key material the signer holds,

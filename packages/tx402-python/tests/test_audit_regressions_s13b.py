@@ -1,7 +1,7 @@
 """S13b audit-finding regressions (Python, ADR-023 — tests that RUN the behaviour).
 
 Each test fails against the pre-fix code at f680b16 and passes after S13b. The
-gateway-client sections (O22, O24) mirror the TypeScript ``audit-regressions-s13b.test.ts``,
+gateway-client sections mirror the TypeScript ``audit-regressions-s13b.test.ts``,
 so the two SDKs reject the same malformed transport/response identically.
 """
 

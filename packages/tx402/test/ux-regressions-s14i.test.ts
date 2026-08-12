@@ -5,7 +5,7 @@
  *    construct. The concrete `RedisSpendStore` admin methods gained the optional trailing
  *    `_nowEpochMs?: number` (matching `SpendStoreAdmin` + `MemorySpendStore`), so an example that
  *    passes `Date.now()` compiles. This file constructs a `RedisSpendStore` and RUNS every admin
- *    call WITH the trailing timestamp (ADR-023): the file lives under `test/**`, which
+ *    call WITH the trailing timestamp: the file lives under `test/**`, which
  *    `pnpm typecheck` compiles under the exact profile the docs assume (strict, nodenext,
  *    esModuleInterop, `@types/node`), so dropping the optional param fails the gate — the
  *    falsifiability guard. Doc-parity string checks pin the examples to what the code accepts.

@@ -1,24 +1,24 @@
 /**
  * `DurableObjectSpendStore` — the data-plane + admin {@link SpendStore} adapter over a
- * {@link Tx402SpendStoreDO} (SPEC §12.3/§12.4). It holds a `locate(scope)` function that returns
+ * {@link Tx402SpendStoreDO}. It holds a `locate(scope)` function that returns
  * the scope's DO stub and turns every RPC envelope into the exact typed result or error, so a
  * DO-backed store is byte-identical to a Redis-backed one and to `MemorySpendStore` — it passes
  * the same `checkSpendStore`/`checkDurableSpendStore` suites.
  *
- * **Two topologies (SPEC §12.3), both just a `locate` + a capability flag:**
+ * **Two topologies, both just a `locate` + a capability flag:**
  *  - **id-per-scope (default):** `locate` routes each scope to its own DO (`ns.idFromName(scope)`).
  *    Per-scope reserve/commit/expose/freeze is atomic; global `"*"` freeze is NOT
  *    (`atomicGlobalFreeze: false`), so `freeze("*")` fails closed `global-freeze-unsupported`.
  *  - **single-coordinator (opt-in):** `locate` routes every scope to one coordinator DO, so a
  *    `"*"` freeze shares the reservation's coordination domain (`atomicGlobalFreeze: true`).
  *
- * **Fail-closed overload (SPEC §12.3).** A `reserve` whose DO cannot be reached raises a retryable
+ * **Fail-closed overload.** A `reserve` whose DO cannot be reached raises a retryable
  * `TransportError` — never a signature. The adapter cannot tell an overloaded shard from an
  * unreachable one, and nothing has been signed at reserve time, so it treats any RPC failure as
  * infrastructure unavailability (the client retries or fails without paying), never a policy
  * decision.
  *
- * **No admin token on the data plane (SPEC §12.3).** {@link durableObjectSpendStore} builds a
+ * **No admin token on the data plane.** {@link durableObjectSpendStore} builds a
  * store with no `adminToken`, so every admin mutation is refused inside the DO with
  * `admin-credential-required` — plane separation holds without TypeScript standing in for a
  * security boundary. The gateway (§12.5) is how a non-Worker caller reaches an admin DO.
@@ -68,13 +68,13 @@ export interface DurableObjectSpendStoreOptions {
    */
   readonly locate: DurableObjectLocator;
   /**
-   * Whether `freeze("*")` is atomic with a reservation (SPEC §5.2). `true` only under the
+   * Whether `freeze("*")` is atomic with a reservation. `true` only under the
    * single-coordinator topology (all reserves share one DO); `false` id-per-scope, where each
    * scope is a private object and no `"*"` object can atomically span them. Default `false`.
    */
   readonly atomicGlobalFreeze?: boolean;
   /**
-   * The admin token the DO verifies against its `TX402_DO_ADMIN_SECRET` (SPEC §12.3). Present
+   * The admin token the DO verifies against its `TX402_DO_ADMIN_SECRET`. Present
    * only on the operator/gateway store; the data-plane adapter carries none, so every admin
    * mutation is refused `admin-credential-required`.
    */
@@ -226,7 +226,7 @@ export class DurableObjectSpendStore
       res = await this.#stub(input.policyScope).reserve({ ...input });
     } catch (error) {
       // Overload / unreachable DO → fail-closed. Nothing has been signed, so this is retryable
-      // infrastructure unavailability, not a budget decision (SPEC §12.3).
+      // infrastructure unavailability, not a budget decision.
       throw this.#transportError(error);
     }
     if (res.ok) {
@@ -278,7 +278,7 @@ export class DurableObjectSpendStore
       s = await this.#stub(query.policyScope).getBudgetState({ ...query });
     } catch (error) {
       // A read against an unreachable/overloaded DO is a retryable outage, typed exactly as a
-      // reserve is (U9) — never an untyped Cloudflare RPC error leaking to the caller/CLI.
+      // reserve is — never an untyped Cloudflare RPC error leaking to the caller/CLI.
       throw this.#transportError(error);
     }
     return Object.freeze({
@@ -313,7 +313,7 @@ export class DurableObjectSpendStore
     try {
       raw = await this.#stub(query.policyScope).listExposed({ ...query });
     } catch (error) {
-      throw this.#transportError(error); // outage → typed retryable TransportError (U9)
+      throw this.#transportError(error); // outage → typed retryable TransportError
     }
     return Object.freeze(raw.map(toReservation));
   }
@@ -322,7 +322,7 @@ export class DurableObjectSpendStore
     try {
       return await this.#stub(scope).isFrozen(scope);
     } catch (error) {
-      throw this.#transportError(error); // outage → typed retryable TransportError (U9)
+      throw this.#transportError(error); // outage → typed retryable TransportError
     }
   }
 
@@ -332,7 +332,7 @@ export class DurableObjectSpendStore
     try {
       return Object.freeze(await this.#stub(scope).getRecipientPins(scope, network));
     } catch (error) {
-      throw this.#transportError(error); // outage → typed retryable TransportError (O53)
+      throw this.#transportError(error); // outage → typed retryable TransportError
     }
   }
 
@@ -342,17 +342,17 @@ export class DurableObjectSpendStore
     try {
       return await this.#stub(scope).getRecipientPolicy(scope);
     } catch (error) {
-      throw this.#transportError(error); // outage → typed retryable TransportError (O53)
+      throw this.#transportError(error); // outage → typed retryable TransportError
     }
   }
 
-  // ── admin plane (SPEC §3.1/§12.3). The DO verifies the token; a data credential is refused. ──
+  // ── admin plane. The DO verifies the token; a data credential is refused. ──
 
   // Each admin method accepts an OPTIONAL trailing `_nowEpochMs` — the DO reads its own backend
   // clock inside the atom (`Date.now()`, §3.4a), so the value is accepted-and-ignored. It is
   // declared (like MemorySpendStore's `_nowEpochMs?`) so the concrete store matches the
   // `SpendStoreAdmin` interface arity and every operator doc example that passes `Date.now()`
-  // type-checks against it (U13).
+  // type-checks against it.
 
   async freeze(scope: string, _nowEpochMs?: number): Promise<void> {
     this.#voidOr(
@@ -408,7 +408,7 @@ export class DurableObjectSpendStore
     try {
       res = await this.#stub(scope).getBudgetLimits(scope, assetId, this.#adminToken);
     } catch (error) {
-      throw this.#transportError(error); // outage → typed retryable TransportError (O53)
+      throw this.#transportError(error); // outage → typed retryable TransportError
     }
     if (res.ok) return Object.freeze({ ...res.limits });
     throw this.#mapRefusal(res, { policyScope: scope, assetId });
@@ -485,7 +485,7 @@ export class DurableObjectSpendStore
 }
 
 /**
- * The DATA-plane {@link SpendStore} adapter (SPEC §12.3). Carries no admin token, so every admin
+ * The DATA-plane {@link SpendStore} adapter. Carries no admin token, so every admin
  * mutation is refused `admin-credential-required` — the data/admin boundary is real. A non-Worker
  * caller (CLI, Python) reaches an admin DO through the gateway (§12.5), which holds the token.
  */

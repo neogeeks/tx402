@@ -70,7 +70,7 @@ __all__ = [
 _NOW: Final = 1_800_000_000_000
 _ASSET: Final = "eip155:8453/erc20:0x833589fcd6edb6e08f4c7c32d4f71b54bda02913"
 #: The EIP-55 CHECKSUMMED form of the SAME erc20 contract as ``_ASSET`` — the casing the
-#: signed manifest carries. The store keys both on the canonical asset (U16).
+#: signed manifest carries. The store keys both on the canonical asset.
 _ASSET_CHECKSUMMED: Final = "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
 _OTHER_ASSET: Final = "solana:mainnet/spl:EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
 _SCOPE: Final = "merchant.example"
@@ -89,7 +89,7 @@ def _require(condition: bool, rule: str) -> None:
 
 
 def _ref(reservation: SpendReservation) -> ReservationRef:
-    """The durable locator (SPEC §3.1) for a reservation: its full scope+asset+id triple."""
+    """The durable locator for a reservation: its full scope+asset+id triple."""
     return ReservationRef(
         reservation.reservation_id, reservation.policy_scope, reservation.asset_id
     )
@@ -530,7 +530,7 @@ def check_spend_store(make_store: Callable[[], SpendStore]) -> None:
         check(make_store)
 
 
-# ── The durable harness (SPEC §3.6) ────────────────────────────────────────────────────
+# ── The durable harness ────────────────────────────────────────────────────
 #
 # A networked store cannot be checked through ``check_spend_store`` alone: that factory
 # back independent empty stores, so it cannot express a shared backend, a restart, the
@@ -612,7 +612,7 @@ def _reserve_with_recipient(  # pragma: no cover
 def _check_plane_separation(  # pragma: no cover
     connect_admin_with_data_credential: ConnectAdmin,
 ) -> None:
-    """Every admin method invoked with a DATA credential is denied (SPEC §3.6, ADR-029).
+    """Every admin method invoked with a DATA credential is denied.
 
     The harness binds the admin method surface to the data credential; each mutation must be
     refused with ``admin-credential-required`` so a compromised agent path cannot freeze a
@@ -643,7 +643,7 @@ def _check_skew(  # pragma: no cover
     connect_data: ConnectData,
     set_backend_clock: SetBackendClock,
 ) -> None:
-    """Backend time windows the cap, so fleet skew cannot double-spend it (SPEC §3.4a).
+    """Backend time windows the cap, so fleet skew cannot double-spend it.
 
     Two independent connections: A reserves the whole cap with a *future*-skewed clock,
     then B reserves with an *earlier* caller clock. A durable store windows on its own,
@@ -718,7 +718,7 @@ def _check_locator(connect_data: ConnectData) -> None:  # pragma: no cover
 def _check_cumulative_cap(  # pragma: no cover
     connect_data: ConnectData, set_backend_clock: SetBackendClock
 ) -> None:
-    """The cumulative cap binds first and survives the rolling boundary (SPEC §3.6/§4).
+    """The cumulative cap binds first and survives the rolling boundary.
 
     A lifetime ceiling still refuses after the per-hour figure has aged out of the window.
     """
@@ -1083,7 +1083,7 @@ def _check_pins(  # pragma: no cover
         "a rotated admin allowlist must admit the new recipient without a TOFU claim",
     )
 
-    # C (O27): an administered EMPTY recipient set must read back as () on EVERY adapter;
+    # C: an administered EMPTY recipient set must read back as () on EVERY adapter;
     # the DO stored "" and returned ("",), diverging from Memory/Redis which returned ().
     empty_network = "eip155:1"
     connect_admin().set_recipient_pins(_OTHER_SCOPE, empty_network, (), _NOW)
@@ -1101,7 +1101,7 @@ def _check_administered_limits(  # pragma: no cover
     connect_admin: ConnectAdmin,
     set_backend_clock: SetBackendClock,
 ) -> None:
-    """Store-administered caps and their precedence (SPEC §3.6/§4.3).
+    """Store-administered caps and their precedence.
 
     A caller cap ABOVE the administered one is rejected per dimension
     (``cap-exceeds-administered``); a stricter caller cap is honoured via ``min``. Lowering
@@ -1363,7 +1363,7 @@ def check_durable_spend_store(  # pragma: no cover
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Run the single-plane suite against the built-in store (resolves O9).
+    """Run the single-plane suite against the built-in store.
 
     ``python -m tx402.spend_store_contract`` calls this; it runs every check in
     :data:`_CHECKS` against :class:`~tx402.ledger.MemorySpendStore` and exits non-zero

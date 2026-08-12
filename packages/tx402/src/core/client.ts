@@ -1,5 +1,5 @@
 /**
- * The request execution state machine (SPEC §6).
+ * The request execution state machine.
  *
  * The ordering in {@link executePayment} is the security-critical part of this file and is
  * not an implementation detail:
@@ -101,7 +101,7 @@ export interface Tx402Logger {
 
 /**
  * Every event name the request path emits, in roughly the order a successful paid call produces
- * them (SPEC §10). Exported — mirroring Python's `tx402.EVENT_NAMES`, so the set ships in both
+ * them. Exported — mirroring Python's `tx402.EVENT_NAMES`, so the set ships in both
  * languages — so a caller can exhaustively switch without string literals and one log pipeline
  * can parse either SDK's stream. `as const`, so {@link Tx402EventName} is the exact literal
  * union; the emitting call sites below use these same names (asserted in the tests).
@@ -134,7 +134,7 @@ export interface Tx402Clock {
 export interface Tx402Timeouts {
   /** Absent by default: SPEC §4.3 forbids silently shortening the caller's own timeout. */
   readonly initialRequestMs?: number;
-  /** Covers the paid retry. Default 10 000 ms, minimum 1 000 (SPEC §4.3). */
+  /** Covers the paid retry. Default 10 000 ms, minimum 1 000. */
   readonly paymentRetryMs?: number;
 }
 
@@ -143,7 +143,7 @@ export interface Tx402ClientConfig {
   readonly policy?: PolicyConfig;
   readonly timeouts?: Tx402Timeouts;
   readonly routing?: RoutingPolicyConfig;
-  /** Recipient pinning (SPEC §6.1, ADR-028). `mode` default `"off"` — opt-in, v0.1-compatible. */
+  /** Recipient pinning. `mode` default `"off"` — opt-in, v0.1-compatible. */
   readonly recipientPolicy?: RecipientPolicyConfig;
   readonly spendStore?: SpendStore;
   readonly manifest?: ReleaseManifest;
@@ -151,7 +151,7 @@ export interface Tx402ClientConfig {
   readonly clock?: Tx402Clock;
   readonly allowInsecureLocalhost?: boolean;
   /**
-   * Omits the `X-TX402-REQUEST-ID` diagnostic header from paid retries (SPEC §6.7). The
+   * Omits the `X-TX402-REQUEST-ID` diagnostic header from paid retries. The
    * header is non-authoritative; strict integrations that reject unknown headers turn it off.
    */
   readonly disableRequestIdHeader?: boolean;
@@ -190,7 +190,7 @@ export interface PaymentPlan {
 }
 
 /**
- * Which ledger to ask about (SPEC §5.3, ADR-018).
+ * Which ledger to ask about.
  *
  * `policyScope` is the **normalized merchant host** — the same value the request path
  * reserves under, and the same value Python's `get_budget_state` expects. Use
@@ -206,10 +206,10 @@ export interface BudgetQuery {
 export interface Tx402Client {
   fetch(input: Tx402RequestInfo, init?: Tx402RequestInit): Promise<Response>;
   inspect(input: Tx402RequestInfo, init?: Tx402RequestInit): Promise<PaymentInspection>;
-  /** Plans a payment without reserving budget or producing a signature (SPEC §11). */
+  /** Plans a payment without reserving budget or producing a signature. */
   plan(input: Tx402RequestInfo, init?: Tx402RequestInit): Promise<PaymentPlan>;
   /**
-   * The immutable ledger snapshot from the most recent paid request (SPEC §4.1).
+   * The immutable ledger snapshot from the most recent paid request.
    *
    * Self-describing: `policyScope` and `assetId` say which ledger the totals belong to,
    * and both are absent until this client has completed a paid request. For any other
@@ -217,7 +217,7 @@ export interface Tx402Client {
    * {@link Tx402Client.queryBudgetState}, which reads the store.
    */
   getBudgetState(): BudgetState;
-  /** Reads the spend store directly for one scope and asset (SPEC §5.3). */
+  /** Reads the spend store directly for one scope and asset. */
   queryBudgetState(query: BudgetQuery): Promise<BudgetState>;
   resetHealth(): void;
 }
@@ -241,7 +241,7 @@ const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
 /**
  * `details.reason` when the settlement succeeded and the spend store could not record it.
  *
- * Exported so a caller can branch on it without matching a message string (ADR-017).
+ * Exported so a caller can branch on it without matching a message string.
  */
 export const SPEND_STORE_COMMIT_FAILED_REASON = "spend-store-commit-failed";
 
@@ -249,14 +249,14 @@ export const SPEND_STORE_COMMIT_FAILED_REASON = "spend-store-commit-failed";
 export const SPEND_STORE_UNAVAILABLE_CAUSE = "spend-store-unavailable";
 
 /**
- * `details.causeCategory` when the pre-transmission exposure fence (SPEC §7, ADR-026) could not
+ * `details.causeCategory` when the pre-transmission exposure fence could not
  * be recorded. The signature exists but never reached the wire (SEC-002), so the reservation is
  * released and the failure is a retryable `TransportError` — never a silent skip.
  */
 export const EXPOSURE_FENCE_FAILED_CAUSE = "exposure-fence-failed";
 
 /**
- * What to run when a chain family's optional peers are missing (O47).
+ * What to run when a chain family's optional peers are missing.
  *
  * Kept beside the failure rather than in the docs alone: the caller who hits this has
  * already read the docs and still ended up here. `tools/install-contract` holds these

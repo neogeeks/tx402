@@ -1,6 +1,6 @@
 /**
  * The wire shapes exchanged between {@link Tx402SpendStoreDO} and the
- * {@link durableObjectSpendStore} adapter (SPEC §12.3/§12.4). Pure data types with NO
+ * {@link durableObjectSpendStore} adapter. Pure data types with NO
  * `cloudflare:workers` dependency, so the adapter — which never touches the Workers runtime —
  * and the DO — which runs inside it — share one protocol without dragging the Workers globals
  * into the adapter's compilation.
@@ -38,7 +38,7 @@ export interface RawEntry {
   settlementId?: string;
 }
 
-/** The full `getBudgetState` snapshot the DO computes (SPEC §3.2). */
+/** The full `getBudgetState` snapshot the DO computes. */
 export interface RawSnapshot {
   committedAtomic: string;
   reservedAtomic: string;
@@ -55,7 +55,7 @@ export interface RawSnapshot {
 }
 
 /**
- * A refusal the adapter maps to the exact typed error (SPEC §3.4/§5/§6). The discriminant
+ * A refusal the adapter maps to the exact typed error. The discriminant
  * `kind` and its payload mirror the Redis adapter's `Refusal` so the two adapters share one
  * mapping shape.
  */
@@ -96,7 +96,7 @@ export type LimitsEnvelope = { ok: true; limits: BudgetLimits } | Refusal;
  * without the adapter importing any Workers type.
  *
  * The admin methods take an `adminToken` the DO verifies INSIDE itself against its Worker-env
- * secret (SPEC §12.3): a separate TypeScript method set is not a security boundary on DO,
+ * secret: a separate TypeScript method set is not a security boundary on DO,
  * where any binding-holder can call every RPC method, so the token — not the type — is the
  * boundary. `atomicGlobalFreeze` is the caller's declared topology capability (operator
  * configuration, not a data-plane input); the DO refuses `freeze("*")` when it is false.
@@ -159,7 +159,7 @@ export interface Tx402SpendStoreDOStub {
     adminToken: string,
   ): Promise<VoidEnvelope>;
 
-  /** TEST-ONLY (SPEC §3.4a). Honoured only when the DO's env enables the test clock. */
+  /** TEST-ONLY. Honoured only when the DO's env enables the test clock. */
   setBackendClock(nowEpochMs: number): Promise<void>;
   /** TEST-ONLY. Wipes the DO's tables. Honoured only when the DO's env enables test mode. */
   reset(): Promise<void>;

@@ -1,9 +1,9 @@
 /**
- * The server-side atoms for {@link RedisSpendStore} (SPEC §3.4, §3.4a, §12.2).
+ * The server-side atoms for {@link RedisSpendStore}.
  *
  * Each spend transition is ONE `EVAL` (Lua) script — not a client read-decide-write, which a
  * concurrent caller could interleave, and not `FUNCTION LOAD`, whose support on managed Redis
- * (Upstash) is spotty (O14). The scripts are content-addressed by `EVALSHA` with an `EVAL`
+ * (Upstash) is spotty. The scripts are content-addressed by `EVALSHA` with an `EVAL`
  * fallback, so they load lazily and survive a `SCRIPT FLUSH`.
  *
  * Three invariants the Lua enforces that a naive adapter would get wrong:

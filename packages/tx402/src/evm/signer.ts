@@ -1,5 +1,5 @@
 /**
- * `EvmSigner` (SPEC §7.1) adapted to upstream's `ClientEvmSigner` (ADR-010 decision 5).
+ * `EvmSigner` adapted to upstream's `ClientEvmSigner` (ADR-010 decision 5).
  *
  * The adapter is not a shim. It is the last point at which tx402 can see what is about to be
  * signed, and it is the only point at which the typed data upstream produced can be compared
@@ -12,7 +12,7 @@
  *     payer, recipient, amount, and expiry. A mismatch raises `SignerError` and no signature
  *     is requested. This is what makes SPEC §6.6's "must never exceed the merchant bound"
  *     an assertion rather than a comment.
- *  3. **Presents it (SPEC §6.6).** The caller's signer receives the human-readable summary
+ *  3. **Presents it.** The caller's signer receives the human-readable summary
  *     beside the typed data, so an external wallet can show a person what they approve.
  *
  * Nothing here logs, stores, or returns a signature beyond handing it back to upstream.

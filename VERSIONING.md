@@ -57,7 +57,7 @@ Explicitly **not** breaking:
 | Network or token **manifest update** that changes no API behaviour | **patch**                                    | Re-signing the bundled manifest — including the expiry re-issue due before 2027-08-02 — is a patch.               |
 | A **new production network**                                       | **minor**                                    | Requires a chain-adapter security review first. Not optional.                                                     |
 | **Protocol dependency upgrade** (`@x402/*`, PyPI `x402`)           | minor, or patch if the envelope is unchanged | Requires replaying **all** conformance fixtures and adding a fixture for every newly accepted envelope or scheme. |
-| A **new testnet**                                                  | minor                                        | Testnets are enabled only in explicit test mode (SPEC §16).                                                       |
+| A **new testnet**                                                  | minor                                        | Testnets are enabled only in explicit test mode.                                                                  |
 | Bug fix with no surface change                                     | patch                                        |                                                                                                                   |
 
 ## Deprecation
@@ -71,7 +71,7 @@ site is a dependency that gets vendored around.
 
 ## What never happens, at any version
 
-These are architectural, not policy, and no version bump makes them acceptable (SPEC §15, §16):
+These are architectural, not policy, and no version bump makes them acceptable:
 
 - No silent fallback from a production network to a testnet.
 - No silent fallback from USDC to another asset.

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Supply-chain release gates (SPEC §12.4).
+ * Supply-chain release gates.
  *
  *   node tools/supply-chain/index.js sbom          # emit CycloneDX SBOMs + licence report
  *   node tools/supply-chain/index.js audit         # vulnerability + licence policy gates
@@ -82,7 +82,7 @@ const ALLOWED_LICENSES = new Set([
   // every entry here is a licence someone read, not a wildcard. NONE of these is a valid
   // SPDX License List identifier (SPDX has `BSD-2-Clause`/`BSD-3-Clause`, never bare `BSD`),
   // so they are accepted by the gate but must never reach `license.id` — see `licenseEntry`
-  // and `SPDX_LICENSE_IDS` below (O35).
+  // and `SPDX_LICENSE_IDS` below.
   "BSD",
   "Apache 2.0",
   "Apache License 2.0",
@@ -93,7 +93,7 @@ const ALLOWED_LICENSES = new Set([
  * The SPDX License List identifiers this tool may emit into a CycloneDX `license.id`.
  *
  * A CycloneDX `license.id` MUST be a value from the SPDX License List; anything else makes the
- * document schema-invalid (O32/O35). This is the SPDX-valid subset of the single-token values the
+ * document schema-invalid. This is the SPDX-valid subset of the single-token values the
  * emitter can produce — every entry verified against the SPDX License List. It deliberately does
  * NOT contain the legacy free-text spellings in `ALLOWED_LICENSES` (`BSD`, `Apache 2.0`, …): those
  * are acceptable *licences* but not SPDX *identifiers*, so `licenseEntry` routes them to the
@@ -141,7 +141,7 @@ const DECLARED_ELSEWHERE = new Map([
       source: "https://github.com/kevinheavey/jsonalias — LICENSE, MIT",
     },
   ],
-  // Conditional/platform dependencies (O32): resolved MARKER-INDEPENDENTLY so a Linux/CPython-3.13
+  // Conditional/platform dependencies: resolved MARKER-INDEPENDENTLY so a Linux/CPython-3.13
   // host that cannot install a `sys_platform == "win32"` / older-Python dep still verifies its
   // licence, instead of shipping a schema-invalid `NOT-INSTALLED` placeholder past the gate.
   [
@@ -220,7 +220,7 @@ const notes = [];
 
 /**
  * The install variants a user can actually choose, taken from the install contract so the
- * inventory and the documented commands cannot disagree (O47, O48).
+ * inventory and the documented commands cannot disagree.
  */
 const INSTALL_VARIANTS = installContract().map((entry) => ({
   id: entry.id,

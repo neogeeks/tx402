@@ -1,4 +1,4 @@
-"""The Python CLI surface (SPEC §11).
+"""The Python CLI surface.
 
 Mirrors ``packages/tx402/test/cli.test.ts`` assertion for assertion, because the two CLIs
 are one command surface with one exit-code contract and the only way that stays true is if
@@ -141,7 +141,7 @@ class TestArgumentParsing:
         Comparing the CLI's output against the generated module it already prints would
         prove only that the module equals itself. Until S15b this asserted the literal
         ``0.0.0``, so a correctly tagged 0.1.0 would have shipped a console script
-        identifying itself as 0.0.0 and the test would still have been green (O51).
+        identifying itself as 0.0.0 and the test would still have been green.
         """
         pyproject = Path(__file__).resolve().parents[1] / "pyproject.toml"
         declared = tomllib.loads(pyproject.read_text())["project"]["version"]

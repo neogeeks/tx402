@@ -44,7 +44,7 @@ import {
 } from "../../src/solana/plan.js";
 import { registerHandler, type ConformanceVector } from "./runner.js";
 
-/** Manifest failures all surface to callers as ConfigurationError (SPEC §5.4). */
+/** Manifest failures all surface to callers as ConfigurationError. */
 const MANIFEST_ERROR_CODE = "TX402_CONFIG_INVALID";
 
 registerHandler("errors.taxonomy", (vector: ConformanceVector) => {

@@ -1,5 +1,5 @@
 /**
- * The CLI surface (SPEC §11).
+ * The CLI surface.
  *
  * Driven in process through the injected `CliIo` rather than by spawning `node`, so every
  * assertion is about the real code path and the suite stays fast enough to cover all nine
@@ -130,7 +130,7 @@ describe("argument parsing", () => {
     // Read from `package.json` rather than from `src/version.ts`, so the generated module
     // cannot be self-consistently wrong. Until S15b the CLI printed a `0.0.0` literal that
     // nothing compared against anything, and a correctly tagged 0.1.0 would have shipped a
-    // binary identifying itself as 0.0.0 (O51).
+    // binary identifying itself as 0.0.0.
     const manifest = JSON.parse(
       readFileSync(new URL("../package.json", import.meta.url), "utf8"),
     ) as { version: string };

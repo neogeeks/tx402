@@ -1,4 +1,4 @@
-"""The operator verbs (SPEC §10) against a LIVE raw ``redis://`` store (SPEC §9.1).
+"""The operator verbs against a LIVE raw ``redis://`` store.
 
 The Python twin of ``packages/tx402/test/cli-verbs-redis.test.ts``'s raw-DSN arm. Skipped
 unless ``TX402_TEST_REDIS_URL`` is set (mirrors ``test_redis_store.py`` / ``tools/durable-

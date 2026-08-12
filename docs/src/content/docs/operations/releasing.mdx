@@ -79,10 +79,22 @@ permanent, and pointing it at documentation that is unreachable is not something
 workflow can undo.
 
 **Look at this job first when a tag does not publish.** It is the one gate that depends on
-something outside this repository — the documentation site is deployed by a separate workflow,
-so a tag pushed while the site is stale or down stops here with both publish jobs never
+something outside this repository — the documentation site is **deployed by hand**, before the
+tag, so a tag pushed while the site is stale or down stops here with both publish jobs never
 starting. From the registry side the only symptom is that nothing was published, which is why
 it is worth knowing the job exists.
+
+Deploying is a deliberate step rather than a workflow, so that publishing a package can never
+race a half-built site:
+
+```bash
+pnpm docs:deploy
+```
+
+That builds the site, deploys `docs/dist` to the `tx402-docs` Cloudflare Pages project with
+`wrangler`, and then reads the result back over the public internet with `tools/docs-live` —
+the same probe the release gate runs. Run it, confirm it reports every required page, and only
+then push the tag.
 
 ### npm and PyPI
 

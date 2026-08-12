@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * tx402 release-manifest tool (SPEC §5.4, ADR-012).
+ * tx402 release-manifest tool.
  *
  *   tx402-manifest keygen --key-id tx402-release-1 --out <dir>
  *   tx402-manifest sign   --manifest <file> [--key <pem>] [--key-id <id>]

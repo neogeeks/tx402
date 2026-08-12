@@ -1,4 +1,4 @@
-/** Solana / SVM exact-payment adapter (SPEC §7.2, ADR-010). */
+/** Solana / SVM exact-payment adapter. */
 
 import { ExactSvmScheme } from "@x402/svm/exact/client";
 
@@ -32,11 +32,11 @@ import { resolveSolanaPublicKey, toTransactionSigner } from "./signer.js";
 
 export interface SvmChainAdapterOptions {
   readonly rpc?: SvmRpcPoolOptions;
-  /** The client's shared health index (SPEC §6.5, O22). */
+  /** The client's shared health index. */
   readonly health?: HealthIndex;
   /**
    * Caller-supplied RPC endpoints replacing the manifest's, keyed by canonical CAIP-2.
-   * Validated and alias-resolved upstream by `PolicyEngine` (ADR-015).
+   * Validated and alias-resolved upstream by `PolicyEngine`.
    */
   readonly rpcOverrides?: Readonly<Record<string, readonly string[]>>;
 }

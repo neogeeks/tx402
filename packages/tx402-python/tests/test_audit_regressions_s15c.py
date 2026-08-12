@@ -130,8 +130,8 @@ class Merchant:
     """One 402, then one answer the caller chooses, with the header the caller chooses.
 
     ``payment_response`` has no default on purpose: a fixture that supplies a successful
-    settlement header on every status is what let a settled 403 be asserted as a release
-    (O44), and these cases are precisely about the header being absent.
+    settlement header on every status is what let a settled 403 be asserted as a release,
+    and these cases are precisely about the header being absent.
     """
 
     def __init__(self, *, status: int, payment_response: str | None) -> None:

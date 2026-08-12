@@ -1,12 +1,12 @@
 /**
- * The complete tx402 error taxonomy (SPEC §8).
+ * The complete tx402 error taxonomy.
  *
  * Frozen at M0 as fifteen; extended to **seventeen** at 0.2.0 when the kill switch and
  * recipient pinning each added one code (SPEC §8 — `TX402_SPEND_FROZEN`,
  * `TX402_RECIPIENT_UNPINNED`; adding a code is a minor release, SPEC §15). The seventeen
  * codes and seventeen class names here are a cross-language contract:
  * `packages/tx402-python/src/tx402/errors.py` declares exactly the same set, and the
- * conformance vector `errors.taxonomy.frozen` fails if either drifts (ADR-005).
+ * conformance vector `errors.taxonomy.frozen` fails if either drifts.
  *
  * Two rules that are easy to get wrong, both recorded in ADR-011:
  *
@@ -33,10 +33,10 @@
 /* ------------------------------------------------------------------------------------- */
 
 /**
- * Every tx402 error code (SPEC §8).
+ * Every tx402 error code.
  *
- * Adding a code is a minor release; changing or removing one is a breaking change
- * (SPEC §15). Callers are expected to switch on these rather than on class identity,
+ * Adding a code is a minor release; changing or removing one is a breaking change.
+ * Callers are expected to switch on these rather than on class identity,
  * because the code is what survives a serialization boundary.
  */
 export const TX402_ERROR_CODES = {
@@ -55,7 +55,7 @@ export const TX402_ERROR_CODES = {
   resourceDelivery: "TX402_RESOURCE_DELIVERY",
   redirectBlocked: "TX402_REDIRECT_BLOCKED",
   transport: "TX402_TRANSPORT",
-  // 0.2.0 additions (SPEC §8). The kill switch (SPEC §5) and recipient pinning (SPEC §6)
+  // 0.2.0 additions. The kill switch and recipient pinning
   // each contribute one code; both are `policy`/exit 3, `retryability: "no"`.
   spendFrozen: "TX402_SPEND_FROZEN",
   recipientUnpinned: "TX402_RECIPIENT_UNPINNED",
@@ -83,12 +83,12 @@ export type Tx402Retryability =
   | "app-dependent"
   | "caller-policy";
 
-/** Request-execution phase (SPEC §8), aligned to the SPEC §6 state machine. */
+/** Request-execution phase, aligned to the SPEC §6 state machine. */
 export type Tx402Phase =
   "initial" | "parse" | "policy" | "route" | "sign" | "retry" | "complete";
 
 /**
- * The fixed diagnostic envelope carried by every tx402 error (SPEC §8).
+ * The fixed diagnostic envelope carried by every tx402 error.
  *
  * Deliberately closed. Per-error data goes in `details`.
  */
@@ -101,7 +101,7 @@ export interface Tx402ErrorContext {
   assetId?: string;
   /**
    * `"unknown"` is a real third state, not a missing boolean — it is precisely what an
-   * ambiguous outcome reports (SPEC §6.7).
+   * ambiguous outcome reports.
    */
   paid?: boolean | "unknown";
   reservationId?: string;
@@ -126,7 +126,7 @@ export interface Tx402ErrorDescriptor {
 }
 
 /**
- * The single derivation rule for `retryable` (ADR-011).
+ * The single derivation rule for `retryable`.
  *
  * Only a transport failure can be retried without the caller doing something first.
  */
@@ -216,7 +216,7 @@ export const TX402_ERROR_TAXONOMY: readonly Tx402ErrorDescriptor[] = Object.free
   descriptor(TX402_ERROR_CODES.transport, "TransportError", "caller-policy", [
     "causeCategory",
   ]),
-  // ── 0.2.0 additions (SPEC §8), appended in specification order. ──
+  // ── 0.2.0 additions, appended in specification order. ──
   descriptor(TX402_ERROR_CODES.spendFrozen, "SpendScopeFrozenError", "no", [
     "scope",
     "frozenScope",
@@ -247,7 +247,7 @@ export interface Tx402ErrorOptions {
 }
 
 /**
- * Base class for every typed tx402 error (SPEC §4.2).
+ * Base class for every typed tx402 error.
  *
  * `cause` is retained for debugging but is **never** serialized by
  * {@link Tx402Error.toJSON}: the underlying error frequently comes from a signer or an

@@ -8,7 +8,7 @@
 
 import type { ReleaseManifest } from "./manifest.js";
 
-/** The signed release manifest shipped with this build (SPEC §5.4). */
+/** The signed release manifest shipped with this build. */
 export const BUNDLED_MANIFEST: ReleaseManifest = {
   "manifestVersion": 1,
   "release": "0.2.0",

@@ -1,4 +1,4 @@
-"""``check_durable_spend_store`` BEHIND the reference gateway, from Python (SPEC §12.5).
+"""``check_durable_spend_store`` BEHIND the reference gateway, from Python.
 
 The whole durable harness runs over the two reference gateways, driven by the Python
 ``HttpGatewaySpendStore`` / ``AsyncHttpGatewaySpendStore`` — proving a gateway-backed store

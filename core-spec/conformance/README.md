@@ -96,8 +96,8 @@ registering the handlers, because the runner checks.
 | `protocol.decode-payment-required` | M1        | Strict v2 decode and normalization                           |
 | `request.fingerprint`              | M2        | SEC-009 URL normalization, body digest, and fingerprint      |
 | `spend-ledger.behavior`            | M2        | Reserve/commit/release transitions and the rolling-hour cap  |
-| `evm.authorization-plan`           | M3        | EIP-3009 plan derivation and the lifetime clamp (SPEC §7.1)  |
-| `svm.authorization-plan`           | M4        | ATA derivation, fee payer, Token-2022 exclusion (SPEC §7.2)  |
+| `evm.authorization-plan`           | M3        | EIP-3009 plan derivation and the lifetime clamp              |
+| `svm.authorization-plan`           | M4        | ATA derivation, fee payer, Token-2022 exclusion              |
 | `routing.candidate-order`          | M5        | The SPEC §6.4 step 18 ordering cascade                       |
 | `health.circuit`                   | M5        | The SPEC §6.5 EWMA, thresholds, and open/half-open lifecycle |
 | `completion.paid-attempt`          | M6        | The SPEC §6.7 disposition table for one signed attempt       |
@@ -114,7 +114,7 @@ Nothing in a vector may depend on ambient state.
 - **Hashes** are computed from the fixture's own bytes:
   - `headerHash` = `sha256:` + hex SHA-256 of the raw `PAYMENT-REQUIRED` header value, as
     received, _before_ base64 decoding.
-  - `rawHash` = `sha256:` + hex SHA-256 of the canonical JSON (ADR-012) of the **upstream**
+  - `rawHash` = `sha256:` + hex SHA-256 of the canonical JSON of the **upstream**
     requirement object — `{scheme, network, asset, amount, payTo, maxTimeoutSeconds, extra}`,
     not the normalized form. It binds to what the merchant actually sent.
 - **Failure reasons** are compared, not just failure. Two implementations that reject the
@@ -143,9 +143,9 @@ machine-generated blob part of code review.
 The TypeScript reference implementation is feature-complete for v0.1, and **this fixture set
 is frozen against it**: 88 vectors across M0–M6 — 65 at the freeze, plus the two ADR-016
 added at S15b, the six `policy.host-normalization` vectors added at S17, the three
-`exposure/*` fixtures added for 0.2.0 (SPEC §7, ADR-026), the three `spend-freeze.behavior`
-fixtures (SPEC §5, kill switch), the three cumulative-cap `spend-ledger.behavior` fixtures
-(SPEC §4, ADR-025), and the six `recipient-pin.behavior` fixtures (SPEC §6, ADR-028 — allowlist
+`exposure/*` fixtures added for 0.2.0, the three `spend-freeze.behavior`
+fixtures (SPEC §5, kill switch), the three cumulative-cap `spend-ledger.behavior` fixtures,
+and the six `recipient-pin.behavior` fixtures (SPEC §6, ADR-028 — allowlist
 and TOFU enforcement, canonical eip155/solana comparison, merchant isolation, concurrent-claim
 convergence, and rotation-vs-reserve). The gaps recorded here after M1 — route ordering, ledger
 arithmetic, and request-fingerprint goldens — are all closed.
@@ -161,7 +161,7 @@ to the contract, not a fix to a test:
   vector's reading of SPEC — and which of the three it is has to be established before any
   file is edited. Editing the fixture first is how a cross-language contract quietly becomes
   a record of whatever the two implementations happen to do.
-- Every `id` is permanent. Renaming one breaks the references in `PLAN.md` and in the
+- Every `id` is permanent. Renaming one breaks the references in the release notes and in the
   release notes.
 
 The one thing the frozen set deliberately does **not** cover is the request loop itself.

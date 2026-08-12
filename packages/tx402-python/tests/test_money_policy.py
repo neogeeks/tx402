@@ -144,7 +144,7 @@ def test_policy_is_frozen_normalizes_aliases_and_domains() -> None:
         (Policy(max_paid_attempts=True), None),
         (Policy(max_per_request=0.5), None),
         (Policy(max_per_hour="0.01 USDC"), None),
-        (Policy(max_total="0.01 USDC"), None),  # below default max_per_hour (SPEC §4.1)
+        (Policy(max_total="0.01 USDC"), None),  # below default max_per_hour
         (None, RoutingPolicy(max_quote_age_ms=-1)),
         (None, RoutingPolicy(max_quote_age_ms=True)),
         (None, RoutingPolicy(prefer_networks=["eip155:9"])),
@@ -167,7 +167,7 @@ def test_policy_evaluates_in_spec_order_and_returns_manifest_asset() -> None:
     assert approved.max_per_request_atomic == "500000"
     assert approved.max_per_hour_atomic == "10000000"
     assert approved.manifest_asset["symbol"] == "USDC"
-    # Absent config ⇒ no caller cumulative cap threads onto the requirement (SPEC §4.1).
+    # Absent config ⇒ no caller cumulative cap threads onto the requirement.
     assert approved.max_total_atomic is None
 
 

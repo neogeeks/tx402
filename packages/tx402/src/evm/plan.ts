@@ -68,7 +68,7 @@ export interface ExactEvmPlan {
   readonly payer: string;
   readonly recipient: string;
   readonly valueAtomic: string;
-  /** `min(60, merchant maxTimeoutSeconds)` (SPEC §6.6). The bound that is enforced. */
+  /** `min(60, merchant maxTimeoutSeconds)`. The bound that is enforced. */
   readonly lifetimeSeconds: number;
   readonly validAfterSeconds: number;
   /**

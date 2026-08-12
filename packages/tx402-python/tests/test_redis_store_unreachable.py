@@ -6,7 +6,7 @@ TX402_TRANSPORT) that a reserve against that dead store already does, never an u
 redis.exceptions.ConnectionError (which even embeds the store host:port). This points a
 store at a dead port (no live Redis needed, so it always runs) and asserts the
 classification for the sync and async stores. U9 covered get_budget_state / list_exposed /
-is_frozen; S14i (O53) adds the three sibling reads the S14f fix left unwrapped:
+is_frozen; S14i adds the three sibling reads the S14f fix left unwrapped:
 get_recipient_pins, get_recipient_policy, get_budget_limits, and checks O55 (admin gate).
 """
 
@@ -60,7 +60,7 @@ def _sync_store() -> RedisSpendStore:
 
 
 def _sync_admin_store() -> RedisSpendStore:
-    # get_budget_limits is admin-gated (O55), so its outage test needs an admin store.
+    # get_budget_limits is admin-gated, so its outage test needs an admin store.
     return RedisSpendStore(_sync_client(), admin=True)
 
 
@@ -113,7 +113,7 @@ def test_get_recipient_policy_outage_is_typed_transport() -> None:
 
 
 def test_get_budget_limits_outage_is_typed_transport() -> None:
-    store = _sync_admin_store()  # get_budget_limits is admin-gated (O55)
+    store = _sync_admin_store()  # get_budget_limits is admin-gated
     try:
         store.get_budget_limits(_SCOPE, _ASSET)
         raise AssertionError("expected the dead store to raise")
@@ -190,7 +190,7 @@ def test_async_get_recipient_policy_outage_is_typed_transport() -> None:
 def test_async_get_budget_limits_outage_is_typed_transport() -> None:
     async def run() -> None:
         client = _async_client()
-        store = AsyncRedisSpendStore(client, admin=True)  # admin-gated (O55)
+        store = AsyncRedisSpendStore(client, admin=True)  # admin-gated
         try:
             await store.get_budget_limits(_SCOPE, _ASSET)
             raise AssertionError("expected the dead store to raise")

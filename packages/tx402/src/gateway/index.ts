@@ -1,8 +1,8 @@
 /**
- * `tx402/gateway` — the capability gateway (SPEC §12.5): the {@link HttpGatewaySpendStore} client
+ * `tx402/gateway` — the capability gateway: the {@link HttpGatewaySpendStore} client
  * and the reference Node gateway, plus the shared wire protocol and JSON Schema.
  *
- * A subpath export OFF the size-gated core path (ADR-008): `src/index.ts` never imports it, so it
+ * A subpath export OFF the size-gated core path: `src/index.ts` never imports it, so it
  * adds zero bytes to the `tx402` core measurement, exactly like `tx402/redis` and
  * `tx402/durable-object`. The client holds only a bearer token — never a raw Redis/DO credential —
  * and speaks one wire protocol to any conformant gateway, so it interoperates with the reference

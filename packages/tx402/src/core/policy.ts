@@ -30,9 +30,9 @@ import type {
 } from "./protocol.js";
 
 /**
- * The `causeCategory` a recipient-pin/policy STORE outage surfaces as (SPEC §6.3): a read failure in
+ * The `causeCategory` a recipient-pin/policy STORE outage surfaces as: a read failure in
  * the advisory pre-filter is infrastructure unavailability — a retryable `TransportError`, fail-
- * closed before any signature — never a `RecipientUnpinnedError` (a refusal) or a raw error (O17).
+ * closed before any signature — never a `RecipientUnpinnedError` (a refusal) or a raw error.
  */
 const RECIPIENT_STORE_UNAVAILABLE_CAUSE = "recipient-store-unavailable";
 
@@ -61,7 +61,7 @@ export interface PolicyConfig {
 }
 
 /**
- * Recipient pinning config (SPEC §6.1, ADR-028), passed to {@link PolicyEngine} separately from
+ * Recipient pinning config, passed to {@link PolicyEngine} separately from
  * `policy`. `"off"` (default) is behaviour identical to v0.1.0. `"allowlist"` requires `allow`.
  * `"tofu"` requires the configured store to implement {@link RecipientPinStore} (checked at
  * client construction, else `ConfigurationError recipient-tofu-needs-pin-store`); `allow` MAY
@@ -81,7 +81,7 @@ export interface RecipientPolicyConfig {
 export interface RoutingPolicyConfig {
   readonly maxQuoteAgeMs?: number;
   /**
-   * Tie-break preference only (SPEC §4.3). Listing a network here cannot make it payable —
+   * Tie-break preference only. Listing a network here cannot make it payable —
    * it must still be offered by the merchant, allowed by policy, present in the manifest, and
    * backed by a sufficient balance. Aliases are accepted and normalized to canonical CAIP-2,
    * because a preference expressed as `solana:mainnet` must match a candidate identified by
@@ -89,7 +89,7 @@ export interface RoutingPolicyConfig {
    */
   readonly preferNetworks?: readonly string[];
   /**
-   * Replaces the signed manifest's RPC endpoints for specific networks (ADR-015).
+   * Replaces the signed manifest's RPC endpoints for specific networks.
    *
    * Keyed by CAIP-2 identifier or alias; the value replaces `rpcUrls` for that network and
    * nothing else. Every other manifest fact — which networks exist, which assets they carry,
@@ -115,12 +115,12 @@ export interface PolicyRequirement extends NormalizedPaymentRequirement {
    * The **manifest** asset this requirement was matched to — decimals, symbol, and the
    * canonical address — not the merchant's claim about it. Route planning and the signer
    * presentation read token metadata from here, so a merchant cannot restate a token's
-   * decimals and change what an amount means (SPEC §0, ADR-006).
+   * decimals and change what an amount means.
    */
   readonly manifestAsset: ManifestAsset;
   readonly maxPerRequestAtomic: string;
   readonly maxPerHourAtomic: string;
-  /** Present only when a caller cumulative cap is configured (SPEC §4.1). */
+  /** Present only when a caller cumulative cap is configured. */
   readonly maxTotalAtomic?: string;
 }
 
@@ -177,7 +177,7 @@ function recipientKey(host: string, network: string): string {
 export function normalizePolicyHost(url: string | URL): string {
   // One dot, not every dot: `a.test.` is `a.test`, and `a.test..` keeps the inner one. The
   // root-label host `.` normalizes to the empty string — an accepted, non-routable edge
-  // that matches only the `"*"` pattern, which already permits every host (O43).
+  // that matches only the `"*"` pattern, which already permits every host.
   return new URL(url).hostname.toLowerCase().replace(/\.$/u, "");
 }
 

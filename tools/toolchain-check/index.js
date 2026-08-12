@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * The toolchain contract, checked (PLAN.md open item **O60**).
+ * The toolchain contract, checked.
  *
  *   node tools/toolchain-check/index.js check      # fail if the declarations disagree
  *   node tools/toolchain-check/index.js selftest   # prove each rule can fail
@@ -270,7 +270,7 @@ function selftest() {
   return 0;
 }
 
-const USAGE = `tx402-toolchain — the workspace/SDK runtime contract (PLAN.md O60)
+const USAGE = `tx402-toolchain — the workspace/SDK runtime contract
 
 Usage:
   tx402-toolchain check      fail if the declared runtimes disagree with each other

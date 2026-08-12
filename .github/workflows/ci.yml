@@ -14,7 +14,7 @@ permissions:
   contents: read
 
 env:
-  # Reproducible builds are a release gate (SPEC §12.4). Pin the toolchain here.
+  # Reproducible builds are a release gate. Pin the toolchain here.
   PNPM_VERSION: "10.34.5"
   NODE_VERSION_DEFAULT: "20"
 
@@ -59,7 +59,7 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
-      # PLAN.md O25: four raw NUL bytes once reached two adapters and passed every other
+      # Four raw NUL bytes once reached two adapters and passed every other
       # gate. Git treats such a file as binary, so it cannot be diffed or grepped — the
       # failure is unreviewable source, which no linter looks for.
       - name: No NUL bytes in tracked text files (O25)
@@ -67,12 +67,12 @@ jobs:
 
       # A workflow is the one file here whose mistakes cannot be found by running it
       # locally. An invalid job-level context rejects the *entire* file before any job is
-      # created, which surfaces as a run with zero jobs and no readable error (O37).
+      # created, which surfaces as a run with zero jobs and no readable error.
       - name: Workflow validity (O37)
         run: pnpm workflow-lint
 
       # `check` also fails when release-facing prose claims a different vector count from
-      # the index, and `selftest` proves that half can fail (PLAN.md O59).
+      # the index, and `selftest` proves that half can fail.
       - name: Conformance index integrity (SEC-007)
         run: |
           pnpm conformance:check
@@ -83,7 +83,7 @@ jobs:
 
       # These falsifiability self-tests prove each supply-chain / adversarial / durable-store /
       # toolchain guard can actually FAIL on a seeded regression. Before S13d they ran only in
-      # release.yml's `pnpm check` (tag time), so per-commit CI never exercised them (O41h). All are
+      # release.yml's `pnpm check` (tag time), so per-commit CI never exercised them. All are
       # pure-logic (no Redis/DO/network), so they belong on every push — the guards protect release
       # gates, and a broken guard should be caught the commit it breaks, not at the tag.
       - name: Falsifiability self-tests (O28/O29/O31/O32)
@@ -96,7 +96,7 @@ jobs:
       # Diagnostic: an intermittent failure in this suite could not be reproduced locally,
       # and job logs are not readable without admin rights on the repository. Emitting the
       # failing lines as workflow annotations surfaces them through the checks API, which is
-      # readable. Remove once the cause is settled (PLAN.md open item O21).
+      # readable. Remove once the cause is settled.
       - name: Test
         run: |
           set -o pipefail
@@ -153,14 +153,14 @@ jobs:
       - name: Typecheck
         run: uv run mypy
 
-      # Coverage thresholds are enforced through pytest addopts (SPEC §12.1).
+      # Coverage thresholds are enforced through pytest addopts.
       - name: Test
         run: uv run pytest -q
 
       - name: Build distributions
         run: uv build
 
-  # PLAN.md O7. Linux-only was defensible while nothing in the SDK touched a path or a
+  # Linux-only was defensible while nothing in the SDK touched a path or a
   # shell: the CLI changed that. `--body @file` reads from disk, the console script is
   # resolved by the platform's launcher, and line endings differ — so the CLI and the
   # package contract are exercised on all three platforms before release. The full matrix
@@ -255,7 +255,7 @@ jobs:
       # Runs here because this is the only job on the runtime the aggregate local gate
       # declares. It checks that the workspace floor, the docs package, the installed
       # Astro, the published SDK floor and this workflow's own Node matrix still describe
-      # one coherent contract (PLAN.md O60).
+      # one coherent contract.
       - name: Toolchain contract
         run: |
           pnpm toolchain:check
@@ -272,7 +272,7 @@ jobs:
       - name: Build the site
         run: pnpm docs:build
 
-  # Cross-language parity is a release gate (SPEC §12.4, ADR-005). Both SDKs execute the
+  # Cross-language parity is a release gate. Both SDKs execute the
   # same vectors from core-spec/conformance; this job runs the two suites side by side so a
   # parity break is reported as one failure rather than two unrelated ones.
   conformance:
@@ -305,7 +305,7 @@ jobs:
       # Diagnostic: an intermittent failure in this suite could not be reproduced locally,
       # and job logs are not readable without admin rights on the repository. Emitting the
       # failing lines as workflow annotations surfaces them through the checks API, which is
-      # readable. Remove once the cause is settled (PLAN.md open item O21).
+      # readable. Remove once the cause is settled.
       - name: TypeScript conformance + package contract
         run: |
           set -o pipefail
@@ -323,7 +323,7 @@ jobs:
           uv sync --all-extras
           uv run pytest -q
 
-      # 0.2.0 SpendStore contract twins, invocable in both languages (SPEC-0.2.0 §3.6, O9).
+      # 0.2.0 SpendStore contract twins, invocable in both languages.
       # Runs `python -m tx402.spend_store_contract` (the real entry point that replaced the
       # zero-check no-op) and the TS `checkSpendStore` twin against MemorySpendStore v2, so the
       # single-plane contract has a stable root script, not a prose-only job name (§14). The
@@ -331,7 +331,7 @@ jobs:
       - name: SpendStore contract suites (both languages)
         run: pnpm contract:check
 
-  # 0.2.0 durable-store gate (SPEC-0.2.0 §12.2, §16). REAL as of S7a; grew the S7b governance arms.
+  # 0.2.0 durable-store gate. REAL as of S7a; grew the S7b governance arms.
   # `pnpm durable:check redis` PINGs the backends and runs `checkDurableSpendStore` /
   # `check_durable_spend_store` across all four adapter arms (TS ioredis + node-redis, Python sync
   # + async) — backend-clock skew, cross-connection locator, cumulative cap, exposure, true-parallel
@@ -415,9 +415,9 @@ jobs:
           TX402_TEST_REDIS_CLUSTER: 127.0.0.1:7001,127.0.0.1:7002,127.0.0.1:7003
           TX402_TEST_REDIS_RESTART: "1"
 
-  # 0.2.0 Durable Object gate (SPEC-0.2.0 §12.3, §16). REAL as of S8. Runs in a LOCAL Workers
+  # 0.2.0 Durable Object gate. REAL as of S8. Runs in a LOCAL Workers
   # runtime (workerd via @cloudflare/vitest-pool-workers ~0.12, compatible with the repo's Vitest
-  # ^2.1 — O8) — no Cloudflare account, no network (O2). `pnpm durable:check do` runs the whole
+  # ^2.1 — O8) — no Cloudflare account, no network. `pnpm durable:check do` runs the whole
   # checkDurableSpendStore on BOTH topologies (id-per-scope → the incapable global-freeze arm;
   # single-coordinator → the capable arm), plus the single-plane checkSpendStore twin, admin-token
   # denial, fail-closed overload, and a local throughput baseline. The pool's workerd platform
@@ -445,7 +445,7 @@ jobs:
       - name: DO harness (checkDurableSpendStore, both topologies)
         run: pnpm durable:check do
 
-  # 0.2.0 capability-gateway golden (SPEC-0.2.0 §12.5, §16). REAL as of S9. It (1) drift-checks the
+  # 0.2.0 capability-gateway golden. REAL as of S9. It (1) drift-checks the
   # committed wire golden (`pnpm gateway:golden`, importing the built client), and (2) runs the whole
   # `checkDurableSpendStore` BEHIND the reference gateways over BOTH backends from BOTH clients — TS
   # + Python over Redis (the Node gateway, `serve-redis.mjs`) and over the Durable Object (the Worker
@@ -580,12 +580,12 @@ jobs:
       - name: SBOM, licences, vulnerabilities
         run: pnpm supply-chain
 
-      # Two clean builds of the published package must be byte-identical (SPEC §12.4).
+      # Two clean builds of the published package must be byte-identical.
       - name: Reproducible build
         run: pnpm reproducible
 
       # Every documented npm install, packed and installed into an empty directory outside
-      # the workspace, with every entry point it advertises imported (PLAN.md O47). This
+      # the workspace, with every entry point it advertises imported. This
       # needs a network and the built artifact, which is why it lives here rather than in
       # `pnpm check`.
       - name: Documented installs load their entry points

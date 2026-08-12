@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Time-to-value measurement (SPEC §16).
+ * Time-to-value measurement.
  *
  *   . tools/live-env.sh && node tools/ttv/index.js [base-sepolia|solana-devnet]
  *
@@ -43,7 +43,7 @@ const FACILITATOR = process.env["TX402_FACILITATOR_URL"] ?? "https://x402.org/fa
  * The measured path below is identical for every network — same client, same policy shape,
  * same dry run, same paid call. That is deliberate: a TTV number is only comparable across
  * chains if the thing being timed is the same thing. Hard-coding Base, as this tool did
- * through S13, made the Solana number unobtainable rather than merely unmeasured (O40).
+ * through S13, made the Solana number unobtainable rather than merely unmeasured.
  */
 const NETWORKS = {
   "base-sepolia": {
@@ -103,7 +103,7 @@ if (KEY === undefined) {
     `${config.keyEnv} is not set — it should be ${config.keyHint}.\n` +
       "Run `. tools/live-env.sh` first — it normalises the .env names and prints which\n" +
       "resolved. Without it the live suites silently skip and look exactly like an\n" +
-      "unfunded wallet (PLAN.md open item O33).",
+      "unfunded wallet.",
   );
   process.exit(2);
 }

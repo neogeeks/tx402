@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 /**
- * Cross-language CLI `--json` parity (PLAN.md open item **O107**).
+ * Cross-language CLI `--json` parity.
  *
  *   tx402-cli-parity build   regenerate core-spec/cli-json/expected.json from the TS CLI
  *   tx402-cli-parity check   fail if the committed golden disagrees with a fresh TS run
  *
  * `docs/.../guides/cli.mdx` opens by promising that both packages emit "the same `--json`
  * document". S34 drove both CLIs across all 17 test-merchant scenarios and found that the
- * Python CLI dropped the route fields from `error.context` on every post-routing failure
- * (O107). Nothing in the gate set diffed the two documents, so the divergence shipped.
+ * Python CLI dropped the route fields from `error.context` on every post-routing failure.
+ * Nothing in the gate set diffed the two documents, so the divergence shipped.
  *
  * This tool records the canonical document — the TypeScript CLI's output, run in process
  * against the real deterministic test merchant and a stubbed RPC — as a language-neutral
@@ -44,7 +44,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, "../..");
 const goldenPath = path.join(repoRoot, "core-spec/cli-json/expected.json");
 
-/** The operator-verb scenarios (SPEC §10), shared with the Python pin so the two cannot drift. */
+/** The operator-verb scenarios, shared with the Python pin so the two cannot drift. */
 const VERB_SCENARIOS = JSON.parse(
   readFileSync(path.join(here, "../store-gateway/scenarios.json"), "utf8"),
 );
@@ -202,7 +202,7 @@ async function check() {
     console.error(
       "      A deliberate change means: rerun `tx402-cli-parity build` and update the",
     );
-    console.error("      Python pin, so both languages move together. See PLAN.md O107.");
+    console.error("      Python pin, so both languages move together.");
     return 1;
   }
   console.log(

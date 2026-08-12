@@ -1,11 +1,11 @@
 /**
- * The operator verbs (SPEC §10): `freeze`, `unfreeze`, `budget`, `pins`, `rotate-recipient`.
+ * The operator verbs: `freeze`, `unfreeze`, `budget`, `pins`, `rotate-recipient`.
  *
- * Driven in process through the injected `CliIo`, against a reference gateway (SPEC §12.5)
+ * Driven in process through the injected `CliIo`, against a reference gateway
  * fronting a real `MemorySpendStore` — so every assertion is about the actual store effect and
  * the actual exit code (ADR-023: tests run the behaviour). The store credential comes from the
- * environment, never a flag (SPEC §9.1); the admin/data split is exercised end to end. The
- * cross-language `--json` shapes are pinned separately by the CLI-json golden (ADR-024).
+ * environment, never a flag; the admin/data split is exercised end to end. The
+ * cross-language `--json` shapes are pinned separately by the CLI-json golden.
  */
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";

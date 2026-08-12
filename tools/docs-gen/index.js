@@ -104,8 +104,8 @@ async function load() {
  *
  * This exists because the API page listed only top-level module exports, so `inspect`,
  * `plan`, `getBudgetState` and `queryBudgetState` — the entire client surface, and the only
- * way to reconcile a settlement from code — appeared nowhere on the documentation site
- * (PLAN.md O71).
+ * way to reconcile a settlement from code — appeared nowhere on the documentation site.
+ *
  *
  * @param {Record<string, unknown>} errors the built core entry point
  * @param {string} declarationPath

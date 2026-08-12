@@ -1,9 +1,9 @@
 /**
- * `tx402/gateway/worker` — the reference Cloudflare Worker capability gateway (SPEC §12.5). It is
+ * `tx402/gateway/worker` — the reference Cloudflare Worker capability gateway. It is
  * the natural gateway for the Durable Object backend: it fronts {@link Tx402SpendStoreDO} behind the
  * `/v1/{method}` routes, holding the DO admin token (the Worker-env secret `TX402_DO_ADMIN_SECRET`)
  * server-side and exposing only capabilities to callers over a bearer token — the durable data/admin
- * boundary (SPEC §9.1) and the way a non-Worker caller (the CLI, Python) reaches a DO.
+ * boundary and the way a non-Worker caller (the CLI, Python) reaches a DO.
  *
  * A separate entry from `tx402/gateway` because it imports the Workers runtime (via
  * `tx402/durable-object`); the request handling is the SAME isomorphic {@link handleGatewayRequest}
@@ -37,7 +37,7 @@ import { bearerTokenScope, handleGatewayRequest, type GatewayBackend } from "./g
 
 export { Tx402SpendStoreDO } from "../durable-object/index.js";
 
-/** The Worker environment the reference gateway reads (SPEC §12.5/§12.3). */
+/** The Worker environment the reference gateway reads. */
 export interface Tx402GatewayWorkerEnv extends Tx402DurableObjectEnv {
   /** The Durable Object namespace bound to {@link Tx402SpendStoreDO}. */
   readonly SPEND_DO: DurableObjectNamespace;
@@ -56,7 +56,7 @@ export interface Tx402GatewayWorkerEnv extends Tx402DurableObjectEnv {
 const COORDINATOR_NAME = "tx402-coordinator";
 
 /**
- * Build the {@link GatewayBackend} for a DO deployment from the Worker env (SPEC §12.3/§12.5).
+ * Build the {@link GatewayBackend} for a DO deployment from the Worker env.
  * The admin store carries the DO admin token; the data store carries none, so the DO refuses an
  * admin mutation presented without it — the boundary is the token verified inside the DO, backed by
  * the gateway's own bearer-scope check.

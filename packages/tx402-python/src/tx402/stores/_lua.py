@@ -1,4 +1,4 @@
-"""Redis Lua atoms for the tx402 durable spend store (SPEC §3.4/§3.4a/§12.2).
+"""Redis Lua atoms for the tx402 durable spend store.
 
 This module is TRANSCRIBED VERBATIM from the canonical TypeScript source
 `packages/tx402/src/redis/lua.ts` (generated from its built output, so the script text —

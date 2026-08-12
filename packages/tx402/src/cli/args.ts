@@ -1,8 +1,8 @@
 /**
- * Argument parsing for `tx402 call` (SPEC §11) and the five operator verbs (SPEC §10).
+ * Argument parsing for `tx402 call` and the five operator verbs.
  *
  * Hand-rolled rather than pulled from a CLI framework. The whole dependency budget for this
- * package is spent on the protocol and chain libraries (ADR-008), and the surface here is a
+ * package is spent on the protocol and chain libraries, and the surface here is a
  * handful of commands with a small flag set — a parser for that is smaller than the code
  * needed to configure a framework, and it cannot grow a transitive dependency behind our back.
  *
@@ -10,7 +10,7 @@
  * command line lands in shell history, in `ps` output, and in CI logs. Development keys come
  * from documented environment variables only, and only after an explicit warning. The
  * operator verbs are the same: a store credential is never a flag — it comes from
- * `TX402_SPEND_STORE_TOKEN` / `TX402_SPEND_STORE_ADMIN` (SPEC §9.1).
+ * `TX402_SPEND_STORE_TOKEN` / `TX402_SPEND_STORE_ADMIN`.
  */
 
 import { UsageError } from "./exit-codes.js";
@@ -39,7 +39,7 @@ export interface FreezeOptions {
 export interface BudgetOptions {
   readonly target: string;
   readonly network: string;
-  /** Token address/mint; absent ⇒ the network's canonical asset (SPEC §10). */
+  /** Token address/mint; absent ⇒ the network's canonical asset. */
   readonly asset?: string;
   /** `--max-per-hour` / `--max-total` value-flags (SPEC §10 P1-8b). Atomic caps or human money. */
   readonly maxPerHour?: string;
@@ -58,7 +58,7 @@ export interface PinsOptions {
 export interface RotateRecipientOptions {
   readonly target: string;
   readonly network: string;
-  /** The `--to <addr…>` set (at least one), canonicalized by the verb handler (SPEC §6.4). */
+  /** The `--to <addr…>` set (at least one), canonicalized by the verb handler. */
   readonly to: readonly string[];
   readonly json: boolean;
 }
@@ -83,13 +83,13 @@ const VALUE_FLAGS = new Set([
   "--max-spend",
   "--network",
   "--timeout",
-  // 0.2.0 operator verbs (SPEC §10).
+  // 0.2.0 operator verbs.
   "--asset",
   "--max-per-hour",
   "--max-total",
 ]);
 
-/** The five operator verbs (SPEC §10). Everything else that is not `call` is a usage error. */
+/** The five operator verbs. Everything else that is not `call` is a usage error. */
 const VERBS = new Set(["freeze", "unfreeze", "budget", "pins", "rotate-recipient"]);
 
 const METHODS = new Set(["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"]);

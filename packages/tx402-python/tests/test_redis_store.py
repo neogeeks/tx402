@@ -1,4 +1,4 @@
-"""``RedisSpendStore`` / ``AsyncRedisSpendStore`` against a LIVE Redis (SPEC §12.2/§12.4).
+"""``RedisSpendStore`` / ``AsyncRedisSpendStore`` against a LIVE Redis.
 
 Skipped unless ``TX402_TEST_REDIS_URL`` is set (mirrors ``tools/durable-check`` and the TS
 ``redis-store`` suite), so a no-Redis checkout still passes; the ``durable-store`` CI job
@@ -310,7 +310,7 @@ def test_async_durable_harness(
     )
 
 
-# ── persistence-disabled warning (SPEC §12.2) ────────────────────────────
+# ── persistence-disabled warning ────────────────────────────
 
 
 def test_persistence_warning_sync(sync_client: redis.Redis) -> None:
@@ -343,7 +343,7 @@ def test_persistence_warning_async(
         sync_client.config_set("appendonly", "yes")
 
 
-# ── raw Redis ACL data/admin-state separation (SPEC §9.1/§12.2) ───────────
+# ── raw Redis ACL data/admin-state separation ───────────
 #
 # See the TypeScript twin for the full rationale. EVAL/EVALSHA (not FUNCTION — O14) means
 # the data user needs +eval; admin-STATE integrity is a KEY-PATTERN ACL that holds even
@@ -457,7 +457,7 @@ def test_acl_data_admin_separation(sync_client: redis.Redis) -> None:
             root.delete(key)
 
 
-# ── Redis Cluster, atomicGlobalFreeze:false (SPEC §5.2/§12.2) ─────────────
+# ── Redis Cluster, atomicGlobalFreeze:false ─────────────
 
 
 @pytest.mark.skipif(not _CLUSTER, reason="TX402_TEST_REDIS_CLUSTER is not set")
@@ -555,7 +555,7 @@ def test_async_cluster_focused() -> None:
         loop.close()
 
 
-# ── AOF restart durability (SPEC §12.4) ───────────────────────────────────
+# ── AOF restart durability ───────────────────────────────────
 
 _RESTART_PORT = 6398
 
@@ -655,7 +655,7 @@ class _FailLimitsWrite:
     """Wraps a redis client so the next limits WRITE fails. The atom runs as one ``evalsha``
     (``eval`` on NOSCRIPT); the pre-fix code ran ``delete`` then ``hset``. Failing
     ``evalsha``/``eval``/``hset`` fails the write either way — but only the atom keeps the
-    cap intact; ``delete``-then-``hset`` already deleted it before ``hset`` raised (O26)."""
+    cap intact; ``delete``-then-``hset`` already deleted it before ``hset`` raised."""
 
     def __init__(self, inner: Any) -> None:
         self._inner = inner

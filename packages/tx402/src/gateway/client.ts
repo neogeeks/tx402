@@ -1,5 +1,5 @@
 /**
- * `httpGatewaySpendStore` — the capability-gateway {@link SpendStore} client (SPEC §12.5). It
+ * `httpGatewaySpendStore` — the capability-gateway {@link SpendStore} client. It
  * speaks the §12.5 wire protocol to any conformant gateway (the reference Worker or Node gateway,
  * or a third party's), holding only a bearer token — never a raw Redis/DO credential. Because the
  * wire contract is fixed, this client and the Python `tx402.stores.gateway` client produce
@@ -16,7 +16,7 @@
  * **The token is the whole credential.** A `data` token reaches the data methods; an `admin` token
  * also reaches `freeze`/`setRecipientPins`/`setBudgetLimits`/… . An admin method attempted with a
  * data token is refused by the gateway with `403` → a typed `admin-credential-required`
- * `ConfigurationError` — the durable data/admin boundary (SPEC §9.1), enforced server-side where the
+ * `ConfigurationError` — the durable data/admin boundary, enforced server-side where the
  * raw credential lives, not by TypeScript. It does NOT close the compromised-application spending
  * path (that is 0.3.0, SPEC §1).
  */
@@ -70,9 +70,9 @@ function isLoopbackHost(host: string): boolean {
 }
 
 /**
- * Require an HTTPS gateway URL (SPEC §12.5). Plaintext `http://` is permitted ONLY to a loopback
+ * Require an HTTPS gateway URL. Plaintext `http://` is permitted ONLY to a loopback
  * host, and only so local development / the test harness can front an in-process gateway; a plaintext
- * URL to any other host is refused so a bearer token is never sent in the clear (O22).
+ * URL to any other host is refused so a bearer token is never sent in the clear.
  */
 function assertGatewayUrl(baseUrl: string): void {
   let url: URL;
@@ -95,7 +95,7 @@ function assertGatewayUrl(baseUrl: string): void {
   );
 }
 
-/** A malformed gateway response the client refuses (SPEC §12.5) — non-retryable, both languages. */
+/** A malformed gateway response the client refuses — non-retryable, both languages. */
 function invalidGatewayResponse(): ConfigurationError {
   return new ConfigurationError("The gateway returned a malformed response", {
     context: GATEWAY_CONTEXT,
@@ -122,7 +122,7 @@ export interface HttpGatewaySpendStoreOptions {
 type Json = Record<string, unknown>;
 
 /**
- * The wire shapes the gateway returns (SPEC §12.5), typed at the boundary so field access needs
+ * The wire shapes the gateway returns, typed at the boundary so field access needs
  * no `String()` coercion. The golden validates these against the schema; the client trusts the
  * validated shape and casts once inside {@link HttpGatewaySpendStore.request}.
  */
@@ -235,7 +235,7 @@ export class HttpGatewaySpendStore
   constructor(options: HttpGatewaySpendStoreOptions) {
     // Trim a trailing slash so `{baseUrl}/v1/{method}` never doubles it.
     const baseUrl = options.baseUrl.replace(/\/+$/u, "");
-    // HTTPS by default; plaintext only to loopback — a bearer token is never sent in the clear (O22).
+    // HTTPS by default; plaintext only to loopback — a bearer token is never sent in the clear.
     // Only the real network transport can leak it, so an INJECTED `fetch` (the golden/harness, which
     // pair an `http://` placeholder with a no-socket fetch, or a caller supplying its own transport)
     // owns its own transport security and is exempt from the scheme check.

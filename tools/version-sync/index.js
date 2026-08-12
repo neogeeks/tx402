@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * One version, five places, checked (PLAN.md open item **O51**).
+ * One version, five places, checked.
  *
  *   node tools/version-sync/index.js build   # write the generated version modules
  *   node tools/version-sync/index.js check   # fail if anything disagrees

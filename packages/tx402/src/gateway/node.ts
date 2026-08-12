@@ -1,10 +1,10 @@
 /**
- * The reference Node capability gateway (SPEC §12.5) — a small `http.Server` that bridges Node's
+ * The reference Node capability gateway — a small `http.Server` that bridges Node's
  * request/response to the isomorphic {@link handleGatewayRequest} core. It is store-agnostic: an
  * operator fronts Redis by constructing a `RedisSpendStore` data/admin pair (from `tx402/redis`)
  * and passing a {@link GatewayBackend}; the Worker gateway (`tx402/gateway/worker`) is the natural
  * choice for a DO. The gateway holds the raw backend credential server-side and exposes only the
- * §12.5 method set behind a bearer token (SPEC §9.1).
+ * §12.5 method set behind a bearer token.
  *
  * @example
  * ```ts
@@ -44,8 +44,8 @@ import { gatewayConditionBody } from "./wire.js";
  * The largest request body the Node gateway will buffer. Every §12.5 request body is a small
  * named-field JSON object (the biggest, `reserve`, is well under 1 KiB), so 64 KiB is generous. A
  * body that would exceed it — or an unauthenticated caller — is refused BEFORE the whole stream is
- * read, so a remote caller cannot force unbounded memory use without a credential (O25). Shared
- * with the isomorphic core so the Node and Worker gateways enforce the SAME ceiling (O51).
+ * read, so a remote caller cannot force unbounded memory use without a credential. Shared
+ * with the isomorphic core so the Node and Worker gateways enforce the SAME ceiling.
  */
 const MAX_REQUEST_BODY_BYTES = GATEWAY_MAX_REQUEST_BODY_BYTES;
 
@@ -105,7 +105,7 @@ function refuse(res: ServerResponse, status: number): void {
 export function createGatewayServer(backend: GatewayBackend): Server {
   return createServer((req, res) => {
     void (async () => {
-      // ── pre-buffer gates (O25) ──────────────────────────────────────────────────────────────
+      // ── pre-buffer gates ──────────────────────────────────────────────────────────────
       // Refuse without reading the body: an absent bearer is a 401, and a declared Content-Length
       // over the ceiling is a 400 — so an unauthenticated or oversized caller never forces buffering.
       // Token VALIDITY, version, routing, and Content-Type stay the core's job (single source of

@@ -15,7 +15,7 @@
  *    single-slot `{ns:scope}` atom is proven on Cluster and the *incapable* global-freeze arm runs
  *    (`freeze("*")` → `global-freeze-unsupported`).
  *  - **restart** (`TX402_TEST_REDIS_RESTART=1`): a dedicated AOF instance the test starts, drives
- *    the whole harness against, and restarts mid-run to prove `_check_restart` (SPEC §12.4).
+ *    the whole harness against, and restarts mid-run to prove `_check_restart`.
  */
 
 import { spawnSync } from "node:child_process";

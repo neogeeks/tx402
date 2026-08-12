@@ -1,4 +1,4 @@
-"""Reference durable :class:`~tx402.ledger.SpendStore` adapters (SPEC §12).
+"""Reference durable :class:`~tx402.ledger.SpendStore` adapters.
 
 Currently ships the Redis backend (``tx402.stores.redis``): ``RedisSpendStore`` (sync) and
 ``AsyncRedisSpendStore`` (async, over ``redis.asyncio``). Import from the submodule, which

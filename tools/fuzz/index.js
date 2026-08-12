@@ -229,7 +229,7 @@ function fuzzUrl() {
     // `a.test..` → `a.test.` → `a.test`. Asserting full idempotence here asserted more than
     // the contract, and the two could not both hold — the gate went red on any seed that
     // happened to generate a host with two or more trailing dots, on a wall-clock seed, with
-    // no code change (PLAN.md O62).
+    // no code change.
     //
     // What the contract *does* promise is checked instead, and it is strictly more specific
     // than the assertion it replaces: one more pass removes one more trailing dot and
@@ -239,7 +239,7 @@ function fuzzUrl() {
     //
     // Only meaningful for a non-empty host: `https://./x` has hostname "." which normalizes
     // to "", and "https://" is not a URL. An empty host is not a bypass — it matches only
-    // the `"*"` pattern, which already allows everything (O43).
+    // the `"*"` pattern, which already allows everything.
     // Checked against the *input*, because that is the only side on which the rule is
     // observable: a normalizer that stripped every trailing dot would emit a host that never
     // ends in one, and any output-side check would agree with it. `slice` rather than a
@@ -253,7 +253,7 @@ function fuzzUrl() {
     // And re-normalizing takes exactly one more dot off, so repeated application converges
     // rather than oscillating. Only meaningful for a non-empty host: `https://./x` has
     // hostname "." which normalizes to "", and "https://" is not a URL. An empty host is not
-    // a bypass — it matches only the `"*"` pattern, which already allows everything (O43).
+    // a bypass — it matches only the `"*"` pattern, which already allows everything.
     if (host.length > 0) {
       const again = normalizePolicyHost(`https://${host}`);
       const converged = host.endsWith(".") ? host.slice(0, -1) : host;

@@ -121,7 +121,7 @@ class Merchant:
 
     ``payment_response`` is an explicit argument with **no default**: the audit found the
     old fixture supplying a successful settlement header on every status silently, which is
-    exactly how a settled 403 came to be asserted as a release (O44).
+    exactly how a settled 403 came to be asserted as a release.
     """
 
     def __init__(
@@ -338,7 +338,7 @@ class TestO45PolicyScope:
         state = sdk.get_budget_state(policy_scope=scope, asset_id=ASSET_ID)
         assert state.committed_atomic == AMOUNT
         assert state.policy_scope == scope
-        # The store keys/echoes the CANONICAL asset (U16): a checksummed manifest asset and
+        # The store keys/echoes the CANONICAL asset: a checksummed manifest asset and
         # its lowercase form address one ledger, so the echoed asset_id is canonical,
         # like a recipient pin is stored/returned canonically.
         assert state.asset_id == canonicalize_asset(ASSET_ID)
@@ -450,7 +450,7 @@ class TestO46StoreFailureSemantics:
             sdk.get(URL)
         state = budget(store)
         # The fence exposed the reservation before transmission, and a failed commit neither
-        # releases it nor moves it — so it stays exposed (durable), not reserved (SPEC §7).
+        # releases it nor moves it — so it stays exposed (durable), not reserved.
         assert state.reserved_atomic == "0"
         assert state.exposed_atomic == AMOUNT
         assert [item.state for item in state.reservations] == ["exposed"]
@@ -578,7 +578,7 @@ class TestO54SpendStoreContract:
         with pytest.raises(ConfigurationError) as raised:
             Tx402Client(spend_store=NotAStore())  # type: ignore[arg-type]
         assert raised.value.details["reason"] == "invalid-spend-store"
-        # v0.2 expanded the data-plane surface (SPEC §3.1): expose/list_exposed/is_frozen
+        # v0.2 expanded the data-plane surface: expose/list_exposed/is_frozen
         # the capabilities flag are now part of the contract validated at construction.
         assert raised.value.details["missing"] == [
             "capabilities.atomic_global_freeze",

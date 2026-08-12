@@ -54,7 +54,7 @@ describe("Tx402Error", () => {
     expect(new TransportError("reset", { context }).retryability).toBe("caller-policy");
 
     // Conditional, after-correction, and no-automatic-retry all mean "not without the
-    // caller doing something first", so all three report false (ADR-011).
+    // caller doing something first", so all three report false.
     expect(new AmbiguousPaymentError("timed out", { context }).retryable).toBe(false);
     expect(new AmbiguousPaymentError("timed out", { context }).retryability).toBe(
       "no-automatic-retry",

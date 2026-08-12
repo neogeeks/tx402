@@ -1,15 +1,15 @@
 /**
- * `tx402 call` — the CLI's testable core (SPEC §11).
+ * `tx402 call` — the CLI's testable core.
  *
  * Every effect is injected through {@link CliIo}, so the whole command surface — exit codes,
  * the stdout/stderr split, `--json` shape, the dry-run signer guarantee — is exercised in
  * process by the test suite rather than by spawning a shell and matching on text.
  *
- * **The stdout/stderr contract is load-bearing** (SPEC §11). stdout carries the response
+ * **The stdout/stderr contract is load-bearing**. stdout carries the response
  * body, or exactly one JSON object under `--json`, and nothing else ever. Every diagnostic,
  * warning and error goes to stderr. That is what makes `tx402 call … > out.json` produce a
  * usable file even when the call emitted warnings, and it is why the SDK itself is forbidden
- * from writing to the console at all (SPEC §10) — the CLI renders from the structured event
+ * from writing to the console at all — the CLI renders from the structured event
  * stream instead.
  */
 
@@ -33,7 +33,7 @@ import { runVerb } from "./verbs.js";
 /** Schema version of the `--json` document. Bumped only on a breaking shape change. */
 export const JSON_SCHEMA_VERSION = 1;
 
-/** Documented development-key variables (SPEC §11). Never flags. */
+/** Documented development-key variables. Never flags. */
 export const DEV_KEY_ENV = {
   evm: "TX402_DEV_PRIVATE_KEY",
   solana: "TX402_DEV_SOLANA_KEYPAIR",

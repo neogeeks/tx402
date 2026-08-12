@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Runs a reference Node capability gateway (SPEC §12.5) fronting a deterministically-seeded
+ * Runs a reference Node capability gateway fronting a deterministically-seeded
  * `MemorySpendStore`, as a standalone process — the store analog of `tools/test-merchant/cli.js`.
  *
  * The TypeScript CLI-verb golden generator/pin serve this in process; Python cannot, so it spawns
@@ -11,7 +11,7 @@
  * The line is emitted only once the gateway is actually listening, so a harness waits on a
  * readable event rather than polling a port. Both languages share `seeds.js`, so the store state
  * behind the gateway is byte-identical whichever side dialled it — that is what pins the verbs'
- * `--json` across the two CLIs (ADR-024).
+ * `--json` across the two CLIs.
  *
  *   node tools/store-gateway/cli.js --seed governed [--port 0]
  */

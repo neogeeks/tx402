@@ -1,7 +1,7 @@
-"""The async client must not block the event loop on a synchronous store (SPEC §3.3).
+"""The async client must not block the event loop on a synchronous store.
 
 `AsyncTx402Client` reuses a synchronous core; a network-backed store called on the loop
-would stall every other coroutine on the loop. 0.2.0's decision (ADR-031) is that a sync
+would stall every other coroutine on the loop. 0.2.0's decision is that a sync
 `SpendStore` is offloaded to a worker thread via `asyncio.to_thread`, so the loop stays
 responsive. This is the conformance test the S2 exit criteria names: under an artificially
 slow store, a concurrent task keeps making progress.
@@ -60,7 +60,7 @@ async def test_async_get_budget_state_does_not_block_the_loop() -> None:
 
 
 async def test_async_get_budget_state_is_a_coroutine_named_break() -> None:
-    # The 0.1 sync accessor became `async def` (SPEC §3.3/§14): calling it without await
+    # The 0.1 sync accessor became `async def`: calling it without await
     # returns a coroutine, and only awaiting it produces the snapshot.
     client = AsyncTx402Client(spend_store=MemorySpendStore())
     try:

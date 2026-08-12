@@ -10,7 +10,7 @@ on:
 # Least privilege at the top; each job widens only what it needs. `id-token: write` is what
 # makes OIDC trusted publishing work, and it is granted per job rather than here.
 #
-# **Every action in this file is pinned to a commit SHA** (PLAN.md O48). A mutable tag like
+# **Every action in this file is pinned to a commit SHA**. A mutable tag like
 # `@v7` is a pointer somebody else can move, and these jobs hold an OIDC identity that can
 # publish to two registries — so a moved tag is a supply-chain compromise with publish
 # rights, not an inconvenience. The trailing comment records which release each SHA was, so
@@ -25,7 +25,7 @@ env:
   NODE_VERSION_DEFAULT: "20"
   # The workspace's floor. `pnpm check` builds the documentation site, and Astro requires
   # 22.12+. Until S15d the verify job below ran `pnpm check` on Node 20, so the release
-  # gate would have failed on the tag at its very last step (PLAN.md O60).
+  # gate would have failed on the tag at its very last step.
   NODE_VERSION_WORKSPACE: "22"
 
 jobs:
@@ -44,7 +44,7 @@ jobs:
       # A tag may point at ANY commit. Publishing is gated on the same suites CI runs, but those
       # only prove the tagged TREE — not that it is the tested protected-main history. This binds
       # the tag to `main`: the tagged commit must be reachable from `origin/main`, so a release can
-      # never be cut from untested or force-pushed history (O30).
+      # never be cut from untested or force-pushed history.
       - name: The tagged commit is contained in protected main
         run: |
           set -euo pipefail
@@ -78,7 +78,7 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
-      # Every gate, in the order CI runs them (PLAN.md open item O38).
+      # Every gate, in the order CI runs them.
       - name: Full check
         run: pnpm check
 
@@ -96,7 +96,7 @@ jobs:
       # what it measures depends on the runtime's own HTTP stack, not only on tx402: locally
       # the same commit reports 0.169 ms on Node 20 and 2.18 ms on Node 22, against a 2 ms
       # gate, and the plain-`fetch` baseline moves with it. Measuring the SDK on the runtime
-      # its users are promised is the defensible choice; PLAN.md O61 tracks re-calibrating.
+      # its users are promised is the defensible choice; re-calibrating is tracked separately.
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: ${{ env.NODE_VERSION_DEFAULT }}
@@ -113,18 +113,18 @@ jobs:
       # The tag, both package manifests, and both generated CLI version modules must agree.
       # They are five separate places a number appears, and `--expect` folds the tag into
       # the same check the working tree is held to rather than giving it a weaker one of
-      # its own (PLAN.md O51).
+      # its own.
       - name: Tag matches every declared version
         run: node tools/version-sync/index.js check --expect "${GITHUB_REF_NAME}"
 
       # Every documented install, packed and installed into an empty directory, with every
       # entry point it advertises imported. `pnpm check` runs the *documentation* half of
-      # this; the packing half needs the built artifact and a network, so it runs here
-      # (PLAN.md O47).
+      # this; the packing half needs the built artifact and a network, so it runs here.
+      #
       - name: Documented installs load their entry points
         run: pnpm install-smoke
 
-      # PLAN.md open item O12. The development key `tx402-release-1` must never sign a
+      # The development key `tx402-release-1` must never sign a
       # published release, and the check is by key id rather than by intention.
       - name: Release manifest is signed by the release key, not the dev key
         run: |
@@ -139,7 +139,7 @@ jobs:
           fi
 
   # The durable-store, Durable Object, and gateway gates CI runs are re-run here ON THE TAGGED
-  # COMMIT and are `needs:` of both publish jobs (O30). `pnpm check` does not include them, and the
+  # COMMIT and are `needs:` of both publish jobs. `pnpm check` does not include them, and the
   # tag workflow provisioned no Redis/DO before — so a tag could publish without ever proving the
   # durable adapters or the gateway on the exact commit being shipped. These mirror ci.yml.
   durable-store:
@@ -262,10 +262,15 @@ jobs:
           TX402_TEST_GATEWAY: "1"
           TX402_TEST_REDIS_URL: redis://localhost:6379
 
-  # SPEC §12.4 requires published documentation before release, and O49 found nothing
-  # enforcing it: the docs workflow was allowed to skip its own deploy and this workflow
-  # neither depended on it nor looked at the site. Its own job, so the log says plainly
-  # which page was missing, and a `needs` of both publish jobs so a dead site stops a tag.
+  # Published documentation is a release gate, and for a long time nothing enforced it: the
+  # deploy was allowed to skip silently and this workflow neither depended on it nor looked
+  # at the site, so a release could ship with dead Documentation URLs.
+  #
+  # The site is now deployed deliberately, by hand, with `pnpm docs:deploy` before the tag —
+  # there is no docs workflow to race. This job is what makes that ordering non-optional: it
+  # reads the LIVE site, gets its own job so the log says plainly which page was missing, and
+  # is a `needs` of both publish jobs so a stale or dead site stops the tag before either
+  # registry is touched.
   docs-published:
     name: Documentation is published
     needs: verify
@@ -317,16 +322,16 @@ jobs:
       # `pnpm publish` does not perform the OIDC token exchange — it expects an `_authToken`
       # in `.npmrc` — so the first 0.1.0 attempt went out unauthenticated and the registry
       # answered `E404 PUT .../tx402` (npm masks an unauthorized write to an existing package
-      # as a 404). PyPI's action does OIDC natively and published fine (PLAN.md O114).
+      # as a 404). PyPI's action does OIDC natively and published fine.
       #
       # Fix: upgrade the npm CLI, pack with pnpm so the `workspace:` protocol and
       # `publishConfig` are applied to the tarball, then publish that tarball with the npm CLI,
       # which does the OIDC exchange and attaches provenance. Still no `NODE_AUTH_TOKEN` and no
-      # long-lived credential to leak (PLAN.md O10/O23).
+      # long-lived credential to leak.
       # OIDC trusted publishing needs the npm CLI >= 11.5.1. Pin to the 11.x line rather than
       # `@latest`: npm 12 dropped Node 20 (it requires `^22.22.2 || ^24 || >=26`), and this job
       # runs on the SDK's Node-20 floor, so `npm@latest` fails EBADENGINE here. npm 11.x keeps
-      # Node 20 support (`^20.17.0 || >=22.9.0`) and has the OIDC token exchange (PLAN.md O114).
+      # Node 20 support (`^20.17.0 || >=22.9.0`) and has the OIDC token exchange.
       - name: Upgrade npm for OIDC trusted publishing
         run: npm install -g "npm@^11.5.1"
 
@@ -359,13 +364,13 @@ jobs:
 
       # PyPI trusted publishing: the workflow's OIDC identity is exchanged for a short-lived
       # upload token. The exposed long-lived token was revoked at S11 and deliberately never
-      # replaced (PLAN.md O23).
+      # replaced.
       - name: Publish
         uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # release/v1
         with:
           packages-dir: packages/tx402-python/dist
           # 0.1.0's sdist+wheel published on the first tag attempt; the npm leg failed and
-          # needs a re-tag (PLAN.md O114). A re-run must not fail here just because this
+          # needs a re-tag. A re-run must not fail here just because this
           # version already exists — an immutable registry upload is idempotent by design.
           skip-existing: true
 
@@ -437,7 +442,7 @@ jobs:
           version="${GITHUB_REF_NAME#v}"
           # Asserted, not printed. Against the unattested 0.0.0 placeholder this exact
           # command returned empty output and exit status 0, so the step that "checked
-          # provenance" would have passed on a package with none (PLAN.md O48).
+          # provenance" would have passed on a package with none.
           npm audit signatures
           attestations="$(npm view "tx402@$version" dist.attestations --json)"
           echo "$attestations"

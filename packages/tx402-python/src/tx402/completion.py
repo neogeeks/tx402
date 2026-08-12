@@ -23,7 +23,7 @@ release it. A fresh 402 for the same resource is exactly that evidence — the m
 still asking to be paid — which is why a re-challenge releases while a 5xx retains.
 Releasing on anything ambiguous would let the same money be spent twice against the cap.
 
-**Settlement evidence is what makes that asymmetry actually hold (ADR-016).** If the status
+**Settlement evidence is what makes that asymmetry actually hold.** If the status
 line were consulted first, a 403 with a successful ``PAYMENT-RESPONSE`` would release the
 reservation and report the call unpaid. Settlement evidence is now read
 on every status and outranks the status line, and a present-but-undecodable header is its
@@ -149,14 +149,14 @@ def classify_paid_attempt(
     max_paid_attempts: int,
     result: PaidAttemptResult,
 ) -> PaidAttemptDisposition:
-    """Decides one signed attempt's outcome (SPEC §6.7).
+    """Decides one signed attempt's outcome.
 
     Pure: no clock, no I/O, no state. Branch order is part of the contract and is asserted
     by the conformance vectors.
 
     ``attempt`` is 1-based and counts signed retries only — never the initial unpaid
     request. ``max_paid_attempts`` is ``policy.max_paid_attempts``, already validated to
-    the range 1 to 3 (SPEC §4.3).
+    the range 1 to 3.
     """
     # Nothing came back. The signature is on the wire either way, so this is the canonical
     # ambiguous case — the one SPEC §6.7 names explicitly.
@@ -165,8 +165,8 @@ def classify_paid_attempt(
 
     # SEC-005 stopped the *follow-up*, not the original transmission. The merchant already
     # has the signature and may well have settled against it, so the reservation is
-    # retained — but the public error is the one SPEC §6.1 names, not a generic ambiguity
-    # (O52).
+    # retained — but the public error is the one SPEC §6.1 names, not a generic ambiguity.
+    #
     if result.kind == "redirect-blocked":
         return _ambiguous("redirect-blocked", TX402_ERROR_CODES["redirect_blocked"])
 
@@ -174,7 +174,7 @@ def classify_paid_attempt(
     if status is None:  # pragma: no cover - a "response" without a status is unreachable
         raise ValueError("A response outcome must carry a status")
 
-    # **Settlement evidence outranks the status line** (SPEC §5.3, O44). A merchant that
+    # **Settlement evidence outranks the status line**. A merchant that
     # reports a successful settlement has said the money moved; whether it then managed to
     # hand over the resource is a separate fact. Releasing the reservation here would give
     # back budget for a payment that really happened, and an autonomous caller would be
@@ -184,7 +184,7 @@ def classify_paid_attempt(
         return _paid_undelivered(SETTLED_RESOURCE_UNUSABLE_REASON)
 
     # A present header that does not decode is a protocol violation and is evidence of
-    # nothing (ADR-016). It cannot commit — SPEC §6.7 makes parsing a precondition of
+    # nothing. It cannot commit — SPEC §6.7 makes parsing a precondition of
     # paid-success — and it must not release, because the merchant plainly attempted to
     # report a settlement. Retention is the only disposition left, on any status.
     if result.settlement == "malformed":
@@ -224,6 +224,6 @@ def classify_paid_attempt(
         return _failed("settlement-unsuccessful")
 
     # ``"success"`` and ``"absent"`` both land here. Absent is permitted because the pinned
-    # upstream protocol marks the header optional (SPEC §6.7); a warning is emitted at the
+    # upstream protocol marks the header optional; a warning is emitted at the
     # read site rather than changing the money.
     return _COMMIT

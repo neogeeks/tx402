@@ -28,6 +28,7 @@
     "docs:check": "node tools/docs-gen/index.js check",
     "docs:dev": "pnpm --filter tx402-docs dev",
     "docs:generate": "pnpm --filter tx402 build && node tools/docs-gen/index.js build",
+    "docs:deploy": "pnpm docs:build && pnpm dlx wrangler@4 pages deploy docs/dist --project-name tx402-docs --branch main --commit-dirty=true && node tools/docs-live/index.js check",
     "docs:live": "node tools/docs-live/index.js check",
     "docs:live:selftest": "node tools/docs-live/index.js selftest",
     "durable:check": "node tools/durable-check/index.js",

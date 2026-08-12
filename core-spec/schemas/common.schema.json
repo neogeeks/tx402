@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://tx402.dev/schemas/v1/common.schema.json",
   "title": "tx402 shared definitions",
-  "description": "Primitive definitions shared by every tx402 schema. Frozen at M0 (PLAN.md session S2): changing any pattern here is a wire-visible change and requires an ADR.",
+  "description": "Primitive definitions shared by every tx402 schema. Frozen: changing any pattern here is a wire-visible change and requires a recorded decision.",
 
   "$defs": {
     "caip2": {

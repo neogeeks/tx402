@@ -34,7 +34,7 @@ from __future__ import annotations
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _dist_version
 
-# The installed ``tx402`` distribution version (U18). Reads the real installed dist metadata
+# The installed ``tx402`` distribution version. Reads the real installed dist metadata
 # (identical to ``package.json``/``pyproject.toml``); falls back to the version-synced
 # constant when imported from a source tree with no installed distribution.
 try:

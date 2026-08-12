@@ -1,10 +1,10 @@
 /**
- * The Redis Lua atoms MUST be byte-identical across the two SDKs (SPEC §12.2): the TypeScript source
+ * The Redis Lua atoms MUST be byte-identical across the two SDKs: the TypeScript source
  * `src/redis/lua.ts` and the transcribed Python copy `tx402/stores/_lua.py` are the ONE source of
  * truth for Redis behaviour, addressed by `EVALSHA` — so a single divergent byte would give the two
  * SDKs different `SCRIPT LOAD` shas and silently different semantics. This guard makes that
  * invariant a test (previously it was a manual re-verification, S7b), so the `SET_LIMITS` atom added
- * in S13b (O26) — and every future atom — cannot drift.
+ * in S13b — and every future atom — cannot drift.
  */
 
 import { createHash } from "node:crypto";

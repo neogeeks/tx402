@@ -1,5 +1,5 @@
 /**
- * Minimal JSON-RPC access for the Base adapter (SPEC §7.1).
+ * Minimal JSON-RPC access for the Base adapter.
  *
  * Two methods, and no more: `eth_chainId` and an `eth_call` of ERC-20 `balanceOf`. SPEC §7.1
  * limits the buyer's RPC surface to chain identity, token balance, and metadata the upstream
@@ -63,7 +63,7 @@ export interface EvmRpcPoolOptions {
   readonly fetchImpl?: typeof globalThis.fetch;
   readonly maxProviders?: number;
   /**
-   * The client's shared health index (SPEC §6.5). A pool constructed without one gets a
+   * The client's shared health index. A pool constructed without one gets a
    * private index so it still behaves correctly in isolation — but inside a client every
    * pool receives the same instance, which is the point of O19.
    */
@@ -95,7 +95,7 @@ function hexToBigInt(value: string): bigint {
  * chain-ID rule is a security boundary that could not wait for the HealthIndex; M5 moved it,
  * so `openUntil` and `consecutiveFailures` no longer exist on an endpoint. Every open/closed
  * decision and every observation goes through the index the client shares with the Solana
- * pool, which is what stops two circuits from disagreeing about the same provider (O19).
+ * pool, which is what stops two circuits from disagreeing about the same provider.
  */
 export class EvmRpcPool {
   readonly #endpoints: Endpoint[];
@@ -129,7 +129,7 @@ export class EvmRpcPool {
    * Reads a token balance from an endpoint that has just proved it serves `chainId`.
    *
    * Endpoints are tried in manifest order, closed circuits first. An open circuit is used
-   * only when every endpoint is open (SPEC §6.5) — and even then the chain-ID check runs
+   * only when every endpoint is open — and even then the chain-ID check runs
    * again, so an endpoint that was opened for lying about its chain cannot slip through on
    * the last-resort pass.
    */

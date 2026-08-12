@@ -3,7 +3,7 @@
  * tx402 CLI entry point — "Wireshark for HTTP 402".
  *
  * Bundled into the `tx402` package via the `bin` field so that `npx tx402` resolves with no
- * second install (ADR-009). This file is a **separate build entry**: it is not reachable
+ * second install. This file is a **separate build entry**: it is not reachable
  * from the core import path and its dependencies never count against the ADR-008 size gate.
  *
  * Deliberately thin. Everything testable lives in `run.ts` behind an injected IO object, so

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://tx402.dev/schemas/v1/conformance-vector.schema.json",
   "title": "ConformanceVector",
-  "description": "One language-neutral conformance fixture (ADR-005).\n\nEvery vector is a self-contained document: it carries its own inputs, its own expected outputs, and the milestone at which an implementation is required to execute it. Runners in both languages read the same files; neither language may carry a private fixture.\n\nExecution is two-stage — see core-spec/conformance/README.md:\n  Stage A validates the *vector* against the frozen schemas and taxonomy. It runs from M0 in both languages for every vector, including vectors whose milestone has not landed.\n  Stage B runs the *implementation* against the vector. It runs only where a handler for the vector's `kind` is registered.\n\nA vector whose `milestone` is at or below a language's implemented-through marker MUST have a Stage B handler; otherwise the runner fails. That is what stops an unimplemented milestone from passing silently.",
+  "description": "One language-neutral conformance fixture.\n\nEvery vector is a self-contained document: it carries its own inputs, its own expected outputs, and the milestone at which an implementation is required to execute it. Runners in both languages read the same files; neither language may carry a private fixture.\n\nExecution is two-stage — see core-spec/conformance/README.md:\n  Stage A validates the *vector* against the frozen schemas and taxonomy. It runs from M0 in both languages for every vector, including vectors whose milestone has not landed.\n  Stage B runs the *implementation* against the vector. It runs only where a handler for the vector's `kind` is registered.\n\nA vector whose `milestone` is at or below a language's implemented-through marker MUST have a Stage B handler; otherwise the runner fails. That is what stops an unimplemented milestone from passing silently.",
 
   "type": "object",
   "required": ["id", "kind", "milestone", "title", "spec", "expected"],
@@ -10,7 +10,7 @@
 
   "properties": {
     "id": {
-      "description": "Globally unique, stable, and never reused. Referenced from PLAN.md and from release notes, so renaming one is a documentation break. Dotted segments read as `<area>.<subject>.<case>`; the leading segment conventionally matches the vector's `kind`.",
+      "description": "Globally unique, stable, and never reused. Referenced from the release notes, so renaming one is a documentation break. Dotted segments read as `<area>.<subject>.<case>`; the leading segment conventionally matches the vector's `kind`.",
       "type": "string",
       "pattern": "^[a-z0-9][a-z0-9-]*(\\.[a-z0-9-]+)+$",
       "maxLength": 128

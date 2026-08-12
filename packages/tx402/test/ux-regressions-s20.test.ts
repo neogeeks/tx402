@@ -273,7 +273,7 @@ describe("O80/O81 — the published site resolves, and cites nothing a reader ca
     // reader nothing while undercutting the page they are reading.
     //
     // Widened twice over the original: to every reader-facing surface rather than the site
-    // alone, and to the bare `S21` / `(O78)` forms as well as the prose ones. The narrow
+    // alone, and to the bare `S21` / `` forms as well as the prose ones. The narrow
     // version matched `session S12` and `open item O3` and so could not see the citations
     // that were added to the examples while it was passing. The bare-identifier sweep lives
     // in the S23 suite alongside the finding that motivated it; these four stay because a

@@ -4,14 +4,6 @@ coverage/
 pnpm-lock.yaml
 .venv/
 packages/tx402-python/
-# Internal planning docs (never shipped). Ignored like PRD.md/SPEC.md; SPEC-0.2.0.md is
-# FROZEN — reformatting it would change the blob hash the resume guard pins (PLAN-0.2.0 §12).
-PRD.md
-SPEC.md
-PLAN-0.2.0.md
-SPEC-0.2.0.md
-PRD-phase1.md
-
 # Tool-owned formatting. `tx402-manifest sign` rewrites the manifest, and the generated
 # SDK copies are emitted by `tx402-manifest embed`. Letting prettier reformat them would
 # put the tool and the formatter in a loop. The signature is computed over the canonical

@@ -1,15 +1,15 @@
 /**
- * The five operator verbs (SPEC §10): `freeze`, `unfreeze`, `budget`, `pins`,
+ * The five operator verbs: `freeze`, `unfreeze`, `budget`, `pins`,
  * `rotate-recipient`.
  *
  * Each verb resolves the configured store (SPEC §9.1, {@link resolveSpendStore}) for its plane,
  * performs one admin- or data-plane operation, and reports the result — a concise line on
  * stdout, or exactly one JSON object under `--json` (the shapes are SPEC §10's table, byte-for
  * byte identical to the Python CLI's; the cross-language golden pins that). Exit numbers are
- * **reused** (SPEC §10): `0` success, `2` usage/config (including an admin verb run without an
+ * **reused**: `0` success, `2` usage/config (including an admin verb run without an
  * admin credential — `admin-credential-required`), `7` a store outage. No new exit number.
  *
- * The stdout/stderr contract is the same as `tx402 call` (SPEC §11): the *result* goes to
+ * The stdout/stderr contract is the same as `tx402 call`: the *result* goes to
  * stdout (the JSON object, or the human summary); every warning — including the §6.7
  * freeze-before-rotate advisory — goes to stderr, so `tx402 budget … --json > out.json` stays a
  * clean artifact.
@@ -29,7 +29,7 @@ import { EXIT_CODES, UsageError, exitCodeFor, type ExitCode } from "./exit-codes
 import type { CliIo } from "./run.js";
 import { resolveSpendStore } from "./store-config.js";
 
-/** Schema version of a verb's `--json` document. Shares the `call` document's version (SPEC §11). */
+/** Schema version of a verb's `--json` document. Shares the `call` document's version. */
 const JSON_SCHEMA_VERSION = 1;
 
 /** A parsed operator verb, as produced by {@link parseArgs}. */

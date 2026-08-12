@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any, Final
 
-#: The signed release manifest shipped with this build (SPEC §5.4).
+#: The signed release manifest shipped with this build.
 BUNDLED_MANIFEST: Final[dict[str, Any]] = {
     "manifestVersion": 1,
     "release": "0.2.0",

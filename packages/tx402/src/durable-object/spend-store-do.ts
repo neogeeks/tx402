@@ -2,7 +2,7 @@
  * `Tx402SpendStoreDO` — the reference durable {@link import("../core/ledger.js").SpendStore}
  * over a SQLite-backed Cloudflare Durable Object (SPEC §12.3/§12.4, ADR-025..030).
  *
- * **Why the whole reserve is one `storage.transactionSync` with no `await` inside (SPEC §12.3).**
+ * **Why the whole reserve is one `storage.transactionSync` with no `await` inside.**
  * A Durable Object processes one event at a time, but an `await` inside a handler yields the
  * isolate and lets another request interleave — so a read-decide-write critical section split by
  * an `await` is NOT atomic. The reserve transition (freeze check, recipient assert/claim, `min`
@@ -14,20 +14,20 @@
  * side-effect that legitimately precedes the refusal — a TOFU claim ahead of a cap rejection —
  * persists exactly as it does on Redis and in `MemorySpendStore`.
  *
- * **Amounts are TEXT, never a JS `number` (SPEC §12.3/§12.2).** A single money input is up to 78
+ * **Amounts are TEXT, never a JS `number`.** A single money input is up to 78
  * atomic digits and the lifetime accumulators grow past that, so every amount is a decimal string
  * and every sum/compare goes through JS `BigInt` (arbitrary width). Only epoch-ms timestamps are
  * numbers (INTEGER columns), all < 2^53.
  *
- * **Backend-authoritative time (SPEC §3.4a).** Windowing and the `createdAt`/`committedAt`/
+ * **Backend-authoritative time.** Windowing and the `createdAt`/`committedAt`/
  * `expiresAt` stamps use the DO's own clock read INSIDE the atom (`Date.now()`), never the
  * caller's `nowEpochMs`, so fleet clock skew cannot double-spend the shared cap. A TEST-ONLY,
  * env-gated injectable backend clock (`TX402_DO_TEST_MODE`) lets the conformance harness pin exact
  * `expiresAt`, then advance by 120 s and by 1 h without waiting; production leaves it disabled, so
  * the setter is inert and the atom always reads `Date.now()`.
  *
- * **The data/admin boundary is a token verified INSIDE the DO, not TypeScript method separation
- * (SPEC §12.3).** Cloudflare exposes every public RPC method to any Worker holding the binding, so
+ * **The data/admin boundary is a token verified INSIDE the DO, not TypeScript method separation.
+ * ** Cloudflare exposes every public RPC method to any Worker holding the binding, so
  * separate method sets are not a security boundary. Each admin RPC takes an `adminToken` argument
  * verified against the Worker-env secret `TX402_DO_ADMIN_SECRET` — never set by an RPC first-write,
  * so there is no unauthenticated bootstrap to race. The `durableObjectSpendStore` data-plane
@@ -54,12 +54,12 @@ import type {
   VoidEnvelope,
 } from "./protocol.js";
 
-/** The Worker environment `Tx402SpendStoreDO` reads (SPEC §12.3). */
+/** The Worker environment `Tx402SpendStoreDO` reads. */
 export interface Tx402DurableObjectEnv {
   /**
    * The admin-plane secret. Present only in the ADMIN/gateway Worker's env, never the data
    * Worker's, so a compromised data Worker holds the binding but cannot forge an admin call.
-   * A deployment Wrangler secret — never set by an RPC call (SPEC §12.3).
+   * A deployment Wrangler secret — never set by an RPC call.
    */
   readonly TX402_DO_ADMIN_SECRET?: string;
   /**
@@ -86,7 +86,7 @@ function availStr(capAtomic: string, consumed: bigint): string {
 }
 
 /**
- * Canonicalize a recipient for pin comparison (SPEC §6.4): eip155 → lowercase hex; every other
+ * Canonicalize a recipient for pin comparison: eip155 → lowercase hex; every other
  * family verbatim (base58 is injective, case-sensitive). Reimplemented locally — byte-identical to
  * `canonicalizeRecipient` in `core/ledger.ts` — so the DO stays free of that module's `node:crypto`
  * import on the Workers hot path.
@@ -97,7 +97,7 @@ function canon(network: string, value: string): string {
 }
 
 /**
- * Canonicalize a CAIP-19 `assetId` for ledger keying (SPEC §6.4, U16): eip155 → lowercase (the
+ * Canonicalize a CAIP-19 `assetId` for ledger keying: eip155 → lowercase (the
  * `erc20:0x…` address is hex and the `eip155:<chain>` prefix numeric, so lowercasing the whole id
  * matches the §6.4 `sameAddress` rule); every other family (solana `token:<mint>`, case-sensitive
  * base58) verbatim. Reimplemented locally — byte-identical to `canonicalizeAsset` in

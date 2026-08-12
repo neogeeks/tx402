@@ -24,7 +24,7 @@ const NETWORK_ID = "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1";
 /**
  * The RPC override the runbook (`operations/solana-devnet.mdx`) documents for this suite: public
  * Devnet is heavily rate-limited, so an operator points this at a private endpoint. Wired exactly
- * as `volume.live.test.ts` does (O49) — before this, the suite built its client with no `routing`
+ * as `volume.live.test.ts` does — before this, the suite built its client with no `routing`
  * key, so `TX402_SOLANA_DEVNET_RPC_URL` was silently inert on the very path it documents.
  */
 function rpcOverrideFor(networkId: string, variable: string) {

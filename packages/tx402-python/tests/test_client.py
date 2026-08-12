@@ -418,7 +418,7 @@ def test_absent_payment_response_still_delivers() -> None:
 
 
 def test_malformed_payment_response_is_not_delivery(caplog: Any) -> None:
-    """A header that is present and does not decode is a protocol violation (O53).
+    """A header that is present and does not decode is a protocol violation.
 
     It used to be folded in with an absent header and the resource returned as paid
     success. SPEC §6.7 makes parsing a precondition of paid-success, so the call now ends
@@ -458,7 +458,7 @@ def test_initial_and_paid_transport_failures_are_distinct() -> None:
 
 
 def test_paid_retry_timeout_is_owned_by_tx402() -> None:
-    """A deadline and a reset are the same fact about settlement (SPEC §6.7).
+    """A deadline and a reset are the same fact about settlement.
 
     Both report ``transport-after-signature``: the signature is on the wire either way, and
     the frozen ``completion.paid-attempt`` vectors give a transmission that never completed
@@ -715,7 +715,7 @@ def _frozen_events(logger: _LevelLogger) -> list[tuple[str, dict[str, Any]]]:
 def test_kill_switch_denies_before_the_signer_and_emits_spend_frozen_sync() -> None:
     store = MemorySpendStore()
     # Whole-store freeze: atomic_global_freeze is True in-process, so "*" is a permitted
-    # scope and blocks every reserve (SPEC §5.2, ADR-027).
+    # scope and blocks every reserve.
     store.freeze("*")
     signer = Signer()
     merchant = Merchant()
@@ -798,7 +798,7 @@ def test_recipient_tofu_establishes_pin_and_emits_recipient_pinned_sync() -> Non
         assert sdk.get(URL).status_code == 200
     assert len(signer.requests) == 1
     # The claim happened in the reserve atom; the store pins the merchant's payTo,
-    # canonicalized to lowercase hex (SPEC §6.4).
+    # canonicalized to lowercase hex.
     assert store.get_recipient_pins(SCOPE, NETWORK) == (RECIPIENT.lower(),)
     pinned = _recipient_events(logger, "recipient.pinned")
     assert len(pinned) == 1
@@ -824,7 +824,7 @@ def test_recipient_tofu_second_call_re_emits_nothing_sync() -> None:
 
 
 class _FailingPinStore(MemorySpendStore):
-    """A store whose advisory recipient read is DOWN — an infrastructure outage (O17)."""
+    """A store whose advisory recipient read is DOWN — an infrastructure outage."""
 
     def get_recipient_pins(self, scope: str, network: str) -> tuple[str, ...]:
         raise RuntimeError("recipient pin store is down")
@@ -881,7 +881,7 @@ async def test_o17_recipient_store_outage_fails_closed_async() -> None:
 class _FailingRecipientPolicyStore(MemorySpendStore):
     """A store whose recipient PIN read succeeds (empty) but whose recipient POLICY read is
     DOWN. The second recipient read is reached only when there is no pin and TOFU is
-    unprovisioned, so it exercises the store-outage arm the pin store misses (O17/O38)."""
+    unprovisioned, so it exercises the store-outage arm the pin store misses."""
 
     def get_recipient_policy(self, scope: str) -> dict[str, bool]:
         raise RuntimeError("recipient policy store is down")
@@ -934,7 +934,7 @@ class _NoneRecipientPolicyStore(MemorySpendStore):
     treats ``policy?.tofuEnabled !== true`` as not-provisioned and fails closed; pre-S13d
     Python read ``None.get('tofu_enabled')`` OUTSIDE the try/except, raising a raw
     ``AttributeError`` with no ``request.failed``. The fix sends a ``None`` policy
-    to the same closed ``recipient-tofu-not-provisioned`` refusal (O38)."""
+    to the same closed ``recipient-tofu-not-provisioned`` refusal."""
 
     def get_recipient_policy(self, scope: str) -> dict[str, bool]:
         return None  # type: ignore[return-value]
@@ -984,7 +984,7 @@ async def test_o38_none_recipient_policy_fails_closed_async() -> None:
 
 
 class _RecordingBudgetStore(MemorySpendStore):
-    """Records the ``now_epoch_ms`` a default budget query resolves to (O19)."""
+    """Records the ``now_epoch_ms`` a default budget query resolves to."""
 
     def __init__(self) -> None:
         super().__init__()
@@ -1004,7 +1004,7 @@ def test_o19_default_budget_query_uses_configured_clock_sync() -> None:
     store = _RecordingBudgetStore()
     with client(Merchant(), store=store, clock=lambda: pinned) as sdk:
         sdk.get_budget_state(policy_scope=SCOPE, asset_id=ASSET)
-    # The default query used the client's CONFIGURED clock, not _system_clock (O19); the
+    # The default query used the client's CONFIGURED clock, not _system_clock; the
     # pre-fix code used the system clock, so a live reservation read as expired.
     assert store.last_now == pinned
 
@@ -1053,7 +1053,7 @@ def test_o18_post_settlement_commit_failure_emits_request_failed_once() -> None:
 def test_recipient_admin_allowlist_mismatch_refuses_before_signer_sync() -> None:
     store = MemorySpendStore()
     # An operator pins a DIFFERENT recipient; the client always sends its payTo, so the
-    # authoritative reserve assertion refuses it whatever the caller's mode (SPEC §3.4).
+    # authoritative reserve assertion refuses it whatever the caller's mode.
     store.set_recipient_pins(
         SCOPE, NETWORK, ("0x000000000000000000000000000000000000dead",)
     )
@@ -1099,7 +1099,7 @@ def test_recipient_client_allowlist_admits_without_claiming_sync() -> None:
 
 
 class _DataOnlyStore:
-    """A valid data-plane SpendStore with NO RecipientPinStore methods (SPEC §6.1)."""
+    """A valid data-plane SpendStore with NO RecipientPinStore methods."""
 
     def __init__(self) -> None:
         self._inner = MemorySpendStore()
@@ -1129,7 +1129,7 @@ class _DataOnlyStore:
 
 
 def test_recipient_tofu_fails_closed_without_a_pin_store() -> None:
-    # A store missing get_recipient_pins/get_recipient_policy cannot back TOFU (SPEC §6.1).
+    # A store missing get_recipient_pins/get_recipient_policy cannot back TOFU.
     with pytest.raises(ConfigurationError) as raised:
         Tx402Client(
             evm_signer=Signer(),
@@ -1156,7 +1156,7 @@ async def test_recipient_tofu_establishes_pin_on_the_async_path() -> None:
         recipient_policy=RecipientPolicy(mode="tofu"),
     ) as sdk:
         assert (await sdk.get(URL)).status_code == 200
-    # The async advisory read and reserve claim run through the _dispatch seam (SPEC §3.3);
+    # The async advisory read and reserve claim run through the _dispatch seam;
     # the pin is established and recipient.pinned emitted exactly as on the sync path.
     assert store.get_recipient_pins(SCOPE, NETWORK) == (RECIPIENT.lower(),)
     pinned = _recipient_events(logger, "recipient.pinned")

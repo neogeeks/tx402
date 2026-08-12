@@ -1,5 +1,5 @@
 /**
- * The gateway wire golden (SPEC §12.5, ADR-023/024). `tools/gateway-golden` generates and
+ * The gateway wire golden. `tools/gateway-golden` generates and
  * drift-checks `core-spec/gateway/golden.json`; this suite pins the two properties that make the
  * golden meaningful:
  *

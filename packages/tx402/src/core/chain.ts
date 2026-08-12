@@ -1,5 +1,5 @@
 /**
- * The seam between the core request loop and a chain adapter (SPEC §3, §6.4, §6.6).
+ * The seam between the core request loop and a chain adapter.
  *
  * Core owns the state machine, the policy gate, and the ledger. It knows nothing about
  * EIP-712, SPL token accounts, or JSON-RPC. A chain adapter answers exactly two questions —
@@ -29,7 +29,7 @@ export const BALANCE_TIMEOUT_MS = 600;
 export const MAX_PROVIDERS_PER_NETWORK = 2;
 
 /**
- * Default authorization lifetime in seconds (SPEC §6.6).
+ * Default authorization lifetime in seconds.
  *
  * The effective lifetime is `min(60, merchant maxTimeoutSeconds)`. It may never exceed the
  * merchant bound, so the merchant's value is a ceiling and this is a cap tx402 applies on
@@ -38,7 +38,7 @@ export const MAX_PROVIDERS_PER_NETWORK = 2;
 export const MAX_AUTHORIZATION_SECONDS = 60;
 
 /**
- * Circuit open duration for an RPC endpoint (SPEC §6.5).
+ * Circuit open duration for an RPC endpoint.
  *
  * Re-exported from `core/health.ts` rather than restated: since M5 the circuit lives entirely
  * in the HealthIndex, and two copies of this number could drift apart without any test
@@ -65,7 +65,7 @@ export interface ChainRouteRequest {
 }
 
 /**
- * What an adapter can observe about one requirement (SPEC §5.2).
+ * What an adapter can observe about one requirement.
  *
  * `healthScore` and `rank` are **not** here: they are the RoutePlanner's, computed from the
  * one shared {@link HealthIndex} rather than from anything an adapter keeps. An adapter
@@ -99,7 +99,7 @@ export interface ChainAuthorizationRequest extends ChainRouteRequest {
   readonly resourceHost: string;
   /** SEC-009 request fingerprint, presented to the signer as the request hash. */
   readonly requestHash: string;
-  /** Upper bound on authorization lifetime, in seconds (SPEC §6.6). */
+  /** Upper bound on authorization lifetime, in seconds. */
   readonly maxAuthorizationSeconds: number;
 }
 
@@ -122,7 +122,7 @@ export interface ChainAuthorization {
  *
  * One instance is retained per client so its RPC endpoint pools survive across requests. The
  * *health* those pools consult is not theirs: it lives in the client's shared
- * {@link HealthIndex}, which is what `client.resetHealth()` clears (SPEC §4.1).
+ * {@link HealthIndex}, which is what `client.resetHealth()` clears.
  */
 export interface ChainAdapter {
   /** CAIP-2 namespace this adapter serves, for example `eip155`. */
@@ -135,13 +135,13 @@ export interface ChainAdapter {
 
 /** Wiring an adapter receives from core. All members are optional for standalone use. */
 export interface ChainAdapterContext {
-  /** The client's single health index (SPEC §6.5). Adapters never create their own. */
+  /** The client's single health index. Adapters never create their own. */
   readonly health?: HealthIndex;
   /**
    * Caller-supplied RPC endpoints replacing the manifest's, keyed by canonical CAIP-2.
    *
    * Already validated and alias-resolved by `PolicyEngine`, so an adapter can index this
-   * directly by the network id it was handed (ADR-015).
+   * directly by the network id it was handed.
    */
   readonly rpcOverrides?: Readonly<Record<string, readonly string[]>>;
 }

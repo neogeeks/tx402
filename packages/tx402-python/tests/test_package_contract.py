@@ -41,7 +41,7 @@ class TestPackageContract:
         assert "tx402" in PYPROJECT["project"]["scripts"]
 
     def test_keeps_chain_support_behind_extras(self) -> None:
-        """Mirrors the TypeScript subpath-export split (ADR-009)."""
+        """Mirrors the TypeScript subpath-export split."""
         extras = PYPROJECT["project"]["optional-dependencies"]
         assert set(extras) >= {"evm", "svm", "all"}
 
@@ -52,7 +52,7 @@ class TestPackageContract:
         there because SPEC §5.4 makes offline manifest signature verification a
         precondition of client construction, SPEC §3.2 forbids implementing Ed25519 from
         scratch, and CPython has none in its standard library — TypeScript gets the same
-        capability from ``node:crypto`` for free (ADR-012).
+        capability from ``node:crypto`` for free.
 
         Chain support is deliberately absent: it lives behind the ``evm``/``svm`` extras.
         """
@@ -146,7 +146,7 @@ class TestCrossLanguageParity:
 
 
 class TestExtrasBoundary:
-    """The core install must not pull a chain library (ADR-009).
+    """The core install must not pull a chain library.
 
     ``tx402.solana`` imports ``solders`` at module scope, so a re-export from
     ``tx402/__init__.py`` would silently make every core install depend on it — and the

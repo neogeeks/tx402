@@ -10,14 +10,14 @@ Design (mirrors ``packages/tx402/src/redis/store.ts``):
 
 - **One server-side atom per transition** via ``EVAL`` (``EVALSHA`` with an ``EVAL``
   fallback on ``NOSCRIPT``), never a client read-decide-write and never ``FUNCTION LOAD`` —
-  managed Redis (Upstash) support for Redis Functions is spotty (O14).
+  managed Redis (Upstash) support for Redis Functions is spotty.
 - **Backend-authoritative time (§3.4a).** The atom windows on ``redis.call('TIME')``; the
   caller's ``now_epoch_ms`` never windows anything. A TEST-ONLY injectable clock
   (``test_clock``) lets the suite pin and advance time; production never enables it.
 - **Unbounded-width arithmetic (§12.2).** Amounts are decimal strings put through Lua
   big-integer helpers; only epoch-ms timestamps are Lua numbers.
 - **``{ns:scope}`` single slot** so a scope's whole atom is one Cluster slot (§12.2).
-- **Data/admin plane split (ADR-029).** A data-plane store (``admin=False``, the default)
+- **Data/admin plane split.** A data-plane store (``admin=False``, the default)
   refuses every admin mutation with ``admin-credential-required`` (enforced in the adapter;
   a raw Redis ACL user hardens it.)
 """
@@ -258,19 +258,19 @@ def _global_freeze_unsupported() -> ConfigurationError:
     )
 
 
-#: The reserved suffix of the per-asset index/counter keys (SPEC §12.2):
+#: The reserved suffix of the per-asset index/counter keys:
 #: ``{...}:res:<asset>:idx`` / ``{...}:cmt:<asset>:idx`` (``_lua`` ``resIdx``/``cmtIdx``).
 _RESERVED_KEY_SUFFIXES: frozenset[str] = frozenset({"idx", "total", "exposed", "limits"})
 
 
 def _reservation_id_aliases_key(reservation_id: str) -> bool:
-    """True when ``reservation_id`` aliases a reserved index/counter/limits key (O48/O54).
+    """True when ``reservation_id`` aliases a reserved index/counter/limits key.
 
     ``resKey(asset, id) = ...:res:<asset>:<id>`` while
     ``resIdx(asset) = ...:res:<asset>:idx``, so ``id == "idx"`` maps a reservation HASH onto
     the index ZSET key; likewise ``resKey(A, "total") = ...:res:A:total`` equals
     ``totalKey("res:A")``, so an ``id`` equal to a counter/limits suffix bricks a
-    ``res:``/``cmt:``-prefixed pseudo-asset ledger (O54). And because the key builders join
+    ``res:``/``cmt:``-prefixed pseudo-asset ledger. And because the key builders join
     components with ``:``, an ``id`` containing ``:`` re-parses to a different
     ``(asset, id)`` pair whose final segment can be a reserved suffix
     (``asset="A", id="B:idx"`` == ``resIdx("A:B")``). Every such collision corrupts the
@@ -284,7 +284,7 @@ def _reservation_id_aliases_key(reservation_id: str) -> bool:
 def _assert_reservation_id_safe(
     reservation_id: str, *, request_id: str = "spend-store", asset_id: str | None = None
 ) -> None:
-    """Fail closed with a typed :class:`ConfigurationError` before any Redis write (O48).
+    """Fail closed with a typed :class:`ConfigurationError` before any Redis write.
 
     Does not change the frozen SPEC §12.2 key layout: it refuses the pathological caller
     input that would alias a reserved key. Store-generated UUIDv7 ids never match.
@@ -300,7 +300,7 @@ def _assert_reservation_id_safe(
 
 
 def _is_store_unreachable(error: BaseException) -> bool:
-    """True when ``error`` is a store-*unreachable* failure, not a server reply (U9).
+    """True when ``error`` is a store-*unreachable* failure, not a server reply.
 
     A ``ResponseError`` (``WRONGTYPE``, a Lua ``error()``, ``NOSCRIPT``) means the server
     was reached and answered, never a transport outage. A connection refused / timeout /
@@ -329,8 +329,8 @@ def _reclassify_unreachable(kind: str) -> Iterator[None]:
     """Reclassify a store-unreachable failure in the block as a typed ``TransportError``.
 
     Works for both the sync and async stores: an awaited coroutine that fails raises at
-    the ``await`` site inside this block, so a plain (sync) context manager catches it
-    (U9). A typed tx402 error or a server reply error passes through unchanged.
+    the ``await`` site inside this block, so a plain (sync) context manager catches it.
+    A typed tx402 error or a server reply error passes through unchanged.
     """
     try:
         yield
@@ -593,7 +593,7 @@ class RedisSpendStore:
 
     def get_recipient_pins(self, scope: str, network: str) -> tuple[str, ...]:
         # A store outage here is a typed retryable TransportError, exactly as
-        # get_budget_state already is (O53) — never a raw redis-py ConnectionError (which
+        # get_budget_state already is — never a raw redis-py ConnectionError (which
         # embeds host:port) leaking to the CLI `pins` verb, which must exit 7, not 2. The
         # S14f U9 fix missed this sibling read.
         with _reclassify_unreachable(self.kind):
@@ -646,7 +646,7 @@ class RedisSpendStore:
         asset_id = canonicalize_asset(asset_id)  # SPEC §6.4/U16
         # ONE atom (DEL + conditional HSET), not a client-side DEL-then-HSET: a reserve
         # racing it sees the whole old or whole new cap, never a torn value, and a
-        # failure never deletes the cap (O26). Replace: an absent field is removed.
+        # failure never deletes the cap. Replace: an absent field is removed.
         self._run(
             _lua.SET_LIMITS,
             _SHA["set_limits"],
@@ -663,8 +663,8 @@ class RedisSpendStore:
     def get_budget_limits(self, scope: str, asset_id: str) -> BudgetLimits:
         # get_budget_limits is an admin-plane read (SPEC §3.1, part of SpendStoreAdmin): the
         # DO gates it and the gateway 403s a data token, so the raw Redis store requires an
-        # admin credential too (O55). No disclosure changes — the administered caps stay
-        # data-readable via get_budget_state. A store outage is a TransportError (O53).
+        # admin credential too. No disclosure changes — the administered caps stay
+        # data-readable via get_budget_state. A store outage is a TransportError.
         self._require_admin()
         asset_id = canonicalize_asset(asset_id)  # SPEC §6.4/U16
         with _reclassify_unreachable(self.kind):
@@ -723,7 +723,7 @@ class RedisSpendStore:
         asset_id = canonicalize_asset(asset_id)  # SPEC §6.4/U16
         self._client.delete(self._keys.scope(scope, f"{asset_id}:total"))
 
-    # ── test-only harness helpers (SPEC §3.4a/§3.6) ───────────────────────────────────────
+    # ── test-only harness helpers ───────────────────────────────────────
 
     def set_backend_clock(self, now_epoch_ms: int) -> None:
         self._client.set(self._keys.clock(), str(now_epoch_ms))
@@ -761,7 +761,7 @@ class AsyncRedisSpendStore:
 
     Identical contract to :class:`RedisSpendStore`, every method ``async def`` so
     :class:`~tx402.client.AsyncTx402Client` awaits it directly rather than offloading a sync
-    via ``asyncio.to_thread`` (SPEC §3.3, ADR-031).
+    via ``asyncio.to_thread``.
     """
 
     kind = "redis"
@@ -980,7 +980,7 @@ class AsyncRedisSpendStore:
         return _persistence_warning(appendonly)
 
     async def get_recipient_pins(self, scope: str, network: str) -> tuple[str, ...]:
-        # A store outage is a typed retryable TransportError (O53); _reclassify_unreachable
+        # A store outage is a typed retryable TransportError; _reclassify_unreachable
         # is a sync CM that catches the failure raised at the await site inside the block.
         with _reclassify_unreachable(self.kind):
             hash_ = await self._client.hgetall(self._keys.scope(scope, f"pins:{network}"))
@@ -1028,7 +1028,7 @@ class AsyncRedisSpendStore:
     ) -> None:
         self._require_admin()
         asset_id = canonicalize_asset(asset_id)  # SPEC §6.4/U16
-        # ONE atom (DEL + conditional HSET), like the sync path — never torn (O26).
+        # ONE atom (DEL + conditional HSET), like the sync path — never torn.
         await self._run(
             _lua.SET_LIMITS,
             _SHA["set_limits"],
@@ -1043,7 +1043,7 @@ class AsyncRedisSpendStore:
         )
 
     async def get_budget_limits(self, scope: str, asset_id: str) -> BudgetLimits:
-        # Admin-plane read; requires an admin credential (O55). Outage -> transport (O53).
+        # Admin-plane read; requires an admin credential. Outage -> transport.
         self._require_admin()
         asset_id = canonicalize_asset(asset_id)  # SPEC §6.4/U16
         with _reclassify_unreachable(self.kind):

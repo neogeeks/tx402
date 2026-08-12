@@ -4,12 +4,12 @@ SPEC §3, §4.3 and §5.3 make ``SpendStore`` a **public** contract: the only wa
 budget across more than one process is to supply an adapter, so the shape of that adapter
 is part of the product rather than an implementation detail. :class:`SpendStore` below is
 that contract (the **data plane**), :class:`SpendStoreAdmin` is the operator plane with its
-own credentials (ADR-029), and :class:`MemorySpendStore` is the process-local reference that
-implements both (ADR-007).
+own credentials, and :class:`MemorySpendStore` is the process-local reference that
+implements both.
 
 Everything an adapter must honour is stated in :class:`SpendStore`'s docstring, once, and
 the TypeScript ``SpendStore`` interface in ``packages/tx402/src/core/ledger.ts`` carries the
-same text so the two languages cannot describe different contracts (ADR-018).
+same text so the two languages cannot describe different contracts.
 
 An adapter can check itself against this module's semantics with
 :func:`tx402.spend_store_contract.check_spend_store`, which is shipped rather than kept in
@@ -41,7 +41,7 @@ ReservationState = Literal["reserved", "committed", "released", "expired", "expo
 
 @dataclass(frozen=True, slots=True)
 class StoreCapabilities:
-    """Declared store capabilities (SPEC §3.1, ADR-027).
+    """Declared store capabilities.
 
     ``atomic_global_freeze`` gates the ``"*"`` freeze: a store that cannot freeze all
     scopes in one atom (Redis Cluster, id-per-scope DO) declares ``False``.
@@ -66,7 +66,7 @@ class ReservationRef:
 
 @dataclass(frozen=True, slots=True)
 class BudgetLimits:
-    """Caps only (SPEC §3.1, ADR-025); recipient policy has its own setters, not here."""
+    """Caps only; recipient policy has its own setters, not here."""
 
     max_per_hour_atomic: str | None = None
     max_total_atomic: str | None = None
@@ -96,7 +96,7 @@ class SpendEntry:
 
 @dataclass(frozen=True, slots=True)
 class ReserveSpendResult:
-    """``reserve`` returns a RESULT, not the bare reservation (SPEC §3.2, ADR-028).
+    """``reserve`` returns a RESULT, not the bare reservation.
 
     ``recipient_pin_established`` is response-only and never persisted — an idempotent
     id-reuse replay returns ``False`` and does not re-emit ``recipient.pinned``.
@@ -113,14 +113,14 @@ class BudgetState:
     reserved_atomic: str
     entries: tuple[SpendEntry, ...]
     reservations: tuple[SpendReservation, ...]
-    #: The ledger these totals describe — the normalized merchant host (ADR-018).
+    #: The ledger these totals describe — the normalized merchant host.
     #:
     #: ``None`` only on the empty snapshot a client returns before it has paid anything.
     policy_scope: str | None = None
     asset_id: str | None = None
-    #: Sum of exposed (maybe-settled) reservations for this scope+asset (SPEC §7, ADR-026).
+    #: Sum of exposed (maybe-settled) reservations for this scope+asset.
     exposed_atomic: str | None = None
-    #: Lifetime committed for this scope+asset — survives the rolling window (ADR-025).
+    #: Lifetime committed for this scope+asset — survives the rolling window.
     cumulative_committed_atomic: str | None = None
     #: ``cumulative_committed + exposed_total + reserved_only``, every amount in one term.
     cumulative_consumed_atomic: str | None = None
@@ -132,13 +132,13 @@ class BudgetState:
     available_per_hour_atomic: str | None = None
     #: Computed when a cumulative limit is known: ``max(0, limit - cumulative_consumed)``.
     available_cumulative_atomic: str | None = None
-    #: True when ``policy_scope`` OR the global ``"*"`` scope is frozen (ADR-027).
+    #: True when ``policy_scope`` OR the global ``"*"`` scope is frozen.
     frozen: bool | None = None
 
 
 @runtime_checkable
 class SpendStore(Protocol):
-    """The pluggable spend ledger — the DATA plane (SPEC §3.1, §4.3, §5.3).
+    """The pluggable spend ledger — the DATA plane.
 
     Implement this to share one budget across processes; :class:`MemorySpendStore` is the
     process-local default. Structural, not nominal: an adapter does not import or subclass
@@ -154,7 +154,7 @@ class SpendStore(Protocol):
       identity.** A sharded store cannot detect a *wrong* scope — it routes to that scope's
       shard and finds nothing — so a ref whose triple names no record is a single typed
       ``reservation-not-found`` :class:`~tx402.errors.ConfigurationError`, identical across
-      every adapter (SPEC §3.1).
+      every adapter.
     - **Money is an atomic-unit decimal string throughout.** Never a float.
     - **:meth:`reserve` is atomic.** The cap comparison and the insert are one operation
       under one lock or one transaction. This is SEC-002's guarantee.
@@ -212,7 +212,7 @@ class SpendStore(Protocol):
         ...
 
     def expose(self, *, ref: ReservationRef, now_epoch_ms: int) -> SpendReservation:
-        """The durable pre-transmit fence (SPEC §7): reserved -> exposed, non-expiring."""
+        """The durable pre-transmit fence: reserved -> exposed, non-expiring."""
         ...
 
     def get_budget_state(
@@ -234,7 +234,7 @@ class SpendStore(Protocol):
 
 @runtime_checkable
 class AsyncSpendStore(Protocol):
-    """The async twin of :class:`SpendStore` (SPEC §3.3, ADR-031).
+    """The async twin of :class:`SpendStore`.
 
     Identical contract, every data-plane method ``async def``. :class:`AsyncTx402Client`
     awaits it directly; a synchronous :class:`SpendStore` is offloaded via
@@ -292,7 +292,7 @@ class AsyncSpendStore(Protocol):
 class RecipientPinStore(Protocol):
     """Optional TOFU/allowlist capability (data-plane, SPEC §3.1, ADR-028).
 
-    Enforcement is authoritative INSIDE ``reserve`` (SPEC §3.4); these read for the
+    Enforcement is authoritative INSIDE ``reserve``; these read for the
     advisory pre-filter and the CLI. There is no set-if-absent op on the request path.
     """
 
@@ -317,7 +317,7 @@ class AsyncRecipientPinStore(Protocol):
 
 @runtime_checkable
 class SpendStoreAdmin(Protocol):
-    """The admin plane (SPEC §3.1, ADR-029). Operator only, SEPARATE credentials.
+    """The admin plane. Operator only, SEPARATE credentials.
 
     Never handed to the agent path. The reference ``MemorySpendStore`` implements it on
     the same object — in-process it has no credential separation, which is acceptable and
@@ -355,7 +355,7 @@ class SpendStoreAdmin(Protocol):
 
 
 #: The data-plane surface a client validates at construction. Admin methods are NOT here — a
-#: data credential must not be able to freeze or set limits (ADR-029).
+#: data credential must not be able to freeze or set limits.
 _SPEND_STORE_METHODS = (
     "reserve",
     "commit",
@@ -374,7 +374,7 @@ def assert_spend_store(candidate: object) -> None:
     the check worth making here: a store's *behaviour* cannot be verified by introspection,
     and :func:`tx402.spend_store_contract.check_spend_store` exists for that. What this
     stops is the failure mode the audit found — a lookalike accepted by duck typing and
-    discovered to be missing a method in the middle of a payment (O54).
+    discovered to be missing a method in the middle of a payment.
 
     Works for both a sync :class:`SpendStore` and an :class:`AsyncSpendStore`: the method
     names are the same and ``capabilities`` must be present with a boolean
@@ -403,7 +403,7 @@ def assert_spend_store(candidate: object) -> None:
 
 
 def _reservation_not_found(ref: ReservationRef) -> ConfigurationError:
-    """The typed envelope for a ref that names no record (SPEC §3.1/§3.4)."""
+    """The typed envelope for a ref that names no record."""
     return ConfigurationError(
         "The reservation ref names no record",
         context=Tx402ErrorContext(
@@ -439,7 +439,7 @@ def _cap_exceeds_administered(config_path: str) -> ConfigurationError:
 
 
 def canonicalize_recipient(network: str, value: str) -> str:
-    """Canonicalize a recipient address for pin comparison (SPEC §6.4).
+    """Canonicalize a recipient address for pin comparison.
 
     eip155 -> lowercase hex (the ``same_address`` rule; no EIP-55 checksum re-derivation).
     Every other family (solana) -> verbatim, since base58 is injective and case-sensitive.
@@ -450,7 +450,7 @@ def canonicalize_recipient(network: str, value: str) -> str:
 
 
 def canonicalize_asset(asset_id: str) -> str:
-    """Canonicalize a CAIP-19 ``asset_id`` for ledger keying (SPEC §6.4, U16).
+    """Canonicalize a CAIP-19 ``asset_id`` for ledger keying.
 
     eip155 assets -> lowercase (the ``erc20:0x...`` contract address is hex and the
     ``eip155:<chain>`` prefix numeric, so lowercasing the whole id matches the §6.4
@@ -469,7 +469,7 @@ _ATOMIC_NON_NEGATIVE = re.compile(r"0|[1-9][0-9]*")
 
 
 def _atomic(value: str, field: str, *, positive: bool = False) -> int:
-    """Parse an atomic-unit integer string, rejecting malformed/negative input (O58).
+    """Parse an atomic-unit integer string, rejecting malformed/negative input.
 
     Mirrors the TypeScript ``atomic`` guard (``core/ledger.ts``): ``positive`` requires
     ``[1-9][0-9]*`` (a strictly positive amount/cap); otherwise ``0|[1-9][0-9]*`` (a
@@ -525,20 +525,20 @@ def _resolve_effective_cap(
 
 
 class MemorySpendStore:
-    """Single-process store implementing both the data and admin planes (SPEC §3.5).
+    """Single-process store implementing both the data and admin planes.
 
-    Atomic operations are protected by a re-entrant lock. Accounting (SPEC §3.4/§3.4a):
+    Atomic operations are protected by a re-entrant lock. Accounting:
 
     - ``_cumulative`` and ``_exposed_total`` are lifetime per-(scope, asset) accumulators.
       The committed lifetime figure cannot be derived by scanning, because committed entries
       are pruned once they fall out of the rolling window; the exposed figure mirrors
       the durable stores, where a scan is not cheap.
     - Rolling-hour figures are derived from the persisted records.
-    - This store uses the caller's ``now_epoch_ms``: one clock, no skew (ADR-030).
+    - This store uses the caller's ``now_epoch_ms``: one clock, no skew.
     """
 
     kind = "memory"
-    # Single process: the global "*" freeze is atomic w.r.t. every reserve (ADR-027).
+    # Single process: the global "*" freeze is atomic w.r.t. every reserve.
     capabilities = StoreCapabilities(atomic_global_freeze=True)
 
     def __init__(self) -> None:
@@ -560,7 +560,7 @@ class MemorySpendStore:
                 current = replace(current, state="expired")
                 self._reservations[key] = current
             # An exposed record never expires and is never pruned until an operator resolves
-            # it (ADR-026): maybe-settled money that keeps consuming the cumulative cap.
+            # it: maybe-settled money that keeps consuming the cumulative cap.
             if current.state == "exposed":
                 continue
             committed_entry = self._entries.get(key)
@@ -680,7 +680,7 @@ class MemorySpendStore:
     ) -> ReserveSpendResult:
         with self._lock:
             asset_id = canonicalize_asset(asset_id)  # SPEC §6.4/U16: canonical asset key
-            # Validate amount + per-hour cap up front (O58), before any pin claim or insert:
+            # Validate amount + per-hour cap up front, before any pin claim or insert:
             # a malformed atomic (which a bare int() would accept) is rejected first.
             amount = _atomic(amount_atomic, "amountAtomic", positive=True)
             cap = _atomic(max_per_hour_atomic, "maxPerHourAtomic", positive=True)
@@ -692,11 +692,11 @@ class MemorySpendStore:
                     or existing.amount_atomic != amount_atomic
                 ):
                     raise ValueError("Reservation ID was reused with different spend data")
-                # No pin is claimed on a replay — the flag is response-only (ADR-028).
+                # No pin is claimed on a replay — the flag is response-only.
                 return ReserveSpendResult(existing, recipient_pin_established=False)
             # Freeze (SPEC §3.4 step 2, D-B1): deny if this scope OR the global "*" scope is
             # frozen. The check and the insert share the lock, so the freeze is atomic vs.
-            # every reserve — atomic_global_freeze is True (ADR-027). A stop-future-authz
+            # every reserve — atomic_global_freeze is True. A stop-future-authz
             # control, never a rollback: an existing (incl. exposed) reservation keeps
             # counting across a freeze and unfreeze preserves it (KS-7, §5.4).
             if policy_scope in self._frozen or "*" in self._frozen:
@@ -720,7 +720,7 @@ class MemorySpendStore:
             # Treat an empty recipient_canonical as NOT presented (guard on None OR ""), so
             # the assertion-required gate fails closed, like the durable Redis/DO stores.
             # Without the "" case the reference store would be the permissive one on a
-            # safety gate (O56); an empty recipient also matches no real allowlist.
+            # safety gate; an empty recipient also matches no real allowlist.
             presented_recipient: str | None = (
                 None
                 if not recipient_canonical or recipient_network is None
@@ -860,7 +860,7 @@ class MemorySpendStore:
                 "reserved",
             )
             self._reservations[key] = reservation
-            # ``recipient_pin_established`` is response-only and never persisted (ADR-028):
+            # ``recipient_pin_established`` is response-only and never persisted:
             # a later id-reuse replay returns the record with it False and re-emits nothing.
             return ReserveSpendResult(
                 reservation, recipient_pin_established=recipient_pin_established
@@ -899,7 +899,7 @@ class MemorySpendStore:
                 reservation.amount_atomic,
                 committed_at_epoch_ms,
                 # An empty settlement_id is "no settlement id" — store None (matching
-                # every adapter round-trips an empty id as absent, not "" (O27).
+                # every adapter round-trips an empty id as absent, not "".
                 settlement_id or None,
             )
             self._entries[key] = entry
@@ -971,11 +971,11 @@ class MemorySpendStore:
         with self._lock:
             return scope in self._frozen or "*" in self._frozen
 
-    # ── Admin plane (SPEC §3.1). In-process, no credential separation (test-only, §3.5). ──
+    # ── Admin plane. In-process, no credential separation (test-only, §3.5). ──
 
     def freeze(self, scope: str, now_epoch_ms: int | None = None) -> None:
         with self._lock:
-            # atomic_global_freeze is True, so "*" is a permitted scope here (ADR-027).
+            # atomic_global_freeze is True, so "*" is a permitted scope here.
             self._frozen.add(scope)
 
     def unfreeze(self, scope: str, now_epoch_ms: int | None = None) -> None:

@@ -1,5 +1,5 @@
 /**
- * RPC contract tests against the local stub (SPEC §7.1, §6.5, §9.1).
+ * RPC contract tests against the local stub.
  *
  * The rule under test is the one SPEC §7.1 states as a MUST: the chain ID an RPC reports has
  * to equal the candidate's before anything it says is trusted, and a mismatch opens that

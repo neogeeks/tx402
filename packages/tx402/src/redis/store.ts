@@ -180,18 +180,18 @@ export interface RedisSpendStoreOptions {
   /**
    * Admin plane. `false` (default) is a DATA-plane store: every admin mutation refuses with
    * `admin-credential-required`, so a compromised agent path cannot freeze a scope, widen a cap,
-   * or rewrite a pin (ADR-029). Set `true` only for the operator store built from the admin
+   * or rewrite a pin. Set `true` only for the operator store built from the admin
    * credential. (the adapter enforces the split; a raw Redis ACL user hardens it.)
    */
   readonly admin?: boolean;
   /**
    * Whether `freeze("*")` is atomic with a reservation. `true` on single-instance Redis (the
    * global flag and the scope's keys share one coordination domain); `false` on Cluster, where
-   * the global key hashes to a different slot (SPEC §5.2/§12.2). Default `true`.
+   * the global key hashes to a different slot. Default `true`.
    */
   readonly atomicGlobalFreeze?: boolean;
   /**
-   * TEST-ONLY. Enables the injectable backend clock (SPEC §3.4a): when set, `setBackendClock`
+   * TEST-ONLY. Enables the injectable backend clock: when set, `setBackendClock`
    * pins a shared time the atoms window on, and an unpinned op falls back to the caller's clock so
    * the caller-clock single-plane suite (`checkSpendStore`) runs. Production leaves this `false`,
    * so every atom windows on `redis.call('TIME')` and no clock setter has any effect.

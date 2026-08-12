@@ -4,7 +4,7 @@
  * Each assertion below was run against `977b4fc` first and observed to fail there — except
  * the two marked as breadth guards, which pass there by design and are explained below.
  *
- * **O104 is a new sub-shape and worth naming precisely.** The previous batch's rule (ADR-023)
+ * **O104 is a new sub-shape and worth naming precisely.** The previous batch's rule
  * says behavioural prose must be written from execution. That addresses a sentence being wrong
  * *when written*. O104 is a sentence that enumerated a closed set, was already missing a member
  * on the day it was written, and then had a *fifth* member added underneath it by a later

@@ -2,7 +2,7 @@
  * Convert a base58 Solana secret key into the 64-byte JSON array the live suite reads.
  *
  * Wallets and `solana-keygen` show base58; `createKeyPairSignerFromBytes` takes bytes. That
- * mismatch is one of the three silent-skip traps recorded as PLAN.md open item O33.
+ * mismatch is one of the three recorded silent-skip traps.
  *
  * Input arrives through `TX402_B58_IN` rather than argv so the key never appears in `ps`.
  * Output is the array only, so the caller can capture it with `$(...)` without it reaching

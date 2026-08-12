@@ -1,6 +1,6 @@
 /**
- * Turns the store-config environment (SPEC §9.1) into a live {@link SpendStore} for the
- * operator verbs (SPEC §10).
+ * Turns the store-config environment into a live {@link SpendStore} for the
+ * operator verbs.
  *
  * The contract is exactly SPEC §9.1's env table:
  *
@@ -17,9 +17,9 @@
  *
  * The data/admin split is the whole point: an admin verb resolved with only a data credential
  * is refused **here**, before the backend is touched, with the same
- * `admin-credential-required` identity the durable stores raise (SPEC §9.1). The refusal is a
+ * `admin-credential-required` identity the durable stores raise. The refusal is a
  * `ConfigurationError` → CLI exit 2 (SPEC §10 reuses the existing exit numbers). A store
- * *outage* while a verb runs is a `TransportError` → exit 7 (SPEC §11).
+ * *outage* while a verb runs is a `TransportError` → exit 7.
  *
  * `tx402/redis` and `tx402/gateway` are loaded lazily so the verbs' help path — and the whole
  * of `tx402 call` — never pull a Redis client or the gateway wire code, and neither counts
@@ -56,14 +56,14 @@ function configError(
 }
 
 /**
- * Mask any `user:password@` credential in a DSN before it is rendered into an error or log (O28).
+ * Mask any `user:password@` credential in a DSN before it is rendered into an error or log.
  * Handles `scheme://user:pass@host` and a scheme-less `user:pass@host`; a credential-free DSN is
  * returned unchanged. Exported so the operator verbs render every DSN through the same redactor.
  */
 export function redactDsn(dsn: string): string {
   // Mask the WHOLE userinfo, up to the LAST `@` before the path (the userinfo/host separator — a
   // host cannot contain `@`). `[^/\s]+` spans an unencoded `@` inside a password
-  // (`redis://user:p@ss@host`), so the suffix is not left in the clear (O28/O41l). `[^/\s]` still
+  // (`redis://user:p@ss@host`), so the suffix is not left in the clear. `[^/\s]` still
   // stops at the first `/`, so a `@` in the path is untouched (it is not a credential).
   return dsn.replace(/(^|\/\/)([^/\s]+)@/u, (_match, prefix: string) => `${prefix}***@`);
 }
@@ -149,7 +149,7 @@ export async function resolveSpendStore(
   }
 
   throw configError(
-    // Redact any embedded credential before echoing the DSN (O28).
+    // Redact any embedded credential before echoing the DSN.
     `Unsupported TX402_SPEND_STORE ${JSON.stringify(redactDsn(dsn))}. Use a gateway URL ` +
       "(https://…) or a Redis DSN (redis://… / rediss://…).",
     "TX402_SPEND_STORE",

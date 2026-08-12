@@ -1,4 +1,4 @@
-"""tx402-owned synchronous and asynchronous HTTPX transports (SPEC §4.2, §6).
+"""tx402-owned synchronous and asynchronous HTTPX transports.
 
 The ordering in :meth:`_Core.attempt` is the security-critical part of this module and is
 not an implementation detail::
@@ -128,7 +128,7 @@ _REDIRECT_STATUSES: Final = frozenset({301, 302, 303, 307, 308})
 
 #: ``details["reason"]`` when settlement succeeded and the store could not record it.
 #:
-#: Exported so a caller can branch on it without matching a message string (ADR-017).
+#: Exported so a caller can branch on it without matching a message string.
 SPEND_STORE_COMMIT_FAILED_REASON: Final = "spend-store-commit-failed"
 
 #: ``details["causeCategory"]`` when the store failed before anything was signed.
@@ -291,7 +291,7 @@ def _retry_request(
     *,
     disable_request_id_header: bool,
 ) -> httpx.Request:
-    """Clones the original request and adds exactly one PAYMENT-SIGNATURE (SPEC §6.7).
+    """Clones the original request and adds exactly one PAYMENT-SIGNATURE.
 
     A caller's ``Idempotency-Key`` survives because the whole header set is copied; tx402
     never synthesizes one, because merchant semantics are unknown.
@@ -352,7 +352,7 @@ def _origin(url: httpx.URL) -> str:
 SETTLEMENT_ABSENT_REASON: Final = "payment-response-absent"
 
 #: A 402 re-challenge whose ``PAYMENT-REQUIRED`` does not decode, after a
-#: signature (ADR-022).
+#: signature.
 RECHALLENGE_UNDECODABLE_REASON: Final = "rechallenge-undecodable"
 
 #: Diagnostic reason for a merchant whose settlement metadata does not decode.
@@ -362,21 +362,21 @@ SETTLEMENT_UNPARSEABLE_REASON: Final = "payment-response-unparseable"
 def _read_payment_response(
     response: httpx.Response,
 ) -> tuple[SettlementEvidence, str | None]:
-    """Reads PAYMENT-RESPONSE, on **every** status (SPEC §5.3, ADR-016).
+    """Reads PAYMENT-RESPONSE, on **every** status.
 
     Three things about this function are load-bearing, and each was wrong once:
 
     - It is called whatever the merchant's status line says. A 403 or a 500 carrying a
       successful settlement is exactly the case SPEC §5.3 legislates for, and it cannot be
-      handled by a disposition table that never sees the evidence (O44).
+      handled by a disposition table that never sees the evidence.
     - Absent and undecodable are **different** evidence values. Upstream marks the header
       optional, so absent is forgiven; a header that is present and does not decode is a
-      protocol violation and is evidence of nothing (O53).
+      protocol violation and is evidence of nothing.
     - **It emits nothing.** Evidence is not an outcome. Previously the absent branch logged
       ``payment.completed`` with ``paid=True`` from here, which is only true when that
       evidence later reaches the table's commit row — a headerless 403 refusal and a
       headerless 402 re-challenge both produced a paid-success event for a call that paid
-      nothing (O57). The reader now returns evidence and the disposition decides what, if
+      nothing. The reader now returns evidence and the disposition decides what, if
       anything, is reported. The two reasons stay distinct wherever they are reported:
       "the merchant sent no settlement metadata" and "the merchant sent metadata I could
       not parse" point at different bugs on the merchant's side.
@@ -427,7 +427,7 @@ class _Rechallenged:
 
 
 def _ref(reservation: SpendReservation) -> ReservationRef:
-    """The durable locator for a reservation (SPEC §3.1): its full scope+asset+id triple."""
+    """The durable locator for a reservation: its full scope+asset+id triple."""
     return ReservationRef(
         reservation.reservation_id, reservation.policy_scope, reservation.asset_id
     )
@@ -459,7 +459,7 @@ class _Core:
         self.policy = policy
         self.spend_store = spend_store
         # An AsyncSpendStore is awaited directly; a sync SpendStore is offloaded to a worker
-        # thread so it never blocks the event loop on the async client (SPEC §3.3, ADR-031).
+        # thread so it never blocks the event loop on the async client.
         self.store_is_async = inspect.iscoroutinefunction(
             getattr(spend_store, "reserve", None)
         )
@@ -471,7 +471,7 @@ class _Core:
         self.disable_request_id_header = disable_request_id_header
         self.logger = logger
         self.monotonic = monotonic
-        #: The one health index (SPEC §6.5). Every RPC pool in every adapter reports here.
+        #: The one health index. Every RPC pool in every adapter reports here.
         self.health = HealthIndex()
         self._rpc_transports = {
             "eip155": evm_rpc_transport,
@@ -515,10 +515,10 @@ class _Core:
         return adapter
 
     def reset_health(self) -> None:
-        """Clears in-memory health metrics. Never touches the spend ledger (SPEC §4.1)."""
+        """Clears in-memory health metrics. Never touches the spend ledger."""
         self.health.reset()
 
-    # -- diagnostics (SPEC §10) ----------------------------------------------------------
+    # -- diagnostics ----------------------------------------------------------
     #
     # These live on the core rather than in each transport so the sync and async paths emit
     # identical streams by construction. Duplicating them per transport is how the two
@@ -641,7 +641,7 @@ class _Core:
                 spend_store=self.spend_store,
             )
         except RecipientUnpinnedError as error:
-            # The advisory recipient pre-filter dropped every route (SPEC §6.2). One
+            # The advisory recipient pre-filter dropped every route. One
             # recipient.rejected for this attempt, then the non-retryable refusal raises.
             self._emit_recipient_rejected(request_id, error)
             raise
@@ -651,7 +651,7 @@ class _Core:
     async def decide_async(
         self, payment_required: Mapping[str, Any], request_id: str, host: str
     ) -> PolicyDecision:
-        """Async :meth:`decide` — budget/recipient reads awaited/offloaded (SPEC §3.3)."""
+        """Async :meth:`decide` — budget/recipient reads awaited/offloaded."""
 
         async def read_budget(
             *, policy_scope: str, asset_id: str, now_epoch_ms: int
@@ -860,7 +860,7 @@ class _Core:
     # -- reservation and signing ---------------------------------------------------------
 
     async def _dispatch(self, call: Callable[[], Any]) -> Any:
-        """Runs one store call off the event loop (SPEC §3.3, ADR-031).
+        """Runs one store call off the event loop.
 
         An :class:`~tx402.ledger.AsyncSpendStore` is awaited directly; a synchronous
         :class:`~tx402.ledger.SpendStore` is offloaded to a thread so a network-backed
@@ -886,8 +886,8 @@ class _Core:
     def _emit_frozen(self, request_id: str, error: SpendScopeFrozenError) -> None:
         """``spend.frozen`` at ``warn`` — reserve denied because the scope is frozen.
 
-        One per denied reserve (SPEC §11). A frozen scope is an authoritative policy
-        refusal, not an outage (SPEC §5.3), so it is emitted here rather than converted to a
+        One per denied reserve. A frozen scope is an authoritative policy
+        refusal, not an outage, so it is emitted here rather than converted to a
         transport failure.
         """
         emit(
@@ -923,7 +923,7 @@ class _Core:
         network: str,
         recipient: str,
     ) -> None:
-        """``recipient.pinned`` at ``info`` — a TOFU pin established in reserve (SPEC §11).
+        """``recipient.pinned`` at ``info`` — a TOFU pin established in reserve.
 
         Emitted only when ``recipient_pin_established`` is True, so exactly one worker logs
         the establishment and an id-reuse replay logs nothing (ADR-028 replay-safety).
@@ -944,7 +944,7 @@ class _Core:
     def _emit_recipient_rejected(
         self, request_id: str, error: RecipientUnpinnedError
     ) -> None:
-        """``recipient.rejected`` at ``warn`` (SPEC §11), one per attempt whose recipient
+        """``recipient.rejected`` at ``warn``, one per attempt whose recipient
         was refused — advisorily in ``evaluate`` (§6.2) or authoritatively in ``reserve``
         (§3.4). ``network``/``presentedRecipient`` are carried when known (absent for
         ``assertion-required``); a store OUTAGE is a TransportError, not this.
@@ -1007,7 +1007,7 @@ class _Core:
         request_id: str,
         challenge_hash: str,
     ) -> tuple[SpendReservation, str]:
-        """Async :meth:`reserve` — the store call is awaited or offloaded (SPEC §3.3)."""
+        """Async :meth:`reserve` — the store call is awaited or offloaded."""
         item = selection.requirement
         now = self.clock()
         request_hash = fingerprint_request(
@@ -1156,13 +1156,13 @@ class _Core:
 
         A release that cannot be recorded falls back to the store's own GC — a
         never-transmitted ``reserved`` record expires after 120 s, an ``exposed`` one never
-        expires and waits for an operator's ``resolve_exposed`` (ADR-026) — so a store that
+        expires and waits for an operator's ``resolve_exposed`` — so a store that
         cannot release is not a reason to replace a precise failure with a vaguer one.
 
         ``Exception`` rather than ``Tx402Error``: previously only tx402's own errors were
         suppressed, so an adapter raising an ordinary ``KeyError`` or a driver error from
         its own transport replaced a precise pre-transmission failure with a stack trace
-        from the cleanup path (O46). ``BaseException`` is deliberately *not* caught —
+        from the cleanup path. ``BaseException`` is deliberately *not* caught —
         cancellation and ``KeyboardInterrupt`` must still propagate.
         """
         with suppress(Exception):
@@ -1267,7 +1267,7 @@ class _Core:
         request_id: str,
         challenge_hash: str,
     ) -> tuple[SpendReservation, str]:
-        """:meth:`reserve`, with any store outage converted to a typed failure (O46).
+        """:meth:`reserve`, with any store outage converted to a typed failure.
 
         Nothing has been signed here, so a retry is genuinely safe and ``TransportError`` —
         the one ``caller-policy`` retryable code — is the honest classification.
@@ -1285,7 +1285,7 @@ class _Core:
             self._emit_frozen(request_id, error)
             raise
         except RecipientUnpinnedError as error:
-            # Authoritative recipient refusal (SPEC §6.2), non-retryable — a store OUTAGE is
+            # Authoritative recipient refusal, non-retryable — a store OUTAGE is
             # a different path (the generic ``except`` below → TransportError, SS-11).
             self._emit_recipient_rejected(request_id, error)
             raise
@@ -1324,7 +1324,7 @@ class _Core:
     def _reserve_outage(
         self, selection: _Selection, request_id: str, error: Exception
     ) -> TransportError:
-        """A store outage before a signature exists — genuinely retryable (O46, ADR-017)."""
+        """A store outage before a signature exists — genuinely retryable."""
         return TransportError(
             "The spend store could not take a reservation",
             context=Tx402ErrorContext(
@@ -1349,7 +1349,7 @@ class _Core:
         paid: bool | Literal["unknown"] | None = None,
         reservation_id: str | None = None,
     ) -> Tx402ErrorContext:
-        """The post-routing error context, carrying the selected route (SPEC §8).
+        """The post-routing error context, carrying the selected route.
 
         TypeScript builds one such object the moment a route is chosen and spreads it into
         every downstream failure (``client.ts:928``); Python built a bare
@@ -1380,21 +1380,21 @@ class _Core:
         settlement_id: str | None,
         status: int,
     ) -> None:
-        """Commits, or converts the store's failure into one honest typed outcome (ADR-017).
+        """Commits, or converts the store's failure into one honest typed outcome.
 
         The payment has already settled by the time this runs. A store that cannot record
         it has broken tx402's *accounting*, not the merchant's *settlement*, and the two
         must not be conflated:
 
         - It is **not** a transport failure, and it is not an untyped ``RuntimeError``
-          escaping to the caller, which is what the audit reproduced (O46).
+          escaping to the caller, which is what the audit reproduced.
           ``ResourceDeliveryError`` is ``app-dependent``, so ``retryable`` is ``False``.
         - ``paid`` is **``True``**, not ``"unknown"``. The merchant's own metadata reported
           a successful settlement; tx402 knows the money moved and says so.
         - The reservation is deliberately **not** released. The fence ran before
           transmission, so it is ``exposed`` — non-expiring — and keeps counting against
           both the hourly and cumulative caps until an operator reconciles it with
-          ``resolve_exposed`` (ADR-026), the conservative direction to be wrong in.
+          ``resolve_exposed``, the conservative direction to be wrong in.
         """
         try:
             self.spend_store.commit(
@@ -1474,7 +1474,7 @@ class _Core:
         Which class is raised comes from the disposition's ``error_code``, not from this
         method: SPEC §6.1 requires a cross-origin redirect to raise
         ``PaidRedirectBlockedError``, and previously the high-level client swallowed it and
-        reported ``AmbiguousPaymentError`` instead (O52). The money disposition is identical
+        reported ``AmbiguousPaymentError`` instead. The money disposition is identical
         either way — retained to TTL — so the fix is an identity fix and nothing more.
         """
         context = self._route_context(
@@ -1522,7 +1522,7 @@ class _Core:
         attempt: int,
         cause: BaseException,
     ) -> Tx402Error:
-        """A signature-bearing request that never completed (SPEC §6.7).
+        """A signature-bearing request that never completed.
 
         Routed through the disposition table rather than categorized here, so the category
         is the one the frozen ``completion.paid-attempt`` vectors pin in both languages.
@@ -1613,7 +1613,7 @@ class _Core:
         reservation: SpendReservation,
         attempt: int,
     ) -> _Delivered | _Rechallenged:
-        """Async :meth:`settle` — commit/release awaited or offloaded (SPEC §3.3)."""
+        """Async :meth:`settle` — commit/release awaited or offloaded."""
         blocked = _blocked_redirect(response, request, request_id)
         if blocked is not None:
             raise self._settle_blocked(selection, request_id, reservation, attempt, blocked)
@@ -1691,7 +1691,7 @@ class _Core:
     ) -> Tx402Error:
         # Reported here rather than at the read site, because "the merchant's settlement
         # metadata does not decode" only becomes a completion once the table has said the
-        # money is retained and the outcome unknown (O57). "unknown" is the honest value.
+        # money is retained and the outcome unknown. "unknown" is the honest value.
         if disposition.cause_category == MALFORMED_SETTLEMENT_CAUSE:
             emit(
                 self.logger,
@@ -1760,12 +1760,12 @@ class _Core:
         # A decode failure here is a post-transmission outcome and is classified as one: the
         # reservation is already released, a 402 is the merchant declining the payment, and
         # letting the raw PaymentRequiredInvalidError escape would map it to exit 5 ("no
-        # signature was ever produced") when one was produced and transmitted (ADR-022).
+        # signature was ever produced") when one was produced and transmitted.
         try:
             return _Rechallenged(self.decode(response, prepared.request, request_id))
         except Tx402Error as error:
             # Mirrors the TypeScript reference (client.ts:1129) so both CLIs emit the same
-            # --json (O107): spread the decode failure's details first (keeps schemaPath),
+            # --json: spread the decode failure's details first (keeps schemaPath),
             # then let this error's status and reason win.
             raise ResourceDeliveryError(
                 "Merchant re-challenged undecodably",
@@ -1822,7 +1822,7 @@ class _Core:
         request_id: str,
     ) -> _Delivered:
         # The one place a payment really completed, and the only place an absent
-        # header may be reported as completed (O57). SPEC §6.7 forgives the missing
+        # header may be reported as completed. SPEC §6.7 forgives the missing
         # metadata — the pinned protocol marks it optional — so only the severity moves.
         completed: dict[str, object] = {
             "event": "payment.completed",
@@ -1879,8 +1879,8 @@ def _validate_initial_timeout(value: object) -> int | None:
 
     The ``configPath`` reported on failure is the **Python** keyword, not SPEC's
     ``timeouts.initialRequestMs``. An earlier revision reported the SPEC name, reasoning
-    that one spelling across both languages diagnoses the same mistake identically
-    (ADR-005). That trade was wrong in both directions: every other Python ``configPath``
+    that one spelling across both languages diagnoses the same mistake identically.
+    That trade was wrong in both directions: every other Python ``configPath``
     uses the Python spelling — including this field's own sibling
     ``payment_retry_timeout_ms`` — and the SPEC name points at a nested ``timeouts`` object
     that Python does not accept, so the diagnostic named a path the caller could not have
@@ -1903,7 +1903,7 @@ def _validate_logger(logger: object) -> None:
     misconfigured hook into perfect silence: a callable passed where an object belongs
     produced zero events and no error. The suppression stays; accepting a
     value that can never work does not. The TypeScript client checks the same four
-    attributes at the same point (ADR-005).
+    attributes at the same point.
     """
     if not all(
         callable(getattr(logger, name, None)) for name in ("debug", "info", "warn", "error")
@@ -1930,12 +1930,12 @@ def _build_core(
     logger: Tx402Logger,
     monotonic: Monotonic,
 ) -> tuple[_Core, SpendStore]:
-    """Validates configuration synchronously and returns an immutable core (SPEC §4.1).
+    """Validates configuration synchronously and returns an immutable core.
 
     Accepts a sync :class:`~tx402.ledger.SpendStore` or an
     :class:`~tx402.ledger.AsyncSpendStore` (the async client awaits it; the sync client is
     only ever given a sync store). The store is duck-typed on the ``_Core`` handle: the
-    ``_dispatch`` seam awaits or thread-offloads it based on ``store_is_async`` (SPEC §3.3).
+    ``_dispatch`` seam awaits or thread-offloads it based on ``store_is_async``.
     """
     verified = assert_valid_release_manifest(
         manifest,
@@ -1948,17 +1948,17 @@ def _build_core(
     # `is None`, not `or`: a perfectly valid adapter that defines `__len__` or `__bool__`
     # — an empty-at-startup database-backed store is the obvious one — is falsey, and `or`
     # silently replaced it with an in-memory store, so a fleet-wide cap became per-process
-    # without any error (O54). The structural check then rejects a lookalike loudly rather
+    # without any error. The structural check then rejects a lookalike loudly rather
     # than letting duck typing discover the missing method mid-payment.
     resolved = MemorySpendStore() if spend_store is None else spend_store
     assert_spend_store(resolved)
     # Duck-typed onto the sync-typed ``_Core.spend_store`` handle; the ``_dispatch`` seam
-    # handles an async store at runtime (SPEC §3.3). The sync client only ever passes a sync
+    # handles an async store at runtime. The sync client only ever passes a sync
     # store, so its direct calls stay correctly typed.
     store = cast(SpendStore, resolved)
     engine = PolicyEngine(verified, policy, routing, recipient_policy)
     # A mode:"tofu" client MUST fail closed unless the store implements RecipientPinStore
-    # (SPEC §6.1) — the advisory read and the CLI need it. assert_spend_store validates only
+    # — the advisory read and the CLI need it. assert_spend_store validates only
     # the data plane, so this is the one place the pin-store methods are required for tofu.
     if engine.recipient_mode == "tofu" and not (
         callable(getattr(resolved, "get_recipient_pins", None))
@@ -2091,7 +2091,7 @@ class Tx402Transport(httpx.BaseTransport):
         challenge = core.decode(response, request, request_id)
         core.log_payment_required(request_id, challenge)
 
-        # The re-challenge loop (SPEC §6.7). Nothing carries over between attempts: each
+        # The re-challenge loop. Nothing carries over between attempts: each
         # pass re-evaluates policy, re-plans from the new challenge, takes its own
         # reservation, and produces its own signature. The bound lives in the disposition
         # table, not here — `classify_paid_attempt` returns "rechallenge" only while
@@ -2141,7 +2141,7 @@ class Tx402Transport(httpx.BaseTransport):
             raise
 
         core.log_request_retried(request_id, attempt, selection)
-        # Pre-transmission exposure fence (SPEC §7, ADR-026): the signature exists but is
+        # Pre-transmission exposure fence: the signature exists but is
         # not yet on the wire (SEC-002), so the reservation is exposed durably before it can
         # be. Transmission proceeds only if the fence recorded — a failed write releases the
         # (still-un-transmitted) reservation and raises a retryable pre-transmission error.
@@ -2306,10 +2306,10 @@ class AsyncTx402Transport(httpx.AsyncBaseTransport):
             raise
 
         core.log_request_retried(request_id, attempt, selection)
-        # Pre-transmission exposure fence (SPEC §7, ADR-026): the signature exists but is
+        # Pre-transmission exposure fence: the signature exists but is
         # not yet on the wire (SEC-002), so the reservation is exposed durably before it can
         # be. The store call is awaited or thread-offloaded through the same `_dispatch`
-        # seam as reserve/commit (SPEC §3.3); a failed fence releases and aborts transmit.
+        # seam as reserve/commit; a failed fence releases and aborts transmit.
         await core.expose_or_fail_async(
             selection=selection, request_id=request_id, reservation=reservation
         )
@@ -2405,7 +2405,7 @@ class Tx402Client:
         return self._transport.inspect(self._client.build_request(method, url, **kwargs))
 
     def plan(self, method: str, url: str, **kwargs: Any) -> PaymentPlan:
-        """Plans a payment without reserving budget or producing a signature (SPEC §11)."""
+        """Plans a payment without reserving budget or producing a signature."""
         return self._transport.plan(self._client.build_request(method, url, **kwargs))
 
     def get_budget_state(
@@ -2415,12 +2415,12 @@ class Tx402Client:
             policy_scope=policy_scope,
             asset_id=asset_id,
             # Default to the client's CONFIGURED clock, not the system clock, so a
-            # a test/skewed clock governs the default query — matches TS clock.now() (O19).
+            # a test/skewed clock governs the default query — matches TS clock.now().
             now_epoch_ms=self._core.clock() if now_epoch_ms is None else now_epoch_ms,
         )
 
     def reset_health(self) -> None:
-        """Clears in-memory health metrics; does not clear the spend ledger (SPEC §4.1)."""
+        """Clears in-memory health metrics; does not clear the spend ledger."""
         self._core.reset_health()
 
     def get(self, url: str, **kwargs: Any) -> httpx.Response:
@@ -2503,13 +2503,13 @@ class AsyncTx402Client:
         )
 
     async def plan(self, method: str, url: str, **kwargs: Any) -> PaymentPlan:
-        """Plans a payment without reserving budget or producing a signature (SPEC §11)."""
+        """Plans a payment without reserving budget or producing a signature."""
         return await self._transport.plan(self._client.build_request(method, url, **kwargs))
 
     async def get_budget_state(
         self, *, policy_scope: str, asset_id: str, now_epoch_ms: int | None = None
     ) -> BudgetState:
-        """Async budget snapshot — a NAMED break from 0.1 (SPEC §3.3/§14, ADR-031).
+        """Async budget snapshot — a NAMED break from 0.1.
 
         A synchronous accessor cannot read a network-backed store without blocking the loop,
         so on the async client it must be awaited. Sync ``Tx402Client.get_budget_state``
@@ -2518,7 +2518,7 @@ class AsyncTx402Client:
         return await self._core.budget_state_async(
             policy_scope=policy_scope,
             asset_id=asset_id,
-            # The client's CONFIGURED clock, not the system clock (O19) — see the sync path.
+            # The client's CONFIGURED clock, not the system clock — see the sync path.
             now_epoch_ms=self._core.clock() if now_epoch_ms is None else now_epoch_ms,
         )
 

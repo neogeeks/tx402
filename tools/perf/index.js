@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Performance gates (SPEC §12.3), measured exactly as the specification defines them.
+ * Performance gates, measured exactly as the specification defines them.
  *
  *   pnpm perf
  *   TX402_PERF_SCALE=0.1 pnpm perf     # shorten a local smoke run

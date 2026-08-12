@@ -1,10 +1,10 @@
 /**
- * Cross-language CLI `--json` parity — the TypeScript pin (PLAN.md open item **O107**).
+ * Cross-language CLI `--json` parity — the TypeScript pin.
  *
  * `docs/.../guides/cli.mdx` opens by promising both packages emit "the same `--json`
  * document". S34 drove both CLIs across all 17 test-merchant scenarios and found the Python
  * CLI dropped `network`/`scheme`/`amountAtomic`/`assetId` from `error.context` on every
- * post-routing failure (O107). Nothing diffed the two documents, so it shipped.
+ * post-routing failure. Nothing diffed the two documents, so it shipped.
  *
  * `core-spec/cli-json/expected.json` is the canonical document, generated from the
  * TypeScript CLI by `tools/cli-parity`. This test re-derives it from the TypeScript
@@ -35,7 +35,7 @@ import { privateKeyToEvmSigner } from "../src/signers/index.js";
 import { normalize } from "../../../tools/cli-parity/normalize.js";
 import { applySeed } from "../../../tools/store-gateway/seeds.js";
 
-/** The operator-verb scenarios (SPEC §10), the same list the generator and Python pin read. */
+/** The operator-verb scenarios, the same list the generator and Python pin read. */
 const VERB_SCENARIOS = JSON.parse(
   readFileSync(
     fileURLToPath(new URL("../../../tools/store-gateway/scenarios.json", import.meta.url)),

@@ -1,13 +1,13 @@
 /**
  * `tx402/durable-object` — the reference durable {@link import("../core/ledger.js").SpendStore}
- * over a SQLite-backed Cloudflare Durable Object (SPEC §12.3/§12.4).
+ * over a SQLite-backed Cloudflare Durable Object.
  *
- * A subpath export OFF the size-gated core path (ADR-008): `index.ts` never imports it, so it
+ * A subpath export OFF the size-gated core path: `index.ts` never imports it, so it
  * adds zero bytes to the `tx402` core measurement, exactly like `tx402/redis`. Deploy the
  * {@link Tx402SpendStoreDO} class in a Worker (bind it, mark it `new_sqlite_classes`, set the
  * admin secret), then reach it from Worker code with {@link durableObjectSpendStore} (data plane)
  * or {@link DurableObjectSpendStore} with an admin token (operator plane). Non-Worker callers
- * reach it through the capability gateway (SPEC §12.5).
+ * reach it through the capability gateway.
  *
  * @example
  * ```ts

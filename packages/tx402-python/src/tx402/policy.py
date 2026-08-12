@@ -33,7 +33,7 @@ def _recipient_store_outage(
 ) -> BaseException:
     """A recipient-pin/policy STORE read failure in the advisory pre-filter is an
     infra outage — a retryable ``TransportError`` (``recipient-store-unavailable``),
-    fail-closed before any signature (SPEC §6.3, O17). A typed refusal passes through."""
+    fail-closed before any signature. A typed refusal passes through."""
     if isinstance(error, Tx402Error):
         return error
     return TransportError(
@@ -72,7 +72,7 @@ class Policy:
 class RoutingPolicy:
     max_quote_age_ms: int = DEFAULT_MAX_QUOTE_AGE_MS
     prefer_networks: Sequence[str] = ()
-    #: Replaces the signed manifest's RPC endpoints for specific networks (ADR-015).
+    #: Replaces the signed manifest's RPC endpoints for specific networks.
     #:
     #: Keyed by CAIP-2 identifier or alias; the value replaces ``rpcUrls`` for that network
     #: and nothing else. Every other manifest fact — which networks exist, which assets they
@@ -90,7 +90,7 @@ class RoutingPolicy:
 
 @dataclass(frozen=True, slots=True)
 class RecipientPolicy:
-    """Recipient pinning config (SPEC §6.1, ADR-028), passed to :class:`PolicyEngine`.
+    """Recipient pinning config, passed to :class:`PolicyEngine`.
 
     ``mode`` defaults to ``"off"`` (behaviour identical to v0.1.0). ``"allowlist"`` requires
     ``allow``. ``"tofu"`` requires the configured store to implement
@@ -116,7 +116,7 @@ class PolicyRequirement:
     manifest_asset: Mapping[str, Any]
     max_per_request_atomic: str
     max_per_hour_atomic: str
-    #: Present only when a caller cumulative cap is configured (SPEC §4.1).
+    #: Present only when a caller cumulative cap is configured.
     max_total_atomic: str | None = None
 
 
@@ -147,7 +147,7 @@ def _configuration(
 
 
 def normalize_policy_host(url: str) -> str:
-    """The canonical policy host of ``url`` (ADR-018).
+    """The canonical policy host of ``url``.
 
     The canonical form is the **A-label (ASCII) host**: what a WHATWG URL parser produces,
     lowercased, with one trailing root dot removed. ``https://bücher.example/x`` and
@@ -180,7 +180,7 @@ def normalize_policy_host(url: str) -> str:
         host = f"[{host}]"
     # One dot, not every dot: `a.test.` is `a.test`, and `a.test..` keeps the inner one,
     # matching TypeScript's single-anchor strip. The root-label host `.` normalizes to the
-    # empty string in both languages — an accepted, non-routable edge (O43).
+    # empty string in both languages — an accepted, non-routable edge.
     return host[:-1] if host.endswith(".") else host
 
 
@@ -328,7 +328,7 @@ class PolicyEngine:
         # Resolved through the manifest for the same reason preferences are: an override
         # keyed by a misspelled or aliased network must fail at construction rather than
         # silently never applying, which would leave the operator believing their keyed
-        # endpoint is in use while every read still goes to the public one (ADR-015).
+        # endpoint is in use while every read still goes to the public one.
         overrides: dict[str, tuple[str, ...]] = {}
         configured_overrides = route_policy.rpc_overrides or {}
         if not isinstance(configured_overrides, Mapping):
@@ -397,7 +397,7 @@ class PolicyEngine:
                         raise _configuration(
                             "policy.max_total", error.reason, error
                         ) from error
-                    # Ordering: max_total >= max_per_hour >= max_per_request (SPEC §4.1).
+                    # Ordering: max_total >= max_per_hour >= max_per_request.
                     if max_total < per_hour:
                         raise _configuration("policy.max_total", "below-max-per-hour")
                 reference = _asset_reference(asset)
@@ -410,7 +410,7 @@ class PolicyEngine:
                 )
         self._assets = MappingProxyType(assets)
 
-        # Recipient policy (SPEC §6.1, ADR-028). ``mode`` defaults to "off" (opt-in, §14).
+        # Recipient policy. ``mode`` defaults to "off" (opt-in, §14).
         # ``allow`` entries are the advisory pre-filter only; the store is authoritative.
         self.recipient_mode = recipient_config.mode
         if self.recipient_mode not in ("off", "allowlist", "tofu"):
@@ -423,7 +423,7 @@ class PolicyEngine:
             host_value = entry.get("host")
             if not isinstance(host_value, str) or not host_value:
                 raise _configuration(f"{path}.host", "expected-string")
-            # Host and network share the pin's identity with the budget scope (ADR-018);
+            # Host and network share the pin's identity with the budget scope;
             # resolve the network so a misspelled one fails here, not silently later.
             host = normalize_policy_host(f"https://{host_value}")
             network_value = entry.get("network")
@@ -438,7 +438,7 @@ class PolicyEngine:
             recipients = entry.get("recipients")
             # A ``str`` is a Sequence, so exclude it explicitly or it would be iterated
             # character-by-character (the same guard rpc_overrides uses) — parity with the
-            # TypeScript ``Array.isArray`` check (SPEC §6.1).
+            # TypeScript ``Array.isArray`` check.
             if (
                 isinstance(recipients, str)
                 or not isinstance(recipients, Sequence)
@@ -513,7 +513,7 @@ class PolicyEngine:
         read_recipient_pins: Callable[..., Awaitable[Sequence[str]]] | None = None,
         read_recipient_policy: Callable[..., Awaitable[Mapping[str, Any]]] | None = None,
     ) -> PolicyDecision:
-        """Async policy evaluation (SPEC §3.3): the advisory reads are awaited.
+        """Async policy evaluation: the advisory reads are awaited.
 
         ``read_budget_state`` / ``read_recipient_pins`` / ``read_recipient_policy`` are the
         client's dispatchers, which await an async store or offload a sync one to a thread —
@@ -551,7 +551,7 @@ class PolicyEngine:
         self, payment_required: Mapping[str, Any], *, request_id: str
     ) -> tuple[str, Tx402ErrorContext, list[tuple[Mapping[str, Any], _PreparedAsset]]]:
         """Pure candidate selection through scheme/asset — before the recipient advisory
-        (SPEC §6.2) and the per-request cap, both of which run in ``evaluate``/
+         and the per-request cap, both of which run in ``evaluate``/
         ``evaluate_async`` so the recipient read can be sync or async."""
         context = Tx402ErrorContext(request_id=request_id, phase="policy")
         host = self.assert_domain(payment_required["resource"]["url"], request_id, "policy")
@@ -638,7 +638,7 @@ class PolicyEngine:
     def _recipient_unpinned_all_dropped(
         self, host: str, context: Tx402ErrorContext
     ) -> RecipientUnpinnedError:
-        """Every route dropped for a recipient reason (SPEC §6.2). Advisory, so a fast
+        """Every route dropped for a recipient reason. Advisory, so a fast
         user-facing rejection — the store asserts authoritatively in reserve (§3.4)."""
         return RecipientUnpinnedError(
             "No offered recipient is pinned for this scope",
@@ -652,7 +652,7 @@ class PolicyEngine:
         network: str,
         canonical: str,
     ) -> bool | None:
-        """The pure, store-free part of the advisory filter (SPEC §6.2). Returns True (keep)
+        """The pure, store-free part of the advisory filter. Returns True (keep)
         or False (drop) when a static allow entry decides the pair or the mode is
         ``allowlist``; ``None`` means "defer to the store" (tofu, no static entry)."""
         allow = self._recipient_allow.get((host, network))
@@ -665,7 +665,7 @@ class PolicyEngine:
     def _recipient_pins_match(
         self, network: str, canonical: str, pins: Sequence[str]
     ) -> bool:
-        """Whether the presented recipient matches an existing tofu pin (SPEC §6.2/§6.4)."""
+        """Whether the presented recipient matches an existing tofu pin."""
         return canonical in [canonicalize_recipient(network, pin) for pin in pins]
 
     @staticmethod
@@ -674,7 +674,7 @@ class PolicyEngine:
         ``tofu_enabled`` is truthy. A ``None`` / non-mapping policy (a store with no policy
         for this scope, or a pin store missing the method) is 'not provisioned', so it fails
         closed via :meth:`_recipient_no_pin_keep`, not with a raw ``AttributeError``. This
-        matches the TS ``policy?.tofuEnabled !== true`` guard (O38); the callers already map
+        matches the TS ``policy?.tofuEnabled !== true`` guard; the callers already map
         a store outage (an exception on the read) to a retryable outage, so a bare ``None``
         return must not slip past as an unhandled error with no ``request.failed``."""
         return isinstance(policy, Mapping) and bool(policy.get("tofu_enabled"))
@@ -683,7 +683,7 @@ class PolicyEngine:
         self, tofu_enabled: bool, context: Tx402ErrorContext
     ) -> bool:
         """A tofu route with no pin yet: keep (pin_pending) only when TOFU is provisioned,
-        else fail closed (SPEC §6.1). Never writes; the claim is authoritative in reserve.
+        else fail closed. Never writes; the claim is authoritative in reserve.
         """
         if not tofu_enabled:
             raise ConfigurationError(
@@ -703,7 +703,7 @@ class PolicyEngine:
         context: Tx402ErrorContext,
         spend_store: SpendStore,
     ) -> list[tuple[Mapping[str, Any], _PreparedAsset]]:
-        """Synchronous advisory recipient pre-filter (SPEC §6.2). Read-only; reads the pin
+        """Synchronous advisory recipient pre-filter. Read-only; reads the pin
         store directly for tofu routes with no static allow entry. The policy read happens
         ONLY when there is no pin, matching the TypeScript path."""
         kept = []
@@ -740,7 +740,7 @@ class PolicyEngine:
         read_recipient_pins: Callable[..., Awaitable[Sequence[str]]],
         read_recipient_policy: Callable[..., Awaitable[Mapping[str, Any]]],
     ) -> list[tuple[Mapping[str, Any], _PreparedAsset]]:
-        """Async advisory recipient pre-filter (SPEC §6.2, §3.3). The tofu reads are awaited
+        """Async advisory recipient pre-filter. The tofu reads are awaited
         through the client's dispatcher; the policy read runs only when there is no pin."""
         kept = []
         for requirement, asset in supported:

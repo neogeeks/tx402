@@ -6,7 +6,7 @@
 #     . tools/live-env.sh
 #     pnpm --filter tx402 exec vitest run test/base-sepolia.live.test.ts
 #
-# Why this exists (PLAN.md open item O33). Neither vitest nor pytest loads .env, and both
+# Why this exists. Neither vitest nor pytest loads .env, and both
 # live suites skip themselves when their variable is unset. A wrong name, a missing 0x, or
 # a base58 Solana key therefore produces a green run that tested nothing, and the output is
 # indistinguishable from an unfunded wallet. That failure cost a session once. This script

@@ -1,4 +1,4 @@
-"""The Solana / SVM adapter (SPEC §7.2, ADR-013).
+"""The Solana / SVM adapter.
 
 The four ``svm.authorization-plan`` vectors freeze the plan derivation; this suite covers
 what surrounds it — the RPC cluster boundary, the pre-sign transaction validator, and the

@@ -25,7 +25,7 @@ export default defineConfig({
       ],
       reporter: ["text", "lcov"],
       // SPEC §12.1: >=90% line and branch coverage in core modules. Enforced from M0
-      // (PLAN.md open item O11) rather than deferred — the gate is far cheaper to hold from
+      // rather than deferred — the gate is far cheaper to hold from
       // the first core module onward than to reach retroactively across eight milestones.
       thresholds: {
         lines: 90,

@@ -1,4 +1,4 @@
-"""The capability-gateway :class:`~tx402.ledger.SpendStore` client (SPEC §12.5).
+"""The capability-gateway :class:`~tx402.ledger.SpendStore` client.
 
 ``HttpGatewaySpendStore`` (sync, over ``httpx.Client``) and ``AsyncHttpGatewaySpendStore``
 (async, over ``httpx.AsyncClient``) speak the §12.5 wire protocol to any conformant
@@ -12,7 +12,7 @@ Capabilities are fetched ONCE at construction (via :func:`http_gateway_spend_sto
 ``check_durable_spend_store`` selects the right freeze arm — the incapable id-per-scope-DO
 / Redis-Cluster arm, or the capable single-coordinator-DO / single-instance-Redis arm —
 behind the gateway. The data/admin boundary is enforced server-side where the raw
-credential lives (SPEC §9.1): an admin method presented with a data token is refused
+credential lives: an admin method presented with a data token is refused
 ``403`` → a typed ``admin-credential-required`` ``ConfigurationError``. It does NOT close
 the compromised-application spending path (that is 0.3.0, SPEC §1).
 """
@@ -64,12 +64,12 @@ __all__ = [
     "http_gateway_spend_store",
 ]
 
-# ── the wire protocol constants (SPEC §12.5), identical to the TypeScript wire module ──
+# ── the wire protocol constants, identical to the TypeScript wire module ──
 GATEWAY_PROTOCOL_VERSION = 1
 GATEWAY_VERSION_HEADER = "TX402-Gateway-Version"
 GATEWAY_PATH_PREFIX = f"/v{GATEWAY_PROTOCOL_VERSION}"
 
-# ── error translation (SPEC §12.5): every condition maps to an EXISTING taxonomy code ──
+# ── error translation: every condition maps to an EXISTING taxonomy code ──
 _ERROR_CLASSES: dict[str, type[Tx402Error]] = {
     "TX402_CONFIG_INVALID": ConfigurationError,
     "TX402_RESERVED_HEADER": ReservedHeaderError,
@@ -106,7 +106,7 @@ def _context_from_wire(wire: dict[str, Any] | None) -> Tx402ErrorContext:
 
 
 def deserialize_tx402_error(wire: dict[str, Any]) -> Tx402Error:
-    """Reconstruct the EXACT typed error from a wire payload (SPEC §12.5).
+    """Reconstruct the EXACT typed error from a wire payload.
 
     A tx402 typed error the store raised is returned at HTTP 200 as ``{"error": to_dict()}``
     rethrown unchanged here, so a domain refusal round-trips as its exact class and code.
@@ -280,7 +280,7 @@ def _limits_body(limits: BudgetLimits) -> dict[str, str]:
     return body
 
 
-# ── response-envelope validation (SPEC §12.5, O24) ──
+# ── response-envelope validation ──
 #
 # Validate every 200 envelope against the method's expected shape before trusting it: a
 # mistyped result (a string ``"false"`` for a boolean — the previous ``bool()`` coercion
@@ -290,7 +290,7 @@ def _limits_body(limits: BudgetLimits) -> dict[str, str]:
 # An ``atomicAmount`` (SPEC ``common.schema.json``): a non-negative integer STRING, capped
 # at 78 digits, matching the TS ``$defs/atomicAmount`` (``maxLength: 78``). Every input
 # amount and cap is an ``atomicAmount``; an over-width value is a protocol violation the
-# client refuses, identically to TS (O37).
+# client refuses, identically to TS.
 _ATOMIC_RE = re.compile(r"(?:0|[1-9][0-9]{0,77})")
 # An ``atomicAccumulator``: a lifetime aggregate with NO width cap (a cumulative sum can
 # carry past 78 digits). Only ``exposedAtomic`` and the ``cumulative*Atomic`` sums use it,
@@ -354,7 +354,7 @@ def _check_budget_state(raw: Any) -> None:
     _require(_is_atomic(raw.get("committedAtomic")))
     _require(_is_atomic(raw.get("reservedAtomic")))
     # Lifetime accumulators carry no width cap (atomicAccumulator); every other amount is a
-    # 78-capped atomicAmount — the exact split the TS budgetState schema draws (O37).
+    # 78-capped atomicAmount — the exact split the TS budgetState schema draws.
     for field in (
         "exposedAtomic",
         "cumulativeCommittedAtomic",
@@ -460,13 +460,13 @@ def _validate_wire_error(wire: Any) -> None:
 
 
 def _decode(method: str, payload: Any) -> Any:
-    """The validated result of a 200 response, rethrowing a typed error (SPEC §12.5).
+    """The validated result of a 200 response, rethrowing a typed error.
 
     The envelope is a CLOSED shape: exactly ``{"error": …}`` OR exactly ``{"result": …}``
     and nothing else, matching the TS ``oneOf`` of two ``additionalProperties: false``
     envelopes. An extra top-level key (``{result, extra}``) or both keys at once
     (``{error, result}``) is a protocol violation the client refuses — not silently ignored
-    or read as the error (O37)."""
+    or read as the error."""
     _require(isinstance(payload, dict))
     keys = set(payload)
     if keys == {"error"}:
@@ -481,7 +481,7 @@ def _decode(method: str, payload: Any) -> Any:
     return payload["result"]
 
 
-# ── transport hardening (SPEC §12.5, O22) ──
+# ── transport hardening ──
 
 
 def _is_loopback_host(host: str) -> bool:
@@ -490,7 +490,7 @@ def _is_loopback_host(host: str) -> bool:
 
 def _assert_gateway_url(base_url: str) -> None:
     """Require HTTPS; plaintext ``http://`` is permitted only to a loopback host for local
-    development, so the bearer is never sent in the clear (O22). Only checked when this
+    development, so the bearer is never sent in the clear. Only checked when this
     client owns the default transport — a caller-supplied ``httpx`` client owns its own
     (and is how the fixture-replay tests use an ``http://gateway.local`` placeholder)."""
     parts = urlsplit(base_url)
@@ -526,7 +526,7 @@ class HttpGatewaySpendStore:
             self._client = client
         else:
             _assert_gateway_url(self._base_url)
-            # Never follow a redirect: a 3xx must not carry the bearer elsewhere (O22).
+            # Never follow a redirect: a 3xx must not carry the bearer elsewhere.
             self._client = httpx.Client(follow_redirects=False)
 
     def build_request(
@@ -749,7 +749,7 @@ class AsyncHttpGatewaySpendStore:
             self._client = client
         else:
             _assert_gateway_url(self._base_url)
-            # Never follow a redirect: a 3xx must not carry the bearer elsewhere (O22).
+            # Never follow a redirect: a 3xx must not carry the bearer elsewhere.
             self._client = httpx.AsyncClient(follow_redirects=False)
 
     def build_request(

@@ -1,5 +1,5 @@
-// A reference Node capability gateway fronting Redis, for the Python behind-gateway suite
-// (SPEC §12.5). The Python test (`tests/test_gateway_durable.py`) spawns this, reads the JSON
+// A reference Node capability gateway fronting Redis, for the Python behind-gateway suite.
+// The Python test (`tests/test_gateway_durable.py`) spawns this, reads the JSON
 // `{ url }` line it prints on stdout, and drives `check_durable_spend_store` through the Python
 // `HttpGatewaySpendStore` against it — proving a Redis-behind-the-gateway store is byte-identical
 // to a direct one from the Python client. `reset`/`setBackendClock` are done by the Python test

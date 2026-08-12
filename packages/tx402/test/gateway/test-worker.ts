@@ -1,5 +1,5 @@
 /**
- * The TEST Worker for the Python behind-gateway DO suite (SPEC §12.5). It hosts the REFERENCE
+ * The TEST Worker for the Python behind-gateway DO suite. It hosts the REFERENCE
  * gateway core (`handleGatewayRequest`) — the same one `tx402/gateway/worker` uses — under a
  * topology-prefixed path so ONE served instance exercises BOTH topologies, and adds `/test/*`
  * endpoints for the harness's test-only `reset`/`setBackendClock` (the DO stubs are unreachable

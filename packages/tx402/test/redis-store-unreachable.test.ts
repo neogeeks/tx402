@@ -4,7 +4,7 @@
  * does — not an untyped ioredis `MaxRetriesPerRequestError`. This points a `RedisSpendStore` at a
  * port where nothing listens (no live Redis needed, so it runs in the default suite) and asserts
  * each read method classifies the outage as `TX402_TRANSPORT`. U9 covered `getBudgetState`/
- * `listExposed`/`isFrozen`; S14i (O53) adds the three sibling reads the S14f fix left unwrapped:
+ * `listExposed`/`isFrozen`; S14i adds the three sibling reads the S14f fix left unwrapped:
  * `getRecipientPins`/`getRecipientPolicy`/`getBudgetLimits`. Also checks O55 (the admin gate on
  * `getBudgetLimits`). (ADR-023 — a test that RUNS the behaviour.)
  */
@@ -37,7 +37,7 @@ function deadStore(): RedisSpendStore {
   return new RedisSpendStore({ client: deadClient() });
 }
 
-/** getBudgetLimits is admin-gated (O55), so the outage test needs an admin store. */
+/** getBudgetLimits is admin-gated, so the outage test needs an admin store. */
 function deadAdminStore(): RedisSpendStore {
   return new RedisSpendStore({ client: deadClient(), admin: true });
 }

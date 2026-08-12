@@ -1,5 +1,5 @@
 /**
- * T-019 — 50 Base Sepolia + 50 Solana Devnet calls (SPEC §12.2).
+ * T-019 — 50 Base Sepolia + 50 Solana Devnet calls.
  *
  * > **Expected:** Zero SDK-caused signature failures or unhandled exceptions.
  *
@@ -49,12 +49,12 @@ const EVM_KEY = process.env.TX402_BASE_SEPOLIA_PRIVATE_KEY;
 const SVM_KEY = process.env.TX402_SOLANA_DEVNET_KEYPAIR;
 
 /**
- * A keyed RPC endpoint for one network, when the environment supplies one (ADR-015).
+ * A keyed RPC endpoint for one network, when the environment supplies one.
  *
  * The manifest ships keyless public endpoints, and a keyless public endpoint has a per-IP
  * quota: at S12 the Solana leg delivered 8 of 50 and then 429'd, because each Solana payment
  * costs five Devnet requests and both manifest endpoints exhaust at roughly forty from one
- * address (PLAN.md open item O35). Pacing did not help — pacing at 600 ms and at 2 000 ms
+ * address. Pacing did not help — pacing at 600 ms and at 2 000 ms
  * produced the identical cutoff, which is what identified it as a quota rather than a rate.
  *
  * The suite reads the environment and passes the value **in**; the SDK never reads the
@@ -73,7 +73,7 @@ const CALLS = Number.parseInt(process.env.TX402_VOLUME_CALLS ?? "50", 10);
  * Delay between calls, in milliseconds.
  *
  * Pacing, not padding — and deliberately **not** enough to rescue the Solana leg, because
- * the thing blocking it is a request quota rather than a rate. See PLAN.md open item O35:
+ * the thing blocking it is a request quota rather than a rate:
  * each Solana payment costs five Devnet RPC requests, and the manifest's two free keyless
  * endpoints both start returning 429 after roughly forty requests from one IP, whether
  * those arrive over two seconds or over sixteen. Raising this number does not change the

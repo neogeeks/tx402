@@ -1,4 +1,4 @@
-"""The operator verbs (SPEC §10): ``freeze``, ``unfreeze``, ``budget``, ``pins``,
+"""The operator verbs: ``freeze``, ``unfreeze``, ``budget``, ``pins``,
 ``rotate-recipient``.
 
 Mirrors ``packages/tx402/test/cli-verbs.test.ts`` assertion for assertion — the two CLIs are
@@ -6,7 +6,7 @@ one command surface with one exit-code contract, and it stays true only if both 
 the same questions (ADR-023: tests run the behaviour). The verb-logic tests inject
 a real ``MemorySpendStore`` in place of the resolved store, so every assertion is about the
 actual store effect; the store-config tests drive the real resolver through the environment.
-The cross-language ``--json`` shapes are pinned separately by the CLI-json golden (ADR-024).
+The cross-language ``--json`` shapes are pinned separately by the CLI-json golden.
 """
 
 from __future__ import annotations
@@ -200,7 +200,7 @@ def test_budget_defaults_the_asset(monkeypatch: pytest.MonkeyPatch) -> None:
     assert doc["asset"] == ASSET_ID
 
 
-# --- pins / rotate-recipient (SPEC §6/§10) ----------------------------------------------
+# --- pins / rotate-recipient ----------------------------------------------
 
 
 def test_pins_reads_recipients(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -268,7 +268,7 @@ def test_rotate_freeze_before_rotate_warning(monkeypatch: pytest.MonkeyPatch) ->
     unfrozen = _run(["rotate-recipient", SCOPE, "--network", NETWORK, "--to", PIN_A])
     assert "not frozen" in unfrozen["err"]
     assert "freeze the scope before rotating" in unfrozen["err"]
-    # The reader-facing warning must not cite an internal SPEC section (O33).
+    # The reader-facing warning must not cite an internal SPEC section.
     assert "§" not in unfrozen["err"]
     assert "SPEC" not in unfrozen["err"]
 
@@ -285,7 +285,7 @@ def test_rotate_no_warning_on_redis_backend(monkeypatch: pytest.MonkeyPatch) -> 
     assert result["err"] == ""
 
 
-# --- store-config resolution (SPEC §9.1) ------------------------------------------------
+# --- store-config resolution ------------------------------------------------
 
 
 def test_admin_verb_data_only_credential_is_refused() -> None:

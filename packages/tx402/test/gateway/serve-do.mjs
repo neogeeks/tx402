@@ -1,6 +1,6 @@
 // Serve the reference Worker capability gateway (fronting a Durable Object) over local HTTP for the
-// Python behind-gateway suite (SPEC §12.5). It bundles the test worker with esbuild and runs it in a
-// LOCAL Workers runtime via miniflare (workerd) — no Cloudflare account, no network (O2/O8), the same
+// Python behind-gateway suite. It bundles the test worker with esbuild and runs it in a
+// LOCAL Workers runtime via miniflare (workerd) — no Cloudflare account, no network, the same
 // runtime the vitest DO suite uses. The Python test (`tests/test_gateway_durable.py`) spawns this,
 // reads the `{ url }` handshake line, and drives `check_durable_spend_store` over BOTH topologies
 // through the Python `HttpGatewaySpendStore`.

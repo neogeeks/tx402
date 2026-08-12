@@ -35,7 +35,7 @@ from tx402.protocol import decode_payment_required
 from tx402.routing import RouteCandidate, order_route_candidates
 from tx402.solana import plan_exact_svm_authorization
 
-#: Manifest failures all surface to callers as ConfigurationError (SPEC §5.4).
+#: Manifest failures all surface to callers as ConfigurationError.
 MANIFEST_ERROR_CODE: Final = "TX402_CONFIG_INVALID"
 
 
@@ -133,7 +133,7 @@ def _policy_host_normalization(vector: dict[str, Any]) -> None:
 
     The twin of the TypeScript handler. These vectors exist because the trailing-dot rule
     was only ever asserted inside each language's own suite, and a wall-clock-seeded fuzz
-    run was the only thing that ever compared them (PLAN.md O62).
+    run was the only thing that ever compared them.
     """
     assert normalize_policy_host(vector["input"]["url"]) == vector["expected"]["host"]
 
@@ -193,8 +193,8 @@ def _request_fingerprint(vector: dict[str, Any]) -> None:
 def _spend_ledger_behavior(vector: dict[str, Any]) -> None:
     store = MemorySpendStore()
     outcomes: list[dict[str, Any]] = []
-    # The v2 lifecycle ops take the full {policy_scope, asset_id, reservation_id} ref
-    # (SPEC §3.1), but a vector's commit/release op carries only the id — so the driver
+    # The v2 lifecycle ops take the full {policy_scope, asset_id, reservation_id} ref,
+    # but a vector's commit/release op carries only the id — so the driver
     # reconstructs the ref from the reserve that created it (falling back to ref fields a
     # vector supplies directly). No frozen vector changes.
     refs: dict[str, ReservationRef] = {}
@@ -241,7 +241,7 @@ def _spend_ledger_behavior(vector: dict[str, Any]) -> None:
                 )
                 outcomes.append({"outcome": "released", "state": reservation.state})
             elif action == "expose":
-                # The pre-transmission fence (SPEC §7, ADR-026), driven at the store level
+                # The pre-transmission fence, driven at the store level
                 # exactly as the client's store.expose(ref, now) call does it.
                 reservation = store.expose(
                     ref=_ref(operation),
@@ -285,7 +285,7 @@ def _spend_ledger_behavior(vector: dict[str, Any]) -> None:
 
 def _spend_freeze_behavior(vector: dict[str, Any]) -> None:
     store = MemorySpendStore()
-    # Parameterized by the store's declared global-freeze capability (SPEC §5.2, §13). The
+    # Parameterized by the store's declared global-freeze capability. The
     # reference store is atomic_global_freeze=True, so it runs the "outcomes" arm; a durable
     # store that declares False (Redis Cluster, id-per-scope DO — S7/S8) runs
     # "incapableOutcomes", where freeze("*") fails closed instead of freezing. A per-scope

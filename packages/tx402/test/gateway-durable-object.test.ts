@@ -83,7 +83,7 @@ async function gatewayHarness(
   topology: "id-per-scope" | "single-coordinator",
 ): Promise<DurableSpendStoreHarness> {
   const fetch = workerFetch(workerEnv(topology));
-  // Learn the backend's real capability once, through the gateway (SPEC §12.5).
+  // Learn the backend's real capability once, through the gateway.
   const probe = await httpGatewaySpendStore({
     baseUrl: "http://gw",
     token: DATA_TOKEN,

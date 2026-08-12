@@ -1,5 +1,5 @@
 /**
- * The full JSON Schema (2020-12) for every capability-gateway request and response (SPEC §12.5).
+ * The full JSON Schema (2020-12) for every capability-gateway request and response.
  * It ships with the reference gateway and is PINNED by the gateway golden: `tools/gateway-golden`
  * validates every committed request/response fixture against it and drift-checks the schema itself,
  * so the wire contract cannot change without the golden and the schema moving together.
@@ -346,7 +346,7 @@ export const GATEWAY_ALL_METHODS: readonly string[] = [
   ...GATEWAY_ADMIN_METHODS,
 ];
 
-/** The `$defs` a `$ref` resolves against — passed to {@link matchesWireSchema} (SPEC §12.5). */
+/** The `$defs` a `$ref` resolves against — passed to {@link matchesWireSchema}. */
 export const GATEWAY_WIRE_DEFS: Record<string, Schema> = $defs;
 
 /** The request-body schema for `method`, or `undefined` if it is not a gateway method. */

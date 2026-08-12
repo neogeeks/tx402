@@ -1,5 +1,5 @@
 /**
- * Request deadlines (SPEC §4.3, §6.7).
+ * Request deadlines.
  *
  * These exist because of a defect that reached `main`. Both SDK deadlines — the optional
  * `timeouts.initialRequestMs` and the paid retry's `timeouts.paymentRetryMs` — were built as

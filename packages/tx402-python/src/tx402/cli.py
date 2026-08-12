@@ -1,4 +1,4 @@
-"""``tx402 call`` — the Python console entry point (SPEC §11).
+"""``tx402 call`` — the Python console entry point.
 
 Port of ``packages/tx402/src/cli/{args,exit-codes,run}.ts``. The two CLIs are the same
 command surface, the same flags, the same ``--json`` document, and — the part a user's
@@ -6,11 +6,11 @@ shell script actually depends on — the same exit codes. The three TypeScript m
 one file here because Python's package layout is flat; the section markers below keep the
 correspondence obvious.
 
-**The stdout/stderr contract is load-bearing** (SPEC §11). stdout carries the response
+**The stdout/stderr contract is load-bearing**. stdout carries the response
 body, or exactly one JSON object under ``--json``, and nothing else ever. Every
 diagnostic, warning and error goes to stderr. That is what makes ``tx402 call … >
 out.json`` produce a usable file even when the call emitted warnings, and it is why the
-SDK itself is forbidden from writing to the console at all (SPEC §10) — the CLI renders
+SDK itself is forbidden from writing to the console at all — the CLI renders
 from the structured event stream instead.
 
 **No flag accepts a private key, and none ever will** (SPEC §11, SEC-001). Anything on a
@@ -80,7 +80,7 @@ EXIT_CODE_BY_ERROR: Final[Mapping[str, int]] = {
     TX402_ERROR_CODES["non_replayable"]: EXIT_CODES["usage"],
     TX402_ERROR_CODES["policy_budget"]: EXIT_CODES["policy"],
     TX402_ERROR_CODES["policy_domain"]: EXIT_CODES["policy"],
-    # 0.2.0 (SPEC §5.3, §6.5): a frozen scope and an unpinned recipient are both tx402's own
+    # 0.2.0: a frozen scope and an unpinned recipient are both tx402's own
     # guardrail refusing — policy, exit 3.
     TX402_ERROR_CODES["spend_frozen"]: EXIT_CODES["policy"],
     TX402_ERROR_CODES["recipient_unpinned"]: EXIT_CODES["policy"],
@@ -93,7 +93,7 @@ EXIT_CODE_BY_ERROR: Final[Mapping[str, int]] = {
     TX402_ERROR_CODES["transport"]: EXIT_CODES["transport"],
     TX402_ERROR_CODES["payment_ambiguous"]: EXIT_CODES["ambiguous_payment"],
     TX402_ERROR_CODES["resource_delivery"]: EXIT_CODES["resource_failure"],
-    # Reachable only *after* the signature has been transmitted (SPEC §6.1, ADR-014): the
+    # Reachable only *after* the signature has been transmitted: the
     # block stops the follow-up request, not the original one, so money may already have
     # moved and the reservation is retained. That is exactly what `8` means, and ADR-014
     # said so in prose while this table said `9`. Corrected here.
@@ -139,7 +139,7 @@ def _reclassify_store_read(error: BaseException) -> NoReturn:
         context=Tx402ErrorContext(request_id="spend-store", phase="policy"),
         # Coarse category only (SEC-003) — never the DSN or the redis-py internal message.
         details={"causeCategory": "spend-store-unavailable"},
-    ) from None  # drop the redis-py internal from __context__, like stores/redis.py (O60)
+    ) from None  # drop the redis-py internal from __context__, like stores/redis.py
 
 
 # --- argument parsing (mirrors cli/args.ts) ---------------------------------------------
@@ -151,7 +151,7 @@ _VALUE_FLAGS: Final = frozenset(
         "--max-spend",
         "--network",
         "--timeout",
-        # 0.2.0 operator verbs (SPEC §10).
+        # 0.2.0 operator verbs.
         "--asset",
         "--max-per-hour",
         "--max-total",
@@ -159,7 +159,7 @@ _VALUE_FLAGS: Final = frozenset(
 )
 _METHODS: Final = frozenset({"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"})
 
-#: The five operator verbs (SPEC §10). Anything else that is not ``call`` is a usage error.
+#: The five operator verbs. Anything else that is not ``call`` is a usage error.
 _VERBS: Final = frozenset({"freeze", "unfreeze", "budget", "pins", "rotate-recipient"})
 
 
@@ -192,7 +192,7 @@ class BudgetOptions:
 
     target: str
     network: str
-    #: Token address/mint; ``None`` ⇒ the network's canonical asset (SPEC §10).
+    #: Token address/mint; ``None`` ⇒ the network's canonical asset.
     asset: str | None = None
     #: ``--max-per-hour`` / ``--max-total`` value-flags, atomic units (SPEC §10 P1-8b).
     max_per_hour: str | None = None
@@ -215,7 +215,7 @@ class RotateRecipientOptions:
 
     target: str
     network: str
-    #: The ``--to <addr…>`` set, canonicalized by the verb handler (SPEC §6.4).
+    #: The ``--to <addr…>`` set, canonicalized by the verb handler.
     to: tuple[str, ...] = ()
     json: bool = False
 
@@ -353,10 +353,10 @@ def parse_args(argv: Sequence[str], read_file: Callable[[str], str]) -> ParsedCo
 
 
 def _parse_verb(command: str, rest: list[str]) -> ParsedCommand:
-    """Parses an operator verb (SPEC §10). Port of ``parseVerb`` in ``cli/args.ts``.
+    """Parses an operator verb. Port of ``parseVerb`` in ``cli/args.ts``.
 
     Each verb takes one required positional (its target scope) and a small flag set. A store
-    credential is NEVER a flag (SPEC §9.1) — the verb handler reads it from the environment.
+    credential is NEVER a flag — the verb handler reads it from the environment.
     ``--to`` is the one variadic flag, collecting every following non-flag token.
     """
     target: str | None = None
@@ -497,7 +497,7 @@ def _reject_flags(
 #: and deliberately equal to the TypeScript CLI's: the two emit the same document.
 JSON_SCHEMA_VERSION: Final = 1
 
-#: Documented development-key variables (SPEC §11). Never flags.
+#: Documented development-key variables. Never flags.
 DEV_KEY_ENV: Final[Mapping[str, str]] = {
     "evm": "TX402_DEV_PRIVATE_KEY",
     "solana": "TX402_DEV_SOLANA_KEYPAIR",
@@ -677,7 +677,7 @@ def _resolve_signers(io: CliIo, dry_run: bool) -> dict[str, Any]:
             # Imported here rather than at module scope so the CLI's help and usage paths
             # never load a chain library. `tx402.signers` imports `tx402.evm` at module
             # scope, so a missing `evm` extra raises from the import rather than the call —
-            # which is why the import is inside the try (O79).
+            # which is why the import is inside the try.
             from tx402.signers import private_key_to_evm_signer
 
             signer = private_key_to_evm_signer(evm_key)
@@ -736,7 +736,7 @@ def _render_details_human(io: CliIo, details: Mapping[str, Any]) -> None:
     printed remedy for the most common first error was not followable: exit ``5`` says "No
     allowed payment network was offered" and the documentation says to copy a value out of
     ``offeredNetworks``, but that key reached the operator **only** under ``--json``. A
-    remedy the default output cannot carry is not a remedy (O75).
+    remedy the default output cannot carry is not a remedy.
 
     Printing the whole of ``details`` rather than special-casing one code is deliberate.
     SPEC §8 makes every error's required keys part of its contract, and ``details`` is
@@ -818,7 +818,7 @@ def _settlement_for(
     events: Sequence[Mapping[str, Any]],
     status: str,
 ) -> dict[str, Any] | None:
-    """Reads the settlement facts back out of the ledger after the call (O74).
+    """Reads the settlement facts back out of the ledger after the call.
 
     Port of ``settlementFor`` in ``packages/tx402/src/cli/run.ts``.
 
@@ -826,7 +826,7 @@ def _settlement_for(
     ``payment.completed`` carries ``settlementIdHash``, deliberately: events are the thing
     that ends up in a log aggregator, and a settlement identifier there is a payment graph
     handed to whoever runs the aggregator. The **raw** identifier belongs to the buyer and
-    is kept on their own ``SpendEntry`` (SPEC §5.3), which is process-local. ``--json`` on
+    is kept on their own ``SpendEntry``, which is process-local. ``--json`` on
     the buyer's own stdout is that same trust boundary, so the raw value is correct here
     and the hash stays correct in the events. See ADR-019.
     """
@@ -862,7 +862,7 @@ def _settlement_for(
         "status": status,
         # None when the reservation never committed (an ambiguous outcome), and also when
         # the merchant supplied no settlement identifier — the pinned protocol marks
-        # PAYMENT-RESPONSE optional and that case commits with a warning (SPEC §6.7).
+        # PAYMENT-RESPONSE optional and that case commits with a warning.
         "transaction": None if entry is None else entry.settlement_id,
         "payer": _payer_address(signers, network if isinstance(network, str) else None),
     }
@@ -966,11 +966,11 @@ def _admin_credential_required() -> Any:
 
 
 def _redact_dsn(dsn: str) -> str:
-    """Mask any ``user:password@`` credential in a DSN before it is rendered to a log
-    (O28); a credential-free DSN is returned unchanged. ``[^/\\s]+`` spans an unencoded
+    """Mask any ``user:password@`` credential in a DSN before it is rendered to a log;
+    a credential-free DSN is returned unchanged. ``[^/\\s]+`` spans an unencoded
     ``@`` inside a password (``redis://user:p@ss@host``), so the whole userinfo up to the
     LAST ``@`` before the path is masked (a host cannot contain ``@``), while a ``@`` in the
-    path is left alone (O41l)."""
+    path is left alone."""
     return re.sub(r"(^|//)([^/\s]+)@", r"\1***@", dsn, count=1)
 
 
@@ -979,7 +979,7 @@ def _is_loopback_host(host: str) -> bool:
 
 
 def _assert_gateway_transport(dsn: str) -> None:
-    """Require an HTTPS gateway URL (O22): a plaintext ``http://`` gateway sends the token
+    """Require an HTTPS gateway URL: a plaintext ``http://`` gateway sends the token
     in the clear, so it is refused unless it targets a loopback host (local development)."""
     host = urlsplit(dsn).hostname or ""
     if dsn.startswith("http://") and not _is_loopback_host(host):
@@ -994,7 +994,7 @@ def _assert_gateway_transport(dsn: str) -> None:
 def _resolve_store(
     env: Mapping[str, str], plane: str
 ) -> tuple[Any, str, Callable[[], None]]:
-    """Turns the store-config env (SPEC §9.1) into a store for ``plane``.
+    """Turns the store-config env into a store for ``plane``.
 
     Returns ``(store, kind, dispose)``. An admin verb with only a data credential is
     refused here — before the backend is touched — with the ``admin-credential-required``
@@ -1026,7 +1026,7 @@ def _resolve_store(
         return _resolve_redis(env, dsn, plane)
 
     raise _config_error(
-        # Redact any embedded credential before echoing the DSN (O28).
+        # Redact any embedded credential before echoing the DSN.
         f'Unsupported TX402_SPEND_STORE "{_redact_dsn(dsn)}". Use a gateway URL or '
         "a Redis DSN (redis://… / rediss://…).",
         "TX402_SPEND_STORE",
@@ -1094,7 +1094,7 @@ def _normalize_scope(target: str) -> str:
 
 
 def _resolve_asset_id(network: str, asset: str | None) -> str:
-    """CAIP-19 asset id (SPEC §3.1). ``--asset`` is a token address/mint the network's
+    """CAIP-19 asset id. ``--asset`` is a token address/mint the network's
     family formats; a value already containing ``/`` is a full asset id; absent ⇒ the
     manifest's canonical asset (``assets[0]``)."""
     namespace = "erc20" if network.startswith("eip155:") else "token"
@@ -1265,7 +1265,7 @@ def _run_pins(io: CliIo, options: PinsOptions) -> int:
     try:
         recipients = store.get_recipient_pins(scope, options.network)
         # Report the scope's recipient policy state too (§6.1), so an operator can see WHY a
-        # TOFU route fails closed. Every store the pins verb targets exposes it (O21).
+        # TOFU route fails closed. Every store the pins verb targets exposes it.
         policy = store.get_recipient_policy(scope)
     # O53: an unclassified store-read failure is a transport outage, not a usage error.
     except Exception as error:
@@ -1301,7 +1301,7 @@ def _run_rotate_recipient(io: CliIo, options: RotateRecipientOptions) -> int:
 
     scope = _normalize_scope(options.target)
     now = int(time.time() * 1000)
-    # Canonicalize the new set exactly as reserve compares it (SPEC §6.4).
+    # Canonicalize the new set exactly as reserve compares it.
     recipients = tuple(
         canonicalize_recipient(options.network, address) for address in options.to
     )
@@ -1420,7 +1420,7 @@ def run_cli(io: CliIo) -> int:
     events = io.events
     options: CallOptions | None = None
     # Held outside the `with` so the failure path can still report what it knows about the
-    # money: exit 8 and exit 9 both mean a signature left this process (O74).
+    # money: exit 8 and exit 9 both mean a signature left this process.
     client: Any = None
     signers: dict[str, Any] = {}
 
@@ -1435,7 +1435,7 @@ def run_cli(io: CliIo) -> int:
         if parsed.kind == "version":
             io.stdout(f"{PACKAGE_NAME} {PACKAGE_VERSION}\n")
             return EXIT_CODES["success"]
-        # The operator verbs (SPEC §10) own their whole lifecycle — store resolution, the
+        # The operator verbs own their whole lifecycle — store resolution, the
         # admin/data credential gate, their own `--json` shapes, and error rendering.
         if parsed.kind in _VERBS:
             return run_verb(io, parsed)
@@ -1580,7 +1580,7 @@ def run_cli(io: CliIo) -> int:
             # The two outcomes that tell someone to reconcile are the two that must hand
             # them what to reconcile *with*, without making them re-run the call under
             # `--json` — a re-run of a payment is the one thing this advice exists to
-            # prevent (O74).
+            # prevent.
             if settlement is not None:
                 if settlement["payer"] is not None:
                     io.stderr(f"  {'payer':<28}{settlement['payer']}\n")

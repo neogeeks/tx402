@@ -1,5 +1,5 @@
 /**
- * Deterministic store seeds for the CLI operator-verb `--json` golden (SPEC §10, ADR-024).
+ * Deterministic store seeds for the CLI operator-verb `--json` golden.
  *
  * The five verbs act on a shared store, so their `--json` is a function of the store's *state*.
  * To pin that output byte-for-byte across the TypeScript and Python CLIs, both languages drive
@@ -19,7 +19,7 @@ export const SEED_SCOPE = "api.merchant.example";
 export const SEED_NETWORK = "eip155:8453";
 /** USDC on Base — the manifest's `eip155:8453` asset, so the default-asset path matches too. */
 export const SEED_ASSET_ADDRESS = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
-/** The CAIP-19 asset id the store keys budget by (SPEC §3.1). */
+/** The CAIP-19 asset id the store keys budget by. */
 export const SEED_ASSET_ID = `${SEED_NETWORK}/erc20:${SEED_ASSET_ADDRESS}`;
 
 /** The two admin-allowlist recipients the `governed` seed pins (SPEC §6). */

@@ -293,7 +293,7 @@
       "kind": "policy.host-normalization",
       "milestone": "M0",
       "file": "vectors/policy/double-dot.json",
-      "sha256": "sha256:f0dfc35e4e5a048c5a74b335317b69ec00a7872a9b853608bf7fdfe9fff37e42"
+      "sha256": "sha256:a3c521f1b4c161689519f07bf10d49bfc3d999380bc50f7607ace8621f4d6db1"
     },
     {
       "id": "policy.host-normalization.ipv6",
@@ -307,7 +307,7 @@
       "kind": "policy.host-normalization",
       "milestone": "M0",
       "file": "vectors/policy/root-label.json",
-      "sha256": "sha256:5f10e1866dfa5b49bc6a8536644687ff8e11b2671d36b73a2ddb0351d2f3f0eb"
+      "sha256": "sha256:8e779d895fbc7ad836e782c7bcd7b4eb6c67049f898f7c24ed2741d37fd1a060"
     },
     {
       "id": "policy.host-normalization.trailing-dot",
@@ -321,7 +321,7 @@
       "kind": "policy.host-normalization",
       "milestone": "M0",
       "file": "vectors/policy/unicode-idn.json",
-      "sha256": "sha256:640a504cd10ba401d24e820d8fad06dde9ce22f2e94051e0586a8b4bfd9d49f0"
+      "sha256": "sha256:f392e99ff372f57a7357847915b8b472a3cae1ab942ce88535e32ea0b6a23c37"
     },
     {
       "id": "policy.host-normalization.uppercase",

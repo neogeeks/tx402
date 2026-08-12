@@ -1,5 +1,5 @@
 /**
- * The capability-gateway wire protocol (SPEC §12.5) — the ONE contract the TS and Python
+ * The capability-gateway wire protocol — the ONE contract the TS and Python
  * `httpGatewaySpendStore` clients and the reference gateways (Worker + Node) all speak, so any
  * conformant client interoperates with any conformant gateway.
  *

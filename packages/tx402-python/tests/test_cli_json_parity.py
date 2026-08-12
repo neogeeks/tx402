@@ -1,4 +1,4 @@
-"""Cross-language CLI ``--json`` parity (PLAN.md open item **O107**).
+"""Cross-language CLI ``--json`` parity.
 
 ``docs/src/content/docs/guides/cli.mdx`` opens by promising both packages emit "the same
 ``--json`` document". S34 drove both CLIs across all 17 test-merchant scenarios and found
@@ -190,7 +190,7 @@ def test_python_cli_json_matches_the_cross_language_golden(scenario: str) -> Non
     assert actual["json"] == expected["json"], scenario
 
 
-# --- operator verbs (SPEC §10, ADR-024) -------------------------------------------------
+# --- operator verbs -------------------------------------------------
 #
 # The five verbs act on a shared store, so their `--json` is pinned by driving both CLIs
 # against an identical, deterministically-seeded store (`tools/store-gateway`). Python

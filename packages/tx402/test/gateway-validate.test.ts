@@ -3,7 +3,7 @@
  *
  * `matchesWireSchema` (`gateway/validate.ts`) is the gateway's actual security boundary: it runs
  * where `ajv` cannot (the `tx402/gateway` subpath ships no runtime dependency), validating every
- * request before dispatch (O23) and every response envelope before trust (O24). `validate.ts`'s
+ * request before dispatch and every response envelope before trust. `validate.ts`'s
  * docstring claims a `gateway-validate.test.ts` pins that this hand-written validator AGREES with
  * `ajv` (2020-12) on every committed golden fixture — this file is that test. It compares the two
  * validators' verdicts over the FULL cross-product of every method schema × every golden body (so it
