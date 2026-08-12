@@ -394,11 +394,19 @@ jobs:
           set -euo pipefail
           version="${GITHUB_REF_NAME#v}"
           # Registry propagation is not instantaneous; retry rather than fail on a race.
+          # Exhausting the retries is a FAILURE, not something to fall through: the old loop
+          # ran off the end and let the next command produce the error, which reported a
+          # missing binary instead of "the package never appeared".
+          installed=""
           for attempt in 1 2 3 4 5; do
-            npm install --no-save "tx402@$version" && break
+            if npm install --no-save "tx402@$version"; then installed=yes; break; fi
             echo "attempt $attempt failed, waiting"
             sleep 20
           done
+          if [ -z "$installed" ]; then
+            echo "::error::tx402@$version did not become installable from npm after 5 attempts."
+            exit 1
+          fi
           npx --yes "tx402@$version" --version
           node -e "import('tx402').then(m => { if (typeof m.createTx402Client !== 'function') throw new Error('missing export'); console.log('npm ok'); })"
 
@@ -406,11 +414,22 @@ jobs:
         run: |
           set -euo pipefail
           version="${GITHUB_REF_NAME#v}"
+          # `--clear` is load-bearing, and 0.2.0 is why. PyPI had not propagated yet, so
+          # attempt 1's `uv pip install` failed AFTER `uv venv` had already created `.venv`.
+          # Every later attempt then died at `uv venv` — "a virtual environment already
+          # exists" — so the `&&` chain short-circuited and the install was never retried
+          # even once. The retry loop that existed precisely for propagation lag could not
+          # survive its own first failure. Recreating the environment each time fixes it.
+          installed=""
           for attempt in 1 2 3 4 5; do
-            uv venv && uv pip install "tx402==$version" && break
+            if uv venv --clear && uv pip install "tx402==$version"; then installed=yes; break; fi
             echo "attempt $attempt failed, waiting"
             sleep 20
           done
+          if [ -z "$installed" ]; then
+            echo "::error::tx402==$version did not become installable from PyPI after 5 attempts."
+            exit 1
+          fi
           uv run tx402 --version
           uv run python -c "import tx402; print('pypi ok', tx402.PACKAGE_NAME)"
 
