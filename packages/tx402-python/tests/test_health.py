@@ -1,4 +1,4 @@
-"""The one health index and its circuit (SPEC §6.5).
+"""The one health index and its circuit.
 
 The two ``health.circuit`` conformance vectors already pin the thresholds and the exact
 scores; these cover what a vector cannot conveniently express — the LRU bound, idle
@@ -22,7 +22,7 @@ OTHER = "eip155:8453|backup.example.com"
 #:
 #: Not zero: both SDKs use ``openedAtEpochMs == 0`` as the "circuit closed" sentinel, so an
 #: endpoint opened at epoch 0 would read as closed. The convention is shared, so the fix
-#: is to test at a plausible time rather than give Python its own sentinel (PLAN.md O29).
+#: is to test at a plausible time rather than give Python its own sentinel.
 BASE = 1_785_715_200_000
 
 

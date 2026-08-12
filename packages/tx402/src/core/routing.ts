@@ -1,5 +1,5 @@
 /**
- * Deterministic route planning (SPEC §6.4, §5.2).
+ * Deterministic route planning.
  *
  * The planner is reached only after the policy engine has approved a set of requirements —
  * SPEC §6.3 step 13 makes that ordering a MUST, because this is the first place that talks to
@@ -45,7 +45,7 @@ export type RouteRejectionReason =
   | "chain-identity-mismatch"
   | "circuit-open";
 
-/** One scored route (SPEC §5.2). Every field here is redaction-safe. */
+/** One scored route. Every field here is redaction-safe. */
 export interface RouteCandidate {
   readonly requirementIndex: number;
   readonly network: string;
@@ -113,7 +113,7 @@ export type RouteProbeOutcome =
 
 export interface RoutePlanRequest {
   readonly requirements: readonly PolicyRequirement[];
-  /** `routing.preferNetworks`, already normalized to canonical CAIP-2 (SPEC §4.3). */
+  /** `routing.preferNetworks`, already normalized to canonical CAIP-2. */
   readonly preferNetworks: readonly string[];
   readonly health: HealthIndex;
   readonly nowEpochMs: number;

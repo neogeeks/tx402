@@ -28,14 +28,14 @@ from tx402.fingerprint import (
     normalize_fingerprint_url,
 )
 from tx402.health import HealthIndex
-from tx402.ledger import MemorySpendStore
+from tx402.ledger import MemorySpendStore, ReservationRef
 from tx402.manifest import resolve_network, verify_release_manifest
 from tx402.policy import normalize_policy_host
 from tx402.protocol import decode_payment_required
 from tx402.routing import RouteCandidate, order_route_candidates
 from tx402.solana import plan_exact_svm_authorization
 
-#: Manifest failures all surface to callers as ConfigurationError (SPEC §5.4).
+#: Manifest failures all surface to callers as ConfigurationError.
 MANIFEST_ERROR_CODE: Final = "TX402_CONFIG_INVALID"
 
 
@@ -133,7 +133,7 @@ def _policy_host_normalization(vector: dict[str, Any]) -> None:
 
     The twin of the TypeScript handler. These vectors exist because the trailing-dot rule
     was only ever asserted inside each language's own suite, and a wall-clock-seeded fuzz
-    run was the only thing that ever compared them (PLAN.md O62).
+    run was the only thing that ever compared them.
     """
     assert normalize_policy_host(vector["input"]["url"]) == vector["expected"]["host"]
 
@@ -193,11 +193,23 @@ def _request_fingerprint(vector: dict[str, Any]) -> None:
 def _spend_ledger_behavior(vector: dict[str, Any]) -> None:
     store = MemorySpendStore()
     outcomes: list[dict[str, Any]] = []
+    # The v2 lifecycle ops take the full {policy_scope, asset_id, reservation_id} ref,
+    # but a vector's commit/release op carries only the id — so the driver
+    # reconstructs the ref from the reserve that created it (falling back to ref fields a
+    # vector supplies directly). No frozen vector changes.
+    refs: dict[str, ReservationRef] = {}
+
+    def _ref(op: dict[str, Any]) -> ReservationRef:
+        existing = refs.get(op["reservationId"])
+        if existing is not None:
+            return existing
+        return ReservationRef(op["reservationId"], op["policyScope"], op["assetId"])
+
     for operation in vector["input"]["operations"]:
         action = operation["action"]
         try:
             if action == "reserve":
-                reservation = store.reserve(
+                result = store.reserve(
                     reservation_id=operation["reservationId"],
                     request_id=operation["requestId"],
                     policy_scope=operation["policyScope"],
@@ -205,48 +217,241 @@ def _spend_ledger_behavior(vector: dict[str, Any]) -> None:
                     asset_id=operation["assetId"],
                     amount_atomic=operation["amountAtomic"],
                     max_per_hour_atomic=operation["maxPerHourAtomic"],
+                    max_total_atomic=operation.get("maxTotalAtomic"),
                     now_epoch_ms=operation["nowEpochMs"],
+                )
+                reservation = result.reservation
+                refs[reservation.reservation_id] = ReservationRef(
+                    reservation.reservation_id,
+                    reservation.policy_scope,
+                    reservation.asset_id,
                 )
                 outcomes.append({"outcome": "reserved", "state": reservation.state})
             elif action == "commit":
                 store.commit(
-                    reservation_id=operation["reservationId"],
+                    ref=_ref(operation),
                     committed_at_epoch_ms=operation["committedAtEpochMs"],
                     settlement_id=operation.get("settlementId"),
                 )
                 outcomes.append({"outcome": "committed"})
             elif action == "release":
                 reservation = store.release(
-                    reservation_id=operation["reservationId"],
+                    ref=_ref(operation),
                     now_epoch_ms=operation["nowEpochMs"],
                 )
                 outcomes.append({"outcome": "released", "state": reservation.state})
+            elif action == "expose":
+                # The pre-transmission fence, driven at the store level
+                # exactly as the client's store.expose(ref, now) call does it.
+                reservation = store.expose(
+                    ref=_ref(operation),
+                    now_epoch_ms=operation["nowEpochMs"],
+                )
+                outcomes.append({"outcome": "exposed", "state": reservation.state})
             elif action == "snapshot":
                 state = store.get_budget_state(
                     policy_scope=operation["policyScope"],
                     asset_id=operation["assetId"],
                     now_epoch_ms=operation["nowEpochMs"],
                 )
-                outcomes.append(
-                    {
-                        "outcome": "snapshot",
-                        "committedAtomic": state.committed_atomic,
-                        "reservedAtomic": state.reserved_atomic,
-                        "reservationStates": [
-                            reservation.state for reservation in state.reservations
-                        ],
-                        "entryCount": len(state.entries),
-                    }
-                )
+                outcome: dict[str, Any] = {
+                    "outcome": "snapshot",
+                    "committedAtomic": state.committed_atomic,
+                    "reservedAtomic": state.reserved_atomic,
+                }
+                # The exposure/cumulative counters are the headline figures SPEC §7 pins,
+                # but they are opt-in so pre-0.2.0 ledger vectors keep their four fields.
+                if operation.get("exposure") is True:
+                    outcome["exposedAtomic"] = state.exposed_atomic
+                    outcome["cumulativeCommittedAtomic"] = state.cumulative_committed_atomic
+                    outcome["cumulativeConsumedAtomic"] = state.cumulative_consumed_atomic
+                outcome["reservationStates"] = [
+                    reservation.state for reservation in state.reservations
+                ]
+                outcome["entryCount"] = len(state.entries)
+                outcomes.append(outcome)
             else:
                 raise ValueError(f"Unknown ledger operation {action}")
         except Tx402Error as error:
+            # A BudgetExceededError carries capKind (per-request/per-hour/cumulative);
+            # surface it so a cumulative refusal is told from a per-hour one (same code).
+            error_outcome: dict[str, Any] = {"outcome": "error", "errorCode": error.code}
+            cap_kind = error.details.get("capKind")
+            if isinstance(cap_kind, str):
+                error_outcome["capKind"] = cap_kind
+            outcomes.append(error_outcome)
+    assert outcomes == vector["expected"]["outcomes"]
+
+
+def _spend_freeze_behavior(vector: dict[str, Any]) -> None:
+    store = MemorySpendStore()
+    # Parameterized by the store's declared global-freeze capability. The
+    # reference store is atomic_global_freeze=True, so it runs the "outcomes" arm; a durable
+    # store that declares False (Redis Cluster, id-per-scope DO — S7/S8) runs
+    # "incapableOutcomes", where freeze("*") fails closed instead of freezing. A per-scope
+    # vector omits "incapableOutcomes", so both arms use "outcomes".
+    expected = vector["expected"]
+    incapable = expected.get("incapableOutcomes")
+    if store.capabilities.atomic_global_freeze or incapable is None:
+        arm = expected["outcomes"]
+    else:
+        arm = incapable
+    outcomes: list[dict[str, Any]] = []
+    refs: dict[str, ReservationRef] = {}
+
+    def _ref(op: dict[str, Any]) -> ReservationRef:
+        existing = refs.get(op["reservationId"])
+        if existing is not None:
+            return existing
+        return ReservationRef(op["reservationId"], op["policyScope"], op["assetId"])
+
+    for operation in vector["input"]["operations"]:
+        action = operation["action"]
+        try:
+            if action == "reserve":
+                result = store.reserve(
+                    reservation_id=operation["reservationId"],
+                    request_id=operation["requestId"],
+                    policy_scope=operation["policyScope"],
+                    request_fingerprint=operation["requestFingerprint"],
+                    asset_id=operation["assetId"],
+                    amount_atomic=operation["amountAtomic"],
+                    max_per_hour_atomic=operation["maxPerHourAtomic"],
+                    max_total_atomic=operation.get("maxTotalAtomic"),
+                    now_epoch_ms=operation["nowEpochMs"],
+                )
+                reservation = result.reservation
+                refs[reservation.reservation_id] = ReservationRef(
+                    reservation.reservation_id,
+                    reservation.policy_scope,
+                    reservation.asset_id,
+                )
+                outcomes.append({"outcome": "reserved", "state": reservation.state})
+            elif action == "commit":
+                store.commit(
+                    ref=_ref(operation),
+                    committed_at_epoch_ms=operation["committedAtEpochMs"],
+                    settlement_id=operation.get("settlementId"),
+                )
+                outcomes.append({"outcome": "committed"})
+            elif action == "release":
+                reservation = store.release(
+                    ref=_ref(operation),
+                    now_epoch_ms=operation["nowEpochMs"],
+                )
+                outcomes.append({"outcome": "released", "state": reservation.state})
+            elif action == "expose":
+                reservation = store.expose(
+                    ref=_ref(operation),
+                    now_epoch_ms=operation["nowEpochMs"],
+                )
+                outcomes.append({"outcome": "exposed", "state": reservation.state})
+            elif action == "freeze":
+                store.freeze(operation["scope"], operation.get("nowEpochMs"))
+                outcomes.append({"outcome": "frozen"})
+            elif action == "unfreeze":
+                store.unfreeze(operation["scope"], operation.get("nowEpochMs"))
+                outcomes.append({"outcome": "unfrozen"})
+            elif action == "snapshot":
+                state = store.get_budget_state(
+                    policy_scope=operation["policyScope"],
+                    asset_id=operation["assetId"],
+                    now_epoch_ms=operation["nowEpochMs"],
+                )
+                outcome: dict[str, Any] = {
+                    "outcome": "snapshot",
+                    "committedAtomic": state.committed_atomic,
+                    "reservedAtomic": state.reserved_atomic,
+                    # `frozen` is the headline freeze signal; exposure/cumulative counters
+                    # stay opt-in so a freeze vector only asserts what it cares about.
+                    "frozen": state.frozen,
+                }
+                if operation.get("exposure") is True:
+                    outcome["exposedAtomic"] = state.exposed_atomic
+                    outcome["cumulativeCommittedAtomic"] = state.cumulative_committed_atomic
+                    outcome["cumulativeConsumedAtomic"] = state.cumulative_consumed_atomic
+                outcome["reservationStates"] = [
+                    reservation.state for reservation in state.reservations
+                ]
+                outcome["entryCount"] = len(state.entries)
+                outcomes.append(outcome)
+            else:
+                raise ValueError(f"Unknown freeze operation {action}")
+        except Tx402Error as error:
             outcomes.append({"outcome": "error", "errorCode": error.code})
+    assert outcomes == arm
+
+
+def _recipient_pin_behavior(vector: dict[str, Any]) -> None:
+    store = MemorySpendStore()
+    outcomes: list[dict[str, Any]] = []
+    for operation in vector["input"]["operations"]:
+        action = operation["action"]
+        try:
+            if action == "set-recipient-pins":
+                store.set_recipient_pins(
+                    operation["scope"],
+                    operation["network"],
+                    operation["recipients"],
+                    operation.get("nowEpochMs"),
+                )
+                outcomes.append({"outcome": "pins-set"})
+            elif action == "set-tofu-enabled":
+                store.set_tofu_enabled(
+                    operation["scope"], operation["enabled"], operation.get("nowEpochMs")
+                )
+                outcomes.append({"outcome": "tofu-set"})
+            elif action == "set-recipient-assertion-required":
+                store.set_recipient_assertion_required(
+                    operation["scope"], operation["required"], operation.get("nowEpochMs")
+                )
+                outcomes.append({"outcome": "assertion-set"})
+            elif action == "reserve":
+                # The authoritative assert/claim (SPEC §3.4 step 3): the recipient fields
+                # are asserted against the store's administered set in the reserve atom.
+                result = store.reserve(
+                    reservation_id=operation["reservationId"],
+                    request_id=operation["requestId"],
+                    policy_scope=operation["policyScope"],
+                    request_fingerprint=operation["requestFingerprint"],
+                    asset_id=operation["assetId"],
+                    amount_atomic=operation["amountAtomic"],
+                    max_per_hour_atomic=operation["maxPerHourAtomic"],
+                    recipient_network=operation.get("recipientNetwork"),
+                    recipient_canonical=operation.get("recipientCanonical"),
+                    recipient_enforcement=operation.get("recipientEnforcement"),
+                    now_epoch_ms=operation["nowEpochMs"],
+                )
+                outcomes.append(
+                    {
+                        "outcome": "reserved",
+                        "pinEstablished": result.recipient_pin_established,
+                    }
+                )
+            elif action == "snapshot-pins":
+                recipients = store.get_recipient_pins(
+                    operation["scope"], operation["network"]
+                )
+                outcomes.append({"outcome": "pins", "recipients": list(recipients)})
+            else:
+                raise ValueError(f"Unknown recipient-pin operation {action}")
+        except Tx402Error as error:
+            # Surface the RP-8 conditional details verbatim: ``reason`` always, and
+            # ``network``/``presentedRecipient``/``expectedRecipients`` only when carried
+            # (present for not-allowlisted/pin-mismatch, absent for assertion-required).
+            outcome: dict[str, Any] = {"outcome": "error", "errorCode": error.code}
+            for key in ("reason", "network", "presentedRecipient", "expectedRecipients"):
+                value = error.details.get(key)
+                if value is not None:
+                    outcome[key] = value
+            outcomes.append(outcome)
     assert outcomes == vector["expected"]["outcomes"]
 
 
 register_handler("request.fingerprint", _request_fingerprint)
 register_handler("spend-ledger.behavior", _spend_ledger_behavior)
+register_handler("spend-freeze.behavior", _spend_freeze_behavior)
+register_handler("recipient-pin.behavior", _recipient_pin_behavior)
 
 
 def _evm_authorization_plan(vector: dict[str, Any]) -> None:

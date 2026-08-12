@@ -1,5 +1,5 @@
 /**
- * The RoutePlanner (SPEC §6.4).
+ * The RoutePlanner.
  *
  * Ordering itself is pinned by the shared `routing.candidate-order` vectors, so these tests
  * cover what a vector cannot express: that the probes actually run concurrently, that a
@@ -129,7 +129,7 @@ describe("route ordering", () => {
    * SPEC §6.4 step 19 requires identical output for identical inputs *and health state*.
    * That is a property of `orderRouteCandidates` alone, so it is asserted here on fixed
    * inputs — not through a live client, whose probes re-measure the wall clock on every
-   * pass and so present a different health state each time (PLAN.md open item O34). The
+   * pass and so present a different health state each time. The
    * mirror of this assertion lives in `packages/tx402-python/tests/test_routing.py`.
    */
   it("decides an exact tie on every key above it by requirement index", () => {

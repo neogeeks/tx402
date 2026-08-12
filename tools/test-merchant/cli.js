@@ -79,7 +79,7 @@ for (const key of requirementKeys) {
  * facilitator that rotates its fee payer would otherwise make the documented quickstart
  * fail at `/settle` with a transaction the facilitator will not sign — and the buyer would
  * see a signing-time error for a merchant-side configuration fact. Reading `/supported` is
- * what `tools/ttv` has always done; the quickstart merchant now does it too (PLAN.md O64).
+ * what `tools/ttv` has always done; the quickstart merchant now does it too.
  *
  * A facilitator that cannot be reached, or that publishes no fee payer, leaves the static
  * default in place: this is a test fixture, and failing to start would be a worse answer
@@ -126,7 +126,7 @@ const merchant = await createTestMerchant({
   requirements,
   // Exposed so the documented quickstart can reach a *settled* payment without a public
   // demo merchant. `tools/ttv` has used this since S12; leaving it off the CLI meant the
-  // quickstart could not offer a merchant URL that actually moves money (PLAN.md O50).
+  // quickstart could not offer a merchant URL that actually moves money.
   ...(flags.facilitator === undefined ? {} : { facilitatorUrl: flags.facilitator }),
 });
 

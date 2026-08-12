@@ -1,4 +1,4 @@
-/** Solana / SVM exact-payment adapter (SPEC §7.2, ADR-010). */
+/** Solana / SVM exact-payment adapter. */
 
 import { ExactSvmScheme } from "@x402/svm/exact/client";
 
@@ -32,11 +32,11 @@ import { resolveSolanaPublicKey, toTransactionSigner } from "./signer.js";
 
 export interface SvmChainAdapterOptions {
   readonly rpc?: SvmRpcPoolOptions;
-  /** The client's shared health index (SPEC §6.5, O22). */
+  /** The client's shared health index. */
   readonly health?: HealthIndex;
   /**
    * Caller-supplied RPC endpoints replacing the manifest's, keyed by canonical CAIP-2.
-   * Validated and alias-resolved upstream by `PolicyEngine` (ADR-015).
+   * Validated and alias-resolved upstream by `PolicyEngine`.
    */
   readonly rpcOverrides?: Readonly<Record<string, readonly string[]>>;
 }
@@ -286,7 +286,7 @@ export function createSvmChainAdapter(options: SvmChainAdapterOptions = {}): Cha
         // metadata and a recent blockhash — so a 429 from the endpoint arrives here rather
         // than through tx402's pool. Wrapping every such failure as `SignerError` reported a
         // rate-limited endpoint as a signing fault: wrong category, and wrong `retryable`,
-        // since only `TransportError` is retryable (ADR-011). It was seen once at S12 and
+        // since only `TransportError` is retryable (ADR-011). It was seen once and
         // recorded as the unexplained half of O35.
         //
         // Python does not have this problem — it compiles the transaction itself (ADR-013)

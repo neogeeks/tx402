@@ -18,10 +18,23 @@
     "above did not move and is not affected: it measures tx402's own code and has ~7.7 KiB spare.",
     "This ceiling includes @x402/core and zod, which tx402 does not control.",
     "",
+    "The 0.2.0 S2 amendment moves it to 34 KiB. SpendStore contract v2 (ReservationRef, the",
+    "exposed state and counters, MemorySpendStore v2's admin plane, the ReserveSpendResult",
+    "unwrap in the client) lands on the core path; own code measured 18,866 B (18.42 KiB, ~7 KiB",
+    "under the unchanged blocking gate) and the total measured 33,916 B (33.12 KiB). The 0.2.0",
+    "policy has S2-S6 each re-baseline as they add core code (checkSpendStore ships off-path via",
+    "the tx402/spend-store-contract subpath export, like the chain adapters).",
+    "",
+    "The S6 amendment moves it to 35.5 KiB. Recipient pinning behaviour (SPEC §6 — the reserve",
+    "step-3 assert/claim in ledger.ts, the recipientPolicy config + advisory pre-filter in",
+    "policy.ts, the recipient plumbing + recipient.pinned/rejected emits in client.ts) lands on",
+    "the core path; own code measured 20,503 B (20.02 KiB, ~5 KiB under the unchanged blocking",
+    "gate) and the total measured 35,545 B (34.71 KiB), over the S2 34 KiB ceiling by 729 B.",
+    "",
     "Chain adapters (tx402/evm, tx402/solana) are measured and reported separately and are",
     "excluded from both figures, consistent with the SPEC §12.3 carve-out. That exclusion covers",
     "the lazy import() targets in src/core/chain.ts, which a real bundler code-splits."
   ],
   "ownCodeGzipBytes": { "limit": 25600, "enforced": true },
-  "totalCorePathGzipBytes": { "limit": 33024, "enforced": true }
+  "totalCorePathGzipBytes": { "limit": 36352, "enforced": true }
 }

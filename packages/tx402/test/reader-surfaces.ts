@@ -58,6 +58,9 @@ export function readerSurfaces(): string[] {
   files.push(join(REPO, "README.md"));
   files.push(join(REPO, "packages", "tx402", "README.md"));
   files.push(join(REPO, "packages", "tx402-python", "README.md"));
+  // SECURITY.md ships in the repository and is a reader-facing security posture doc — it must
+  // not point readers at an unpublished ADR/PLAN/PRD either.
+  files.push(join(REPO, "SECURITY.md"));
   return files;
 }
 

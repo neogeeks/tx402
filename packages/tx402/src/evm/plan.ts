@@ -2,7 +2,7 @@
  * Everything the Base adapter decides before it touches the network or a key.
  *
  * Kept as a pure function on purpose. It is the part of the EVM adapter that has to behave
- * identically in Python at S9, it is what the `evm.authorization-plan` conformance vectors
+ * identically in Python, it is what the `evm.authorization-plan` conformance vectors
  * freeze, and it is the part where a mistake is expensive: the plan is what the signer
  * adapter later enforces the EIP-712 message against.
  *
@@ -68,7 +68,7 @@ export interface ExactEvmPlan {
   readonly payer: string;
   readonly recipient: string;
   readonly valueAtomic: string;
-  /** `min(60, merchant maxTimeoutSeconds)` (SPEC §6.6). The bound that is enforced. */
+  /** `min(60, merchant maxTimeoutSeconds)`. The bound that is enforced. */
   readonly lifetimeSeconds: number;
   readonly validAfterSeconds: number;
   /**
@@ -78,7 +78,7 @@ export interface ExactEvmPlan {
    * read *after* upstream has produced the message, because a window computed here would sit
    * a whole second behind upstream's whenever the two clock reads straddle a second boundary.
    * These two fields exist so the derivation is visible, frozen by the conformance vectors,
-   * and reproducible in Python at S9.
+   * and reproducible in Python.
    */
   readonly notBeforeEpochSeconds: number;
   readonly notAfterEpochSeconds: number;

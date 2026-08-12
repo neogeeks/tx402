@@ -1,4 +1,4 @@
-"""Solana / SVM exact-payment adapter (SPEC §7.2, ADR-010, ADR-013).
+"""Solana / SVM exact-payment adapter.
 
 Counterpart to ``packages/tx402/src/solana/*``. Everything the TypeScript adapter does is
 done here — canonical ATA derivation, genesis-proved balance reads, exact SPL USDC transfer
@@ -98,7 +98,7 @@ T = TypeVar("T")
 
 @dataclass(frozen=True, slots=True)
 class SolanaSignerPresentation:
-    """Human-readable summary accompanying an SVM signing request (SPEC §6.6)."""
+    """Human-readable summary accompanying an SVM signing request."""
 
     network: str
     asset_id: str
@@ -255,7 +255,7 @@ def derive_associated_token_account(*, mint: str, owner: str) -> str:
 
     PDA seeds are ``[owner, token_program, mint]`` under the Associated Token Program, which
     is what every SPL wallet and the upstream scheme both use. Nothing is invented here:
-    ``solders`` performs the SHA-256 and the off-curve search (SPEC §3.2).
+    ``solders`` performs the SHA-256 and the off-curve search.
     """
     address, _bump = Pubkey.find_program_address(
         [
@@ -293,7 +293,7 @@ def plan_exact_svm_authorization(
     languages.
     """
     if asset.get("tokenProgram") != "spl-token":
-        # Token-2022 is constructible but excluded from v0.1 (SPEC §7.2). It is rejected at
+        # Token-2022 is constructible but excluded from v0.1. It is rejected at
         # planning rather than at signing so no balance read is spent on it either.
         raise ConfigurationError(
             "Solana asset is not canonical SPL Token",
@@ -396,7 +396,7 @@ def _safe_host(url: str) -> str:
 class SvmRpcPool:
     """At most two manifest RPCs; the cluster is proved before every account read.
 
-    The pool holds no circuit state of its own (PLAN.md O22). It asks the client's shared
+    The pool holds no circuit state of its own. It asks the client's shared
     :class:`~tx402.health.HealthIndex` whether an endpoint may be used and reports what
     happened, so one provider cannot be simultaneously open here and closed elsewhere.
     """
@@ -546,7 +546,7 @@ class SvmRpcPool:
         over.
 
         Genesis is proved on the *same* endpoint that will serve the operation, on every
-        read (SPEC §7.2). The health observation spans the whole use — proof plus whatever
+        read. The health observation spans the whole use — proof plus whatever
         it was proved for — because an endpoint that answers ``getGenesisHash`` quickly and
         then stalls on the account read has not been healthy.
         """
@@ -803,7 +803,7 @@ def _signer_failure(
 def build_exact_svm_message(
     plan: ExactSvmPlan, blockhash: str, memo_bytes: bytes
 ) -> MessageV0:
-    """Compiles the exact-scheme transfer message (ADR-013).
+    """Compiles the exact-scheme transfer message.
 
     Instruction order, compute-budget discriminators and defaults, ``TransferChecked``
     account ordering, and the fee payer at signature slot 0 all reproduce upstream's layout
@@ -957,7 +957,7 @@ def _validate_transaction(
 
 
 def _memo_bytes(plan: ExactSvmPlan, context: Tx402ErrorContext) -> bytes:
-    """The merchant's memo, or a fresh 16-byte nonce rendered as hex (SPEC §6.6).
+    """The merchant's memo, or a fresh 16-byte nonce rendered as hex.
 
     Every authorization must be unique. When the merchant does not dictate a memo, this is
     the uniqueness primitive the upstream scheme uses, and it is regenerated per attempt
@@ -987,7 +987,7 @@ def create_svm_authorization(
     Returns the upstream-shaped payload and the epoch millisecond at which the signed
     authorization stops being valid. The clock is read only *after* the transaction exists,
     which is what makes the expiry a statement about the thing signed rather than about the
-    moment planning happened (the S5 clock-boundary rule).
+    moment planning happened (the clock-boundary rule).
     """
     memo_bytes = _memo_bytes(plan, context)
     try:
@@ -1091,7 +1091,7 @@ def _transport_error(error: BaseException, context: Tx402ErrorContext) -> Transp
 
 
 class SvmChainAdapter:
-    """The Solana implementation of the two questions core asks (SPEC §7.2)."""
+    """The Solana implementation of the two questions core asks."""
 
     family = "solana"
 
@@ -1175,7 +1175,7 @@ class SvmChainAdapter:
             balance_atomic=str(reading.balance_atomic),
             viable=viable,
             rejection_reasons=() if viable else ("insufficient-balance",),
-            # The facilitator is the fee payer for the SVM exact scheme (SPEC §7.2), so the
+            # The facilitator is the fee payer for the SVM exact scheme, so the
             # buyer's expected fee in the payment asset is zero.
             estimated_fee_atomic="0",
             endpoint_id=reading.endpoint_id,

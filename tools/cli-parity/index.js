@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 /**
- * Cross-language CLI `--json` parity (PLAN.md open item **O107**).
+ * Cross-language CLI `--json` parity.
  *
  *   tx402-cli-parity build   regenerate core-spec/cli-json/expected.json from the TS CLI
  *   tx402-cli-parity check   fail if the committed golden disagrees with a fresh TS run
  *
  * `docs/.../guides/cli.mdx` opens by promising that both packages emit "the same `--json`
  * document". S34 drove both CLIs across all 17 test-merchant scenarios and found that the
- * Python CLI dropped the route fields from `error.context` on every post-routing failure
- * (O107). Nothing in the gate set diffed the two documents, so the divergence shipped.
+ * Python CLI dropped the route fields from `error.context` on every post-routing failure.
+ * Nothing in the gate set diffed the two documents, so the divergence shipped.
  *
  * This tool records the canonical document — the TypeScript CLI's output, run in process
  * against the real deterministic test merchant and a stubbed RPC — as a language-neutral
@@ -34,12 +34,20 @@ import { createEvmRpcStub } from "../evm-rpc-stub/index.js";
 import { run } from "../../packages/tx402/dist/cli/run.js";
 import { privateKeyToEvmSigner } from "../../packages/tx402/dist/signers/index.js";
 import { BUNDLED_MANIFEST } from "../../packages/tx402/dist/core/bundled-manifest.js";
+import { MemorySpendStore } from "../../packages/tx402/dist/index.js";
+import { bearerTokenScope, serveGateway } from "../../packages/tx402/dist/gateway/index.js";
+import { applySeed } from "../store-gateway/seeds.js";
 
 import { normalize } from "./normalize.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, "../..");
 const goldenPath = path.join(repoRoot, "core-spec/cli-json/expected.json");
+
+/** The operator-verb scenarios, shared with the Python pin so the two cannot drift. */
+const VERB_SCENARIOS = JSON.parse(
+  readFileSync(path.join(here, "../store-gateway/scenarios.json"), "utf8"),
+);
 
 /** A fixed development key; the merchant is deterministic and never settles for real. */
 const DEV_KEY = "0xa11ce00000000000000000000000000000000000000000000000000000000001";
@@ -110,12 +118,51 @@ async function runScenario(scenario) {
   return { exitCode, json: normalize(JSON.parse(out.join(""))) };
 }
 
+/**
+ * Runs the TS CLI for one operator-verb scenario (SPEC §10) against a reference gateway fronting
+ * a deterministically-seeded `MemorySpendStore`, and returns its normalized `--json`. The store
+ * credential comes from the environment (SPEC §9.1), never a flag; `provideAdmin` withholds the
+ * admin token to exercise the `admin-credential-required` gate.
+ */
+async function runVerbScenario(scenario) {
+  const store = new MemorySpendStore();
+  await applySeed(store, scenario.seed, Date.now());
+  const gateway = await serveGateway({
+    dataStore: store,
+    adminStore: store,
+    resolveScope: bearerTokenScope({ dataToken: "data-token", adminToken: "admin-token" }),
+  });
+  const env = { TX402_SPEND_STORE: gateway.url, TX402_SPEND_STORE_TOKEN: "data-token" };
+  if (scenario.provideAdmin) env.TX402_SPEND_STORE_ADMIN = "admin-token";
+  const out = [];
+  const io = {
+    argv: scenario.args,
+    env,
+    stdout: (text) => out.push(text),
+    stderr: () => {},
+    readFile: () => {
+      throw new Error("no filesystem in this harness");
+    },
+  };
+  let exitCode;
+  try {
+    exitCode = await run(io);
+  } finally {
+    await gateway.close();
+  }
+  return { exitCode, json: normalize(JSON.parse(out.join(""))) };
+}
+
 /** @returns {Promise<Record<string, {exitCode: number, json: unknown}>>} */
 export async function generateParity() {
   /** @type {Record<string, {exitCode: number, json: unknown}>} */
   const results = {};
   for (const scenario of Object.keys(SCENARIOS)) {
     results[scenario] = await runScenario(scenario);
+  }
+  // The operator verbs (SPEC §10) join the same golden, keyed `verb:*`.
+  for (const scenario of VERB_SCENARIOS) {
+    results[scenario.key] = await runVerbScenario(scenario);
   }
   return results;
 }
@@ -155,7 +202,7 @@ async function check() {
     console.error(
       "      A deliberate change means: rerun `tx402-cli-parity build` and update the",
     );
-    console.error("      Python pin, so both languages move together. See PLAN.md O107.");
+    console.error("      Python pin, so both languages move together.");
     return 1;
   }
   console.log(

@@ -83,7 +83,7 @@ class PrivateKeyEvmSigner:
         self._address: str = str(account.address)
 
         def sign(request: EvmTypedDataRequest) -> bytes:
-            # `presentation` is tx402's human-readable summary (SPEC §6.6). eth-account
+            # `presentation` is tx402's human-readable summary. eth-account
             # signs the EIP-712 structure only, so it is deliberately not forwarded.
             encoded = encode_typed_data(
                 full_message={

@@ -25,7 +25,7 @@
  * Route ordering reads {@link HealthIndex.score}, and SPEC §6.4 step 19 requires identical
  * ordering for identical inputs *and health state*. Scores are therefore rounded to four
  * decimal places with an explicit half-up rule rather than left as raw doubles: the Python
- * implementation at S10 must produce the same number, and `Math.round` and Python's `round`
+ * the paired implementation must produce the same number, and `Math.round` and Python's `round`
  * disagree at a half. `floor(x * 10000 + 0.5) / 10000` agrees in both.
  */
 

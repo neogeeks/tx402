@@ -1,4 +1,4 @@
-"""Deterministic route planning (SPEC §6.4, §5.2).
+"""Deterministic route planning.
 
 Port of ``packages/tx402/src/core/routing.ts``. The planner is reached only after the
 policy engine has approved a set of requirements — SPEC §6.3 step 13 makes that ordering a
@@ -62,7 +62,7 @@ RouteRejectionReason = Literal[
 #: joining on it makes the key unambiguous — the same reason :mod:`tx402.policy` uses it for
 #: its network/asset index. It is written as the ``\\u0000`` escape rather than as a literal
 #: control character: a raw NUL byte in a source file makes git classify the file as binary
-#: and stop diffing it (PLAN.md open item O25).
+#: and stop diffing it.
 BALANCE_KEY_SEPARATOR: Final = "\u0000"
 
 T = TypeVar("T")
@@ -70,7 +70,7 @@ T = TypeVar("T")
 
 @dataclass(frozen=True, slots=True)
 class RouteCandidate:
-    """One scored route (SPEC §5.2). Every field here is redaction-safe."""
+    """One scored route. Every field here is redaction-safe."""
 
     requirement_index: int
     network: str

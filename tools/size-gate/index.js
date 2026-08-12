@@ -7,7 +7,7 @@
  *   1. OWN CODE (blocking)  — what tx402 itself emits on the `.` export, with @x402/core,
  *                             zod, and all chain adapters treated as external.
  *   2. TOTAL CORE PATH      — the same entry point with @x402/core and zod bundled in.
- *                             Reported until frozen at M1 (PLAN.md open item O4).
+ *                             Reported until frozen at M1.
  *
  * Chain adapters are measured separately and excluded from both figures, matching the
  * SPEC §12.3 carve-out for "optional chain adapters".
@@ -143,7 +143,7 @@ async function main() {
 
   if (limits.totalCorePathGzipBytes.limit === null) {
     console.log(
-      "\nNote: the total core-path ceiling is not yet frozen (PLAN.md open item O4).\n" +
+      "\nNote: the total core-path ceiling is not yet frozen.\n" +
         "      Freeze it at M1 by amending ADR-008 and setting it in tools/size-gate/limits.json.",
     );
   }

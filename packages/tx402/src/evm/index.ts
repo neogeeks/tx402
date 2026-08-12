@@ -2,13 +2,13 @@
  * EVM chain adapter — Base.
  *
  * Optional subpath export (`tx402/evm`). Kept out of the core import path so that `viem` and
- * `@x402/evm` are only paid for by callers who import them (ADR-008, ADR-009). The core
+ * `@x402/evm` are only paid for by callers who import them. The core
  * client reaches this module through a lazy `import()` (see `core/chain.ts`), so importing
  * it directly is only necessary to construct a signer or to inspect a plan.
  *
  * Production network `eip155:8453`; test network `eip155:84532`, both from the signed
  * release manifest. v0.1 pays native USDC through upstream's exact scheme and exposes no
- * generic ERC-20 support (SPEC §7.1).
+ * generic ERC-20 support.
  *
  * @example
  * ```ts

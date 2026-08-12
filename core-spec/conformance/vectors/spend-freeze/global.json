@@ -1,0 +1,74 @@
+{
+  "$schema": "https://tx402.dev/schemas/v1/conformance-vector.schema.json",
+  "id": "spend-freeze.behavior.global",
+  "kind": "spend-freeze.behavior",
+  "milestone": "M6",
+  "title": "The global \"*\" freeze is parameterized by capabilities.atomicGlobalFreeze",
+  "spec": ["SPEC §5.2", "SPEC §13", "ADR-027"],
+  "description": "SPEC §5.2's declared-topology capability, resolved into two arms the harness selects between by the adapter's `capabilities.atomicGlobalFreeze` (SPEC §13). A1 reserves on merchant-a; then freeze(\"*\") is attempted; then a reserve B1 is attempted on the DISTINCT scope merchant-b. On a capable store (single-instance Redis, coordinator DO, and the reference MemorySpendStore) freeze(\"*\") succeeds and B1 is blocked with TX402_SPEND_FROZEN — one freeze halts the whole fleet — and merchant-b reads `frozen: true` with nothing reserved. On an incapable store (Redis Cluster, id-per-scope DO) freeze(\"*\") fails closed with TX402_CONFIG_INVALID (global-freeze-unsupported) and does NOT silently no-op: B1 is admitted and merchant-b reads `frozen: false` with 5 reserved. Every adapter has a passing path.",
+  "input": {
+    "operations": [
+      {
+        "action": "reserve",
+        "reservationId": "00000000-0000-7000-8000-000000000821",
+        "requestId": "global-A1",
+        "policyScope": "merchant-a.example",
+        "requestFingerprint": "sha256:d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1",
+        "assetId": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "amountAtomic": "5",
+        "maxPerHourAtomic": "10",
+        "nowEpochMs": 1785715200000
+      },
+      {
+        "action": "freeze",
+        "scope": "*",
+        "nowEpochMs": 1785715200000
+      },
+      {
+        "action": "reserve",
+        "reservationId": "00000000-0000-7000-8000-000000000822",
+        "requestId": "global-B1",
+        "policyScope": "merchant-b.example",
+        "requestFingerprint": "sha256:d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2",
+        "assetId": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "amountAtomic": "5",
+        "maxPerHourAtomic": "10",
+        "nowEpochMs": 1785715200000
+      },
+      {
+        "action": "snapshot",
+        "policyScope": "merchant-b.example",
+        "assetId": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "nowEpochMs": 1785715200000
+      }
+    ]
+  },
+  "expected": {
+    "outcomes": [
+      { "outcome": "reserved", "state": "reserved" },
+      { "outcome": "frozen" },
+      { "outcome": "error", "errorCode": "TX402_SPEND_FROZEN" },
+      {
+        "outcome": "snapshot",
+        "committedAtomic": "0",
+        "reservedAtomic": "0",
+        "frozen": true,
+        "reservationStates": [],
+        "entryCount": 0
+      }
+    ],
+    "incapableOutcomes": [
+      { "outcome": "reserved", "state": "reserved" },
+      { "outcome": "error", "errorCode": "TX402_CONFIG_INVALID" },
+      { "outcome": "reserved", "state": "reserved" },
+      {
+        "outcome": "snapshot",
+        "committedAtomic": "0",
+        "reservedAtomic": "5",
+        "frozen": false,
+        "reservationStates": ["reserved"],
+        "entryCount": 0
+      }
+    ]
+  }
+}

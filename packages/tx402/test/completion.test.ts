@@ -61,22 +61,26 @@ function recordingStore(log: string[]): SpendStore {
   const inner = new MemorySpendStore();
   return {
     kind: inner.kind,
+    capabilities: inner.capabilities,
     reserve: async (input) => {
-      const reservation = await inner.reserve(input);
+      const result = await inner.reserve(input);
       log.push("reserve");
-      return reservation;
+      return result;
     },
     commit: async (input) => {
       const entry = await inner.commit(input);
       log.push("commit");
       return entry;
     },
-    release: async (id, now) => {
-      const released = await inner.release(id, now);
+    release: async (ref, now) => {
+      const released = await inner.release(ref, now);
       log.push("release");
       return released;
     },
+    expose: (ref, now) => inner.expose(ref, now),
     getBudgetState: (query) => inner.getBudgetState(query),
+    listExposed: (query) => inner.listExposed(query),
+    isFrozen: (scope) => inner.isFrozen(scope),
   };
 }
 
@@ -395,7 +399,12 @@ describe("T-011 unknown outcome after the signature is transmitted", () => {
     // merchant may already have settled, so retrying could pay twice (SPEC §6.7).
     expect(server.paidRequests).toHaveLength(1);
     expect(log).toEqual(["reserve"]);
-    expect(tx402.getBudgetState().reservedAtomic).toBe("50000");
+    // The pre-transmission fence exposed the reservation, and an ambiguous outcome neither
+    // commits nor releases — so it is held as `exposed` (durable, non-expiring), not
+    // `reserved` (SPEC §7, ADR-026). The money disposition is unchanged: still counted, still
+    // uncollectable by a retry until an operator reconciles it.
+    expect(tx402.getBudgetState().reservedAtomic).toBe("0");
+    expect(tx402.getBudgetState().exposedAtomic).toBe("50000");
   });
 
   it("retains the reservation when the merchant never answers", async () => {
@@ -443,7 +452,12 @@ describe("T-011 unknown outcome after the signature is transmitted", () => {
       details: { causeCategory: "redirect-not-followed" },
     });
     expect(log).toEqual(["reserve"]);
-    expect(tx402.getBudgetState().reservedAtomic).toBe("50000");
+    // The pre-transmission fence exposed the reservation, and an ambiguous outcome neither
+    // commits nor releases — so it is held as `exposed` (durable, non-expiring), not
+    // `reserved` (SPEC §7, ADR-026). The money disposition is unchanged: still counted, still
+    // uncollectable by a retry until an operator reconciles it.
+    expect(tx402.getBudgetState().reservedAtomic).toBe("0");
+    expect(tx402.getBudgetState().exposedAtomic).toBe("50000");
   });
 });
 
@@ -469,7 +483,12 @@ describe("T-012 cross-origin redirect on a paid retry", () => {
     });
     expect(server.paidRequests).toHaveLength(1);
     expect(log).toEqual(["reserve"]);
-    expect(tx402.getBudgetState().reservedAtomic).toBe("50000");
+    // The pre-transmission fence exposed the reservation, and an ambiguous outcome neither
+    // commits nor releases — so it is held as `exposed` (durable, non-expiring), not
+    // `reserved` (SPEC §7, ADR-026). The money disposition is unchanged: still counted, still
+    // uncollectable by a retry until an operator reconciles it.
+    expect(tx402.getBudgetState().reservedAtomic).toBe("0");
+    expect(tx402.getBudgetState().exposedAtomic).toBe("50000");
   });
 
   it("does not spend a further attempt after a blocked redirect", async () => {

@@ -8,10 +8,10 @@
 
 import type { ReleaseManifest } from "./manifest.js";
 
-/** The signed release manifest shipped with this build (SPEC §5.4). */
+/** The signed release manifest shipped with this build. */
 export const BUNDLED_MANIFEST: ReleaseManifest = {
   "manifestVersion": 1,
-  "release": "0.1.0",
+  "release": "0.2.0",
   "issuedAt": "2026-08-02T00:00:00Z",
   "expiresAt": "2027-08-02T00:00:00Z",
   "networks": {
@@ -99,6 +99,6 @@ export const BUNDLED_MANIFEST: ReleaseManifest = {
   "signature": {
     "algorithm": "ed25519",
     "keyId": "tx402-release-2",
-    "value": "lxXl/oLGlPsUfy79pZw2G5aWgYh1FU5TDPyIFXYyegpyQwFy9ggOPaTycOBIsvXXAA7NMcmN9N+tEfIIGIkZAw==",
+    "value": "8sAI7Z7EzqH/A7kNCPjLO/Khf7tD9ufk3XMnaW8QSmHhGFx5NSwhsR2F75G0QY24vXje3WnMcS9C3fyLuSh0AA==",
   },
 } as const;

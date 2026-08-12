@@ -1,0 +1,94 @@
+{
+  "$schema": "https://tx402.dev/schemas/v1/conformance-vector.schema.json",
+  "id": "recipient-pin.behavior.allowlist",
+  "kind": "recipient-pin.behavior",
+  "milestone": "M6",
+  "title": "An administered allowlist admits its recipient, refuses others as not-allowlisted, and an assertion-required scope rejects a caller that omits the recipient",
+  "spec": ["SPEC §6", "SPEC §6.2", "SPEC §6.5", "SPEC §3.4", "ADR-028"],
+  "description": "An operator administers an allowlist for merchant-a on eip155:8453 (source=admin-allowlist). A1 reserves paying the allowlisted recipient and is admitted with recipientPinEstablished:false — an admin allowlist is never a TOFU claim. A2 reserves paying a different recipient and is refused TX402_RECIPIENT_UNPINNED reason not-allowlisted (the store's source drives the reason), carrying the RP-8 conditional details network/presentedRecipient/expectedRecipients. The scope is then marked recipientAssertionRequired; A3 reserves omitting the recipient fields and is refused reason assertion-required with details exactly {merchantScope, reason} — the three conditional keys ABSENT (RP-8). The pin readback shows the single administered recipient.",
+  "input": {
+    "operations": [
+      {
+        "action": "set-recipient-pins",
+        "scope": "merchant-a.example",
+        "network": "eip155:8453",
+        "recipients": ["0xaaaa000000000000000000000000000000000001"],
+        "nowEpochMs": 1785715200000
+      },
+      {
+        "action": "reserve",
+        "reservationId": "00000000-0000-7000-8000-000000000901",
+        "requestId": "allow-A1",
+        "policyScope": "merchant-a.example",
+        "requestFingerprint": "sha256:a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+        "assetId": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "amountAtomic": "1",
+        "maxPerHourAtomic": "10",
+        "recipientNetwork": "eip155:8453",
+        "recipientCanonical": "0xaaaa000000000000000000000000000000000001",
+        "recipientEnforcement": "allowlist",
+        "nowEpochMs": 1785715200000
+      },
+      {
+        "action": "reserve",
+        "reservationId": "00000000-0000-7000-8000-000000000902",
+        "requestId": "allow-A2",
+        "policyScope": "merchant-a.example",
+        "requestFingerprint": "sha256:a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2",
+        "assetId": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "amountAtomic": "1",
+        "maxPerHourAtomic": "10",
+        "recipientNetwork": "eip155:8453",
+        "recipientCanonical": "0xbbbb000000000000000000000000000000000002",
+        "recipientEnforcement": "allowlist",
+        "nowEpochMs": 1785715200000
+      },
+      {
+        "action": "set-recipient-assertion-required",
+        "scope": "merchant-a.example",
+        "required": true,
+        "nowEpochMs": 1785715200000
+      },
+      {
+        "action": "reserve",
+        "reservationId": "00000000-0000-7000-8000-000000000903",
+        "requestId": "allow-A3",
+        "policyScope": "merchant-a.example",
+        "requestFingerprint": "sha256:a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3",
+        "assetId": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "amountAtomic": "1",
+        "maxPerHourAtomic": "10",
+        "nowEpochMs": 1785715200000
+      },
+      {
+        "action": "snapshot-pins",
+        "scope": "merchant-a.example",
+        "network": "eip155:8453"
+      }
+    ]
+  },
+  "expected": {
+    "outcomes": [
+      { "outcome": "pins-set" },
+      { "outcome": "reserved", "pinEstablished": false },
+      {
+        "outcome": "error",
+        "errorCode": "TX402_RECIPIENT_UNPINNED",
+        "reason": "not-allowlisted",
+        "network": "eip155:8453",
+        "presentedRecipient": "0xbbbb000000000000000000000000000000000002",
+        "expectedRecipients": ["0xaaaa000000000000000000000000000000000001"]
+      },
+      { "outcome": "assertion-set" },
+      {
+        "outcome": "error",
+        "errorCode": "TX402_RECIPIENT_UNPINNED",
+        "reason": "assertion-required"
+      },
+      {
+        "outcome": "pins",
+        "recipients": ["0xaaaa000000000000000000000000000000000001"]
+      }
+    ]
+  }
+}

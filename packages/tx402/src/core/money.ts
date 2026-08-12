@@ -1,4 +1,4 @@
-/** Integer-only public money parsing (ADR-006, SPEC §4.3). */
+/** Integer-only public money parsing. */
 
 export interface MoneyAssetMetadata {
   readonly symbol: string;

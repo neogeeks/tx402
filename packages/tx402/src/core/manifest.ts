@@ -1,5 +1,5 @@
 /**
- * Release manifest types and offline verification (SPEC §5.4, ADR-012).
+ * Release manifest types and offline verification.
  *
  * The manifest is the only channel through which chain addresses, token addresses, RPC
  * endpoints, and decimals reach the SDK — SPEC §0 forbids hardcoding any of them into core
@@ -39,7 +39,7 @@ import { MANIFEST_SIGNING_DOMAIN, TRUSTED_MANIFEST_KEYS } from "./trusted-keys.j
 /* Types                                                                                   */
 /* ------------------------------------------------------------------------------------- */
 
-/** Production and test networks may never be mixed in one selected route (SPEC §5.4). */
+/** Production and test networks may never be mixed in one selected route. */
 export type NetworkEnvironment = "production" | "test";
 
 /** An ERC-20 asset offered on an EVM network. */
@@ -65,7 +65,7 @@ export type ManifestAsset = EvmManifestAsset | SvmManifestAsset;
 
 export interface EvmManifestNetwork {
   readonly environment: NetworkEnvironment;
-  /** Compared against the chain ID an RPC reports, before signing (SPEC §7.1). */
+  /** Compared against the chain ID an RPC reports, before signing. */
   readonly chainId: number;
   readonly rpcUrls: readonly string[];
   readonly assets: readonly EvmManifestAsset[];
@@ -87,7 +87,7 @@ export interface ManifestSignature {
   readonly value: string;
 }
 
-/** The signed release manifest (SPEC §5.4). */
+/** The signed release manifest. */
 export interface ReleaseManifest {
   readonly manifestVersion: 1;
   readonly release: string;
@@ -127,7 +127,7 @@ export type ManifestVerificationResult =
     };
 
 export interface VerifyManifestOptions {
-  /** Injected clock (SPEC §4.3), so expiry is testable without touching the system clock. */
+  /** Injected clock, so expiry is testable without touching the system clock. */
   readonly nowEpochMs: number;
   /** Defaults to the keys compiled into this build. */
   readonly trustedKeys?: Readonly<Record<string, string>>;

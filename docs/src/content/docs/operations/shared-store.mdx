@@ -1,0 +1,196 @@
+---
+title: A shared spend store
+description: Give a fleet of agents one authoritative budget with a durable SpendStore — Redis, on your own instance or Upstash.
+sidebar:
+  order: 7
+---
+
+The default `MemorySpendStore` is per-process: ten agents have ten budgets, and a restart forgets
+all of them. A **shared store** replaces it with one authoritative ledger that every process
+reserves against, so a fleet shares one per-hour rate, one cumulative ceiling, one freeze switch,
+and one set of recipient pins. This runbook stands one up on Redis.
+
+Everything here is off the size-gated core path (importing `tx402` still loads no store), and the
+in-memory default is unchanged — a single process that never sets `spendStore` behaves exactly as
+it did in v0.1.
+
+## Which store
+
+0.2.0 ships three reference stores. This page is Redis; the other two have their own runbooks.
+
+| Store | Import | Peer / extra | Reach it from |
+| :--- | :--- | :--- | :--- |
+| **Redis** | `tx402/redis` · `tx402.stores.redis` | npm `ioredis@^5.4` **or** `redis@^4.7` (both optional) · PyPI `tx402[redis]` (`redis>=5`) | Any process, any language, directly. |
+| **Durable Object** | `tx402/durable-object` | none (Workers runtime types) · no Python adapter | A Cloudflare Worker, or Python/CLI through a [gateway](../gateway/). See [DO topology](../durable-object/). |
+| **Gateway** | `tx402/gateway` · `tx402.stores.gateway` | none (global `fetch`) · none (`httpx` is a core dep) | Any process, any language, over HTTPS. See [gateway deploy](../gateway/). |
+
+The **gateway is the recommended production boundary** — it holds the raw store credential and hands
+clients only a scoped token — and it is the *only* way for a Python or CLI process to reach a
+Durable Object. Redis-direct is the trusted-single-tenant option below.
+
+## Install
+
+```bash title="TypeScript — one of the two clients"
+pnpm add ioredis        # or: pnpm add redis   (node-redis v4)
+```
+
+```bash title="Python"
+pip install "tx402[redis]"   # adds redis-py 5+, which ships both the sync and async clients
+```
+
+## Construct it
+
+You build the Redis client and hand it to the store — the store never dials a URL itself, so
+whatever connection options, TLS, and pooling you already use are respected.
+
+```ts title="TypeScript (ioredis)"
+import { Redis } from "ioredis";
+import { RedisSpendStore } from "tx402/redis";
+import { createTx402Client } from "tx402";
+
+const store = new RedisSpendStore({
+  client: new Redis(process.env.TX402_SPEND_STORE!), // rediss://…  (a data-user DSN)
+  namespace: "tx402", // isolation prefix; must match across the fleet
+});
+
+const tx402 = createTx402Client({ signers: { evm }, spendStore: store });
+```
+
+`node-redis` works identically — construct a `createClient(...)`, `await client.connect()`, then
+`new RedisSpendStore({ client })`. The store auto-detects which client it was given.
+
+:::note
+`import { Redis } from "ioredis"` uses ioredis's **named** export, which type-checks under every
+`moduleResolution` — `node`, `bundler`, and `nodenext` — in both ES-module and CommonJS files. The
+default form `import Redis from "ioredis"` is not portable: under `moduleResolution: "nodenext"` **in an
+ES module** (a `"type": "module"` package, or a `.mts` file) it fails with TS2351 "not constructable" —
+the default import binds ioredis's CommonJS namespace, which has no construct signature — regardless of
+`esModuleInterop`. A CommonJS file compiles it fine, so the named import is the one that works either way.
+:::
+
+```python title="Python (sync)"
+import os, redis
+from tx402 import Tx402Client
+from tx402.stores.redis import RedisSpendStore
+
+store = RedisSpendStore(redis.Redis.from_url(os.environ["TX402_SPEND_STORE"]), namespace="tx402")
+client = Tx402Client(evm_signer=evm, spend_store=store)
+```
+
+The async client mirrors it: `AsyncRedisSpendStore(redis.asyncio.Redis.from_url(...))`, passed to
+`AsyncTx402Client(spend_store=...)`. Both arms come from the one `tx402[redis]` extra.
+
+:::note[The store windows on the server's clock, not the caller's]
+A durable store reads the time **inside** each reservation atom (`redis.call('TIME')`), so the
+hourly window and cumulative accounting are computed on the Redis server's clock. A caller with a
+skewed clock cannot widen its cap by lying about the time — a named 0.2.0 behavioural change from
+v0.1's caller-supplied time, and the reason `BudgetQuery.nowEpochMs` is advisory for durable stores.
+:::
+
+## The two credentials
+
+The [data/admin boundary](../../security/#a-fleet-shares-one-budget-and-its-controls-resist-a-drifted-worker)
+is what stops a drifted worker from unfreezing itself or raising its own cap. It needs **two**
+credentials, and the agent processes get only the first:
+
+- **Data plane** — reserve, commit, release, expose, and read. Constructed with the default
+  `admin: false` (`RedisSpendStore({ client })`). This is what the fleet holds.
+- **Admin plane** — freeze, set pins, set limits, resolve exposed. Constructed with `admin: true`.
+  An operator holds this; an agent must not.
+
+```ts
+// operator process only
+const admin = new RedisSpendStore({ client: new Redis(ADMIN_DSN), admin: true });
+await admin.freeze("api.merchant.example", Date.now());
+
+// Provision the administered caps a drifted worker cannot exceed (the drifted-worker defense —
+// see the policy guide's "Administered caps"). The limits are atomic-unit strings; an omitted
+// field clears that cap. Raw Redis windows on backend time, so the trailing nowEpochMs is ignored
+// there, but it is part of the SpendStoreAdmin.setBudgetLimits signature (every store takes it).
+await admin.setBudgetLimits(
+  "api.merchant.example",
+  "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+  { maxPerHourAtomic: "5000000", maxTotalAtomic: "100000000" },
+  Date.now(),
+);
+```
+
+The Python admin store is the same call — `set_budget_limits` with a `BudgetLimits`:
+
+```python
+# operator process only (tx402.stores.redis.RedisSpendStore, admin=True)
+from tx402.ledger import BudgetLimits
+
+admin.set_budget_limits(
+    "api.merchant.example",
+    "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    BudgetLimits(max_per_hour_atomic="5000000", max_total_atomic="100000000"),
+    now_epoch_ms,
+)
+```
+
+On raw Redis those two are **two ACL users**. Because the reserve logic ships as an `EVAL` script
+(not a Redis Function — see Upstash below), a data user needs `+eval`, so the boundary is enforced
+by a **key-pattern ACL**: the data user gets read/write on the reservation, committed, counter, and
+`pins` keys, and **read-only** on the freeze, limits, `tofu-enabled`, `recipient-required`, and
+`global-frozen` keys — and Redis ACL-checks every inner `redis.call`, so a hand-crafted `EVAL` that
+tries to write a frozen key is denied. One honest gap: the in-reserve TOFU claim must write the
+`pins` key, so a data user *can* write pins. If that gap matters, put the
+[**gateway**](../gateway/) in front — it is the durable boundary, and it closes it. As
+[the security model](../../security/) says, neither an ACL nor the gateway closes the
+compromised-application *spending* path; that is 0.3.0.
+
+## Durability needs AOF
+
+A store is only as durable as its persistence. Enable the append-only file:
+
+```bash
+redis-server --appendonly yes --appendfsync everysec   # or stricter
+```
+
+Without it a restart loses reservations and counters, which under a cumulative cap means a
+possibly-settled payment escapes the ceiling. The adapter will tell you: call
+`store.warnIfPersistenceDisabled()` (`warn_if_persistence_disabled()` in Python) at startup — it
+returns the warning string when AOF is off and `null` when it is on. The store never prints it
+itself (it holds no logger); log it yourself.
+
+## Upstash and other managed Redis
+
+**Upstash is a supported production backend** — point the store at its **native TLS endpoint**:
+
+```bash
+export TX402_SPEND_STORE="rediss://default:<token>@<name>.upstash.io:6379"
+```
+
+That endpoint speaks the real Redis protocol and works with `ioredis`, `node-redis`, and `redis-py`
+unchanged. Two constraints, both already honoured by the adapter and worth knowing:
+
+- **The reserve atom is `EVAL`/`EVALSHA` Lua, never `FUNCTION LOAD`.** Managed Redis-Functions
+  support has historically been spotty on serverless Redis, so the adapter depends only on scripting
+  that every 7.0+ server has.
+- **The Upstash REST API (`@upstash/redis`) is not supported.** It is HTTP-only with no persistent
+  connection and limited scripting, so it cannot back the server-side-atom design. Use the native
+  TLS DSN above.
+
+A managed serverless instance also cannot do `ACL SETUSER`, server restart, or controlled Cluster
+hash tags, so the data/admin ACL split and the durability harness are tested against a self-hosted
+Redis; on Upstash, the [gateway](../gateway/) is how you get the admin boundary.
+
+## Version and Cluster notes
+
+- **Redis 7.0 is the floor.** The adapter uses only `EVAL` scripting and `TIME`-in-atom, and avoids
+  7.4-only features (no `HEXPIRE`). 7.0 through current all work.
+- **On Cluster, per-scope everything is atomic; global freeze is not.** Every key a reservation
+  touches for a scope shares the `{ns:scope}` hash tag, so the whole reserve is single-slot even in
+  Cluster. The one exception is the store-wide `"*"` freeze: its key hashes to a different slot, so
+  a Cluster store declares `atomicGlobalFreeze: false` and `freeze("*")` fails closed rather than
+  pretending. Per-scope `freeze("api.merchant.example")` is atomic on every topology. See
+  [the kill-switch runbook](../kill-switch/).
+
+## Next
+
+- [Freeze spending](../kill-switch/) with the kill switch.
+- [Pin and rotate recipients](../recipient-rotation/).
+- [Reconcile exposed payments](../exposed-reconciliation/) — the one manual day-2 task a shared
+  cumulative cap creates.
+- Put a [gateway](../gateway/) in front for the durable admin boundary.

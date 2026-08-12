@@ -1,4 +1,4 @@
-"""Strict x402 v2 challenge decoding and tx402 normalization (SPEC §6.2)."""
+"""Strict x402 v2 challenge decoding and tx402 normalization."""
 
 from __future__ import annotations
 
@@ -157,6 +157,9 @@ def decode_payment_required(
             or not requirement["asset"]
             or not isinstance(requirement.get("payTo"), str)
             or not requirement["payTo"]
+            # SPEC §6.6 parity fix: TypeScript already bounds payTo at <= 128, so the
+            # recipient string is identically bounded in both SDKs before pinning (named).
+            or len(requirement["payTo"]) > 128
             or not isinstance(requirement.get("maxTimeoutSeconds"), int)
             or not 1 <= requirement["maxTimeoutSeconds"] <= 86_400
             or not isinstance(requirement.get("extra"), dict)

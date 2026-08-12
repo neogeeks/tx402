@@ -1,5 +1,5 @@
 /**
- * Shared normalization for the cross-language CLI `--json` parity check (PLAN.md O107).
+ * Shared normalization for the cross-language CLI `--json` parity check.
  *
  * Imported by `tools/cli-parity/index.js` (which generates and checks the golden from the
  * TypeScript CLI) and by `packages/tx402/test/cli-json-parity.test.ts` (which re-derives it

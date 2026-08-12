@@ -1,0 +1,15 @@
+{
+  "name": "@tx402-dev/mock-facilitator",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Deterministic offline x402 /verify + /settle facilitator stub for offline safety proofs (PRD-phase1 §27). Not published.",
+  "main": "index.js",
+  "types": "./index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./index.js"
+    }
+  }
+}

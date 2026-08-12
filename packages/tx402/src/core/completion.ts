@@ -6,7 +6,7 @@
  * module states it once, as data-in / data-out, for three reasons:
  *
  *  1. **It is the rule Python must reproduce exactly.** `completion.paid-attempt`
- *     conformance vectors drive this function directly, so S10 inherits the table rather
+ *     conformance vectors drive this function directly, so the CLI inherits the table rather
  *     than re-deriving it from prose.
  *  2. **The ordering of the branches is normative.** A 402 is checked before a 5xx check
  *     could ever see it, and the `maxPaidAttempts` boundary is checked *inside* the 402
@@ -23,9 +23,9 @@
  * Releasing on anything ambiguous would let the same money be spent twice against the
  * hourly cap.
  *
- * **S15b (ADR-016) made that asymmetry actually hold.** Until then the status line was
- * consulted first, so a 403 carrying a successful `PAYMENT-RESPONSE` released the
- * reservation and reported the call unpaid — the audit's O44. Settlement evidence is now
+ * **Settlement evidence is what makes that asymmetry actually hold.** If the status
+ * line were consulted first, a 403 carrying a successful `PAYMENT-RESPONSE` would release the
+ * reservation and report the call unpaid. Settlement evidence is now
  * read on every status and outranks the status line, and a present-but-undecodable header
  * is its own fourth evidence value rather than being folded into "absent".
  */
@@ -38,8 +38,8 @@ export const MAX_PAID_ATTEMPTS_REASON = "max-paid-attempts-exhausted";
 /**
  * What the merchant's PAYMENT-RESPONSE proves about settlement.
  *
- * Four values, not three. Until S15b `"unknown"` covered both an absent header and one
- * that does not decode, and the audit's O53 showed why that conflation is wrong: SPEC §6.7
+ * Four values, not three. Previously `"unknown"` covered both an absent header and one
+ * that does not decode, and review showed why that conflation is wrong: SPEC §6.7
  * accepts *missing* metadata because the pinned upstream protocol marks the header
  * optional, and says a 2xx is paid-success "only when any required upstream
  * PAYMENT-RESPONSE parses successfully". A header the merchant chose not to send and a
@@ -70,7 +70,7 @@ export type PaidAttemptResult =
 export interface PaidAttemptInput {
   /** 1-based, counting signed retries only — never the initial unpaid request. */
   readonly attempt: number;
-  /** `policy.maxPaidAttempts`, already validated to 1–3 (SPEC §4.3). */
+  /** `policy.maxPaidAttempts`, already validated to 1–3. */
   readonly maxPaidAttempts: number;
   readonly result: PaidAttemptResult;
 }
@@ -80,7 +80,7 @@ export interface PaidAttemptInput {
  *
  * `errorCode` is not always `TX402_PAYMENT_AMBIGUOUS`. The *kind* is the money
  * disposition; the *code* is the public error identity, and SPEC §6.1 names a specific one
- * for a cross-origin redirect. Keeping them as two fields is what let S15b fix O52 without
+ * for a cross-origin redirect. Keeping them as two fields lets the redirect error be reported without
  * touching what happens to the money.
  */
 export interface AmbiguousDisposition {
@@ -105,7 +105,7 @@ export type PaidAttemptDisposition =
     }
   /**
    * The merchant's own metadata reports a successful settlement and the resource response
-   * is unusable (SPEC §5.3). The money moved, so the spend is **committed** and the caller
+   * is unusable. The money moved, so the spend is **committed** and the caller
    * is told `paid: true` — the one disposition that both commits and throws.
    */
   | {
@@ -177,7 +177,7 @@ export function classifyPaidAttempt(
   },
 ): AmbiguousDisposition;
 /**
- * Decides one signed attempt's outcome (SPEC §6.7). Pure: no clock, no I/O, no state.
+ * Decides one signed attempt's outcome. Pure: no clock, no I/O, no state.
  *
  * Branch order is part of the contract and is asserted by the conformance vectors.
  */
@@ -191,11 +191,11 @@ export function classifyPaidAttempt(input: PaidAttemptInput): PaidAttemptDisposi
 
   // SEC-005 stopped the *follow-up*, not the original transmission. The merchant already
   // has the signature and may well have settled against it, so the reservation is retained
-  // — but the public error is the one SPEC §6.1 names, not a generic ambiguity (O52).
+  // — but the public error is the one SPEC §6.1 names, not a generic ambiguity.
   if (result.kind === "redirect-blocked")
     return ambiguous("redirect-blocked", TX402_ERROR_CODES.redirectBlocked);
 
-  // **Settlement evidence outranks the status line** (SPEC §5.3, O44). A merchant that
+  // **Settlement evidence outranks the status line**. A merchant that
   // reports a successful settlement has said the money moved; whether it then managed to
   // hand over the resource is a separate fact. Releasing the reservation here would give
   // back budget for a payment that really happened, and an autonomous caller would be free
@@ -205,7 +205,7 @@ export function classifyPaidAttempt(input: PaidAttemptInput): PaidAttemptDisposi
     return paidUndelivered(SETTLED_RESOURCE_UNUSABLE_REASON);
 
   // A present header that does not decode is a protocol violation and is evidence of
-  // nothing (ADR-016). It cannot commit — SPEC §6.7 makes parsing a precondition of
+  // nothing. It cannot commit — SPEC §6.7 makes parsing a precondition of
   // paid-success — and it must not release, because the merchant plainly attempted to
   // report a settlement. Retention is the only disposition left, on any status.
   if (result.settlement === "malformed") return ambiguous(MALFORMED_SETTLEMENT_CAUSE);
@@ -240,7 +240,7 @@ export function classifyPaidAttempt(input: PaidAttemptInput): PaidAttemptDisposi
   if (result.settlement === "unsuccessful") return failed("settlement-unsuccessful");
 
   // `"success"` and `"absent"` both land here. Absent is permitted because the pinned
-  // upstream protocol marks the header optional (SPEC §6.7); a warning is emitted at the
+  // upstream protocol marks the header optional; a warning is emitted at the
   // read site rather than changing the money.
   return COMMIT;
 }

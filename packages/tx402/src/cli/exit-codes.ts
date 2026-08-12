@@ -1,10 +1,10 @@
 /**
- * CLI exit codes and the mapping from tx402's error taxonomy onto them (SPEC §11).
+ * CLI exit codes and the mapping from tx402's error taxonomy onto them.
  *
- * SPEC §11 fixes nine exit codes; SPEC §8 fixes fifteen error codes. Collapsing fifteen onto
- * nine is an implementation decision, and it is made here, once, in a table — rather than in
- * a `switch` somewhere in the render path — because a script's `if [ $? -eq 3 ]` is a public
- * API. Changing a row silently changes the meaning of somebody's shell script.
+ * SPEC §11 fixes nine exit codes; SPEC §8 fixes seventeen error codes. Collapsing seventeen
+ * onto nine is an implementation decision, and it is made here, once, in a table — rather than
+ * in a `switch` somewhere in the render path — because a script's `if [ $? -eq 3 ]` is a
+ * public API. Changing a row silently changes the meaning of somebody's shell script.
  *
  * The grouping principle is **what the operator has to change to make it work**:
  *
@@ -56,6 +56,11 @@ export const EXIT_CODE_BY_ERROR: Record<Tx402ErrorCode, ExitCode> = {
 
   [TX402_ERROR_CODES.policyBudget]: EXIT_CODES.policy,
   [TX402_ERROR_CODES.policyDomain]: EXIT_CODES.policy,
+  // 0.2.0: a frozen scope and an unpinned recipient are both tx402's own
+  // guardrail refusing — `policy`, exit 3. Without these two rows the exhaustive
+  // `Record<Tx402ErrorCode, ExitCode>` above would not compile.
+  [TX402_ERROR_CODES.spendFrozen]: EXIT_CODES.policy,
+  [TX402_ERROR_CODES.recipientUnpinned]: EXIT_CODES.policy,
 
   [TX402_ERROR_CODES.liquidity]: EXIT_CODES.liquidity,
 
@@ -69,11 +74,11 @@ export const EXIT_CODE_BY_ERROR: Record<Tx402ErrorCode, ExitCode> = {
   [TX402_ERROR_CODES.paymentAmbiguous]: EXIT_CODES.ambiguousPayment,
 
   [TX402_ERROR_CODES.resourceDelivery]: EXIT_CODES.resourceFailure,
-  // Reachable only *after* the signature has been transmitted (SPEC §6.1, ADR-014): the
+  // Reachable only *after* the signature has been transmitted: the
   // block stops the follow-up request, not the original one, so money may already have
-  // moved and the reservation is retained. That is exactly what `8` means, and ADR-014
-  // said so in prose while the table said `9`. Corrected at S15b alongside O52, which made
-  // this error reachable from the high-level client at all.
+  // moved and the reservation is exposed. That is exactly what `8` (ambiguous payment)
+  // means — a redirect blocked after signing is money-ambiguous, not a clean transport
+  // failure (`7`) or a resource failure (`9`).
   [TX402_ERROR_CODES.redirectBlocked]: EXIT_CODES.ambiguousPayment,
 };
 

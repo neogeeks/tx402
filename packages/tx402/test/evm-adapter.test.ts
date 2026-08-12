@@ -1,5 +1,5 @@
 /**
- * Adapter-level guards that the end-to-end suite cannot reach (SPEC §7.1, ADR-003).
+ * Adapter-level guards that the end-to-end suite cannot reach.
  *
  * These are the conditions that should be impossible by the time the adapter is called —
  * a Solana network handed to the EVM adapter, a missing signer, a scheme that returns a

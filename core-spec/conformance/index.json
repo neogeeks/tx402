@@ -111,7 +111,7 @@
       "kind": "errors.taxonomy",
       "milestone": "M0",
       "file": "vectors/errors/taxonomy.json",
-      "sha256": "sha256:48a81e3abdf4f3d99a9e0ed37cd30db3f3e9ecdb66393ff9f90be3171102d882"
+      "sha256": "sha256:c71e1948b039bb7fca8b9a44041da837ca1be8b3e4f6046bd0bcf8ed425a4db8"
     },
     {
       "id": "evm.authorization-plan.asset-not-manifest-asset",
@@ -293,7 +293,7 @@
       "kind": "policy.host-normalization",
       "milestone": "M0",
       "file": "vectors/policy/double-dot.json",
-      "sha256": "sha256:f0dfc35e4e5a048c5a74b335317b69ec00a7872a9b853608bf7fdfe9fff37e42"
+      "sha256": "sha256:a3c521f1b4c161689519f07bf10d49bfc3d999380bc50f7607ace8621f4d6db1"
     },
     {
       "id": "policy.host-normalization.ipv6",
@@ -307,7 +307,7 @@
       "kind": "policy.host-normalization",
       "milestone": "M0",
       "file": "vectors/policy/root-label.json",
-      "sha256": "sha256:5f10e1866dfa5b49bc6a8536644687ff8e11b2671d36b73a2ddb0351d2f3f0eb"
+      "sha256": "sha256:8e779d895fbc7ad836e782c7bcd7b4eb6c67049f898f7c24ed2741d37fd1a060"
     },
     {
       "id": "policy.host-normalization.trailing-dot",
@@ -321,7 +321,7 @@
       "kind": "policy.host-normalization",
       "milestone": "M0",
       "file": "vectors/policy/unicode-idn.json",
-      "sha256": "sha256:640a504cd10ba401d24e820d8fad06dde9ce22f2e94051e0586a8b4bfd9d49f0"
+      "sha256": "sha256:f392e99ff372f57a7357847915b8b472a3cae1ab942ce88535e32ea0b6a23c37"
     },
     {
       "id": "policy.host-normalization.uppercase",
@@ -415,6 +415,48 @@
       "sha256": "sha256:00a8bc72a7b4856ca28cca5303eaac4be4a9c64de847c0d6f76bce90c4c55582"
     },
     {
+      "id": "recipient-pin.behavior.allowlist",
+      "kind": "recipient-pin.behavior",
+      "milestone": "M6",
+      "file": "vectors/recipient-pin/allowlist.json",
+      "sha256": "sha256:4a3e98c69fd0c5b994c1c24f64bd27206ba0f7cbf1b0d52a53c5154ad9cb3b00"
+    },
+    {
+      "id": "recipient-pin.behavior.canonical",
+      "kind": "recipient-pin.behavior",
+      "milestone": "M6",
+      "file": "vectors/recipient-pin/canonical.json",
+      "sha256": "sha256:84648858c6eb8566cc79cc6b3ed3e763e1e3904e7be7102e21dc3464d21cdcfc"
+    },
+    {
+      "id": "recipient-pin.behavior.concurrent-claim",
+      "kind": "recipient-pin.behavior",
+      "milestone": "M6",
+      "file": "vectors/recipient-pin/concurrent-claim.json",
+      "sha256": "sha256:bbb332bb17298862db8de2f4edda45d439330d8996dfa6cb51ef42be19b0e53b"
+    },
+    {
+      "id": "recipient-pin.behavior.merchant-isolation",
+      "kind": "recipient-pin.behavior",
+      "milestone": "M6",
+      "file": "vectors/recipient-pin/merchant-isolation.json",
+      "sha256": "sha256:b89948727e371a76014437e2cbc0e600e72d731bd65efeb9d76a5ba81a6cfe82"
+    },
+    {
+      "id": "recipient-pin.behavior.rotation-vs-reserve",
+      "kind": "recipient-pin.behavior",
+      "milestone": "M6",
+      "file": "vectors/recipient-pin/rotation-vs-reserve.json",
+      "sha256": "sha256:5a97e8ee055f350df949cfdf9c608abdd9a33ae714492e2c742883585d21f12d"
+    },
+    {
+      "id": "recipient-pin.behavior.tofu",
+      "kind": "recipient-pin.behavior",
+      "milestone": "M6",
+      "file": "vectors/recipient-pin/tofu.json",
+      "sha256": "sha256:752ef3a67b7d586d8d41c585250a0e72fd8cc1c00b33507909517bebfca8194f"
+    },
+    {
       "id": "request.fingerprint.basic",
       "kind": "request.fingerprint",
       "milestone": "M2",
@@ -464,11 +506,67 @@
       "sha256": "sha256:fe5dca90e7c01fb07877ca1f2a48d24103d44515968172beaf05c2e941aff278"
     },
     {
+      "id": "spend-freeze.behavior.global",
+      "kind": "spend-freeze.behavior",
+      "milestone": "M6",
+      "file": "vectors/spend-freeze/global.json",
+      "sha256": "sha256:84ebd8a0aa210d711d5e544b271c529d840d753828559a7f370131b709a8bc76"
+    },
+    {
+      "id": "spend-freeze.behavior.per-scope",
+      "kind": "spend-freeze.behavior",
+      "milestone": "M6",
+      "file": "vectors/spend-freeze/per-scope.json",
+      "sha256": "sha256:689a4172e23ade1af6ee811dab77c5f0089872ccc8f10835992619fc861c5fe2"
+    },
+    {
+      "id": "spend-freeze.behavior.preserves-accounting",
+      "kind": "spend-freeze.behavior",
+      "milestone": "M6",
+      "file": "vectors/spend-freeze/preserves-accounting.json",
+      "sha256": "sha256:c7a84ac8e8ccda54ba0b3c3e6990ed158900ff66de689e3b8e3a57bcf954f30c"
+    },
+    {
+      "id": "spend-ledger.behavior.accumulator-overflow",
+      "kind": "spend-ledger.behavior",
+      "milestone": "M6",
+      "file": "vectors/ledger/accumulator-overflow.json",
+      "sha256": "sha256:d8a4e48c0df1d030b8f42972d263cd5521818cc328a4ffaf0d57210907f164d0"
+    },
+    {
       "id": "spend-ledger.behavior.atomic-cap",
       "kind": "spend-ledger.behavior",
       "milestone": "M2",
       "file": "vectors/ledger/atomic-cap.json",
-      "sha256": "sha256:61091ba7ee37cde7ae52f443ec1168cf585d65581318dff5f03d0c2b28d6c1e6"
+      "sha256": "sha256:d3425cf08623c7285fe6b6f500b60bd27e0ca3355cba97ef92c4f786cf489175"
+    },
+    {
+      "id": "spend-ledger.behavior.cumulative-refusal",
+      "kind": "spend-ledger.behavior",
+      "milestone": "M6",
+      "file": "vectors/ledger/cumulative-refusal.json",
+      "sha256": "sha256:b584177e1cdc5202bfda417265ffd904b83c45ac0ef8784d459b118205decd95"
+    },
+    {
+      "id": "spend-ledger.behavior.exposure-no-double-count",
+      "kind": "spend-ledger.behavior",
+      "milestone": "M6",
+      "file": "vectors/exposure/no-double-count.json",
+      "sha256": "sha256:3a95b7ce16e8672c4314166e120aff0023807cfe172cb2db2fb5632841067aaa"
+    },
+    {
+      "id": "spend-ledger.behavior.exposure-no-escape",
+      "kind": "spend-ledger.behavior",
+      "milestone": "M6",
+      "file": "vectors/exposure/no-escape.json",
+      "sha256": "sha256:c31270382a13f2fa1eefdc6249243f4095424a7d76b6c4900ab9f2d425843ab3"
+    },
+    {
+      "id": "spend-ledger.behavior.exposure-replay",
+      "kind": "spend-ledger.behavior",
+      "milestone": "M6",
+      "file": "vectors/exposure/replay.json",
+      "sha256": "sha256:076882868e87cc47cc0907fd4ea0947236d575f33ed207fdec08f66a3b4ffc69"
     },
     {
       "id": "spend-ledger.behavior.lifecycle",
@@ -476,6 +574,13 @@
       "milestone": "M2",
       "file": "vectors/ledger/lifecycle.json",
       "sha256": "sha256:be621c3f8ec0ffd368a7683581b7791ec394e270c62cb00d7e45860275790da2"
+    },
+    {
+      "id": "spend-ledger.behavior.rolling-vs-cumulative",
+      "kind": "spend-ledger.behavior",
+      "milestone": "M6",
+      "file": "vectors/ledger/rolling-vs-cumulative.json",
+      "sha256": "sha256:5736132b8a8e4a576a052f9ba121d3e2e48ae34bc8869d83b89921d654d57f7a"
     },
     {
       "id": "spend-ledger.behavior.ttl-window",

@@ -36,6 +36,7 @@ function recordingStore(log: string[]): SpendStore {
   const inner = new MemorySpendStore();
   return {
     kind: inner.kind,
+    capabilities: inner.capabilities,
     reserve: async (input) => {
       const value = await inner.reserve(input);
       log.push("reserve");
@@ -46,12 +47,15 @@ function recordingStore(log: string[]): SpendStore {
       log.push("commit");
       return value;
     },
-    release: async (id, now) => {
-      const value = await inner.release(id, now);
+    release: async (ref, now) => {
+      const value = await inner.release(ref, now);
       log.push("release");
       return value;
     },
+    expose: (ref, now) => inner.expose(ref, now),
     getBudgetState: (query) => inner.getBudgetState(query),
+    listExposed: (query) => inner.listExposed(query),
+    isFrozen: (scope) => inner.isFrozen(scope),
   };
 }
 

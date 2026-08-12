@@ -190,7 +190,7 @@ describe("O74 — settlement facts reach the operator", () => {
     };
     expect(document.settlement.status).toBe("committed");
     // The merchant reports a settlement identifier, so it must survive to the document —
-    // unhashed, because a `sha256:…` cannot be looked up on a block explorer (ADR-019).
+    // unhashed, because a `sha256:…` cannot be looked up on a block explorer.
     expect(document.settlement.transaction).toBeTruthy();
     expect(document.settlement.transaction).not.toMatch(/^sha256:/u);
     expect(document.settlement.payer).toBe(

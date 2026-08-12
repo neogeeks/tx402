@@ -1,4 +1,4 @@
-"""Structured, redaction-safe diagnostics (SPEC §10).
+"""Structured, redaction-safe diagnostics.
 
 Mirrors the ``Tx402Logger`` surface in ``packages/tx402/src/core/client.ts``. Per ADR-005
 TypeScript is the reference, so the event names and every field name here are copied from
@@ -40,9 +40,13 @@ EVENT_NAMES: Final[tuple[str, ...]] = (
     "policy.checked",
     "route.planned",
     "budget.reserved",
+    "recipient.pinned",
+    "recipient.rejected",
+    "spend.frozen",
     "sign.started",
     "sign.completed",
     "request.retried",
+    "payment.exposed",
     "payment.completed",
     "request.failed",
 )
@@ -71,7 +75,7 @@ class NoopLogger:
 
     SPEC §10 forbids console output from library code, so the default cannot be "print" —
     a library that logs to stderr by default corrupts the stdout/stderr contract the CLI
-    depends on (SPEC §11).
+    depends on.
     """
 
     __slots__ = ()

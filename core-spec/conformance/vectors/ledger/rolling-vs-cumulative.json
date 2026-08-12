@@ -1,0 +1,67 @@
+{
+  "$schema": "https://tx402.dev/schemas/v1/conformance-vector.schema.json",
+  "id": "spend-ledger.behavior.rolling-vs-cumulative",
+  "kind": "spend-ledger.behavior",
+  "milestone": "M6",
+  "title": "Per-hour resets over the window but the cumulative cap is lifetime",
+  "spec": ["SPEC §4.2", "SPEC §3.4 step 5", "SPEC §3.4 step 6", "SPEC ADR-025"],
+  "input": {
+    "operations": [
+      {
+        "action": "reserve",
+        "reservationId": "00000000-0000-7000-8000-0000000000b1",
+        "requestId": "request-b1",
+        "policyScope": "scope-1",
+        "requestFingerprint": "sha256:b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+        "assetId": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "amountAtomic": "8",
+        "maxPerHourAtomic": "10",
+        "maxTotalAtomic": "10",
+        "nowEpochMs": 1785715200000
+      },
+      {
+        "action": "commit",
+        "reservationId": "00000000-0000-7000-8000-0000000000b1",
+        "policyScope": "scope-1",
+        "assetId": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "committedAtEpochMs": 1785715200000
+      },
+      {
+        "action": "reserve",
+        "reservationId": "00000000-0000-7000-8000-0000000000b2",
+        "requestId": "request-b2",
+        "policyScope": "scope-1",
+        "requestFingerprint": "sha256:b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2",
+        "assetId": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "amountAtomic": "8",
+        "maxPerHourAtomic": "10",
+        "maxTotalAtomic": "10",
+        "nowEpochMs": 1785718800001
+      },
+      {
+        "action": "snapshot",
+        "policyScope": "scope-1",
+        "assetId": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "exposure": true,
+        "nowEpochMs": 1785718800001
+      }
+    ]
+  },
+  "expected": {
+    "outcomes": [
+      { "outcome": "reserved", "state": "reserved" },
+      { "outcome": "committed" },
+      { "outcome": "error", "errorCode": "TX402_POLICY_BUDGET", "capKind": "cumulative" },
+      {
+        "outcome": "snapshot",
+        "committedAtomic": "0",
+        "reservedAtomic": "0",
+        "exposedAtomic": "0",
+        "cumulativeCommittedAtomic": "8",
+        "cumulativeConsumedAtomic": "8",
+        "reservationStates": [],
+        "entryCount": 0
+      }
+    ]
+  }
+}

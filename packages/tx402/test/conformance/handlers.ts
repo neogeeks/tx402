@@ -44,7 +44,7 @@ import {
 } from "../../src/solana/plan.js";
 import { registerHandler, type ConformanceVector } from "./runner.js";
 
-/** Manifest failures all surface to callers as ConfigurationError (SPEC §5.4). */
+/** Manifest failures all surface to callers as ConfigurationError. */
 const MANIFEST_ERROR_CODE = "TX402_CONFIG_INVALID";
 
 registerHandler("errors.taxonomy", (vector: ConformanceVector) => {
@@ -214,26 +214,61 @@ registerHandler("spend-ledger.behavior", async (vector: ConformanceVector) => {
   const input = vector.input as { operations: Record<string, unknown>[] };
   const expected = vector.expected as { outcomes: unknown[] };
   const store = new MemorySpendStore();
+  // The v2 lifecycle ops take the full `{policyScope, assetId, reservationId}` ref (SPEC §3.1),
+  // but a vector's commit/release op carries only the id — so the driver reconstructs the ref
+  // from the reserve that created it (falling back to any ref fields a vector supplies
+  // directly, which the S5 extended vectors will). No frozen vector changes.
+  const refs = new Map<string, { policyScope: string; assetId: string }>();
   const outcomes: Record<string, unknown>[] = [];
   for (const operation of input.operations) {
+    const refFor = (): { policyScope: string; assetId: string } =>
+      refs.get(operation.reservationId as string) ?? {
+        policyScope: operation.policyScope as string,
+        assetId: operation.assetId as string,
+      };
     try {
       switch (operation.action) {
         case "reserve": {
-          const reservation = await store.reserve(operation as never);
+          const { reservation } = await store.reserve(operation as never);
+          refs.set(reservation.reservationId, {
+            policyScope: reservation.policyScope,
+            assetId: reservation.assetId,
+          });
           outcomes.push({ outcome: "reserved", state: reservation.state });
           break;
         }
         case "commit": {
-          await store.commit(operation as never);
+          const ref = refFor();
+          await store.commit({
+            reservationId: operation.reservationId as string,
+            policyScope: ref.policyScope,
+            assetId: ref.assetId,
+            committedAtEpochMs: operation.committedAtEpochMs as number,
+            ...(operation.settlementId === undefined
+              ? {}
+              : { settlementId: operation.settlementId as string }),
+          });
           outcomes.push({ outcome: "committed" });
           break;
         }
         case "release": {
+          const ref = refFor();
           const reservation = await store.release(
-            operation.reservationId as string,
+            { reservationId: operation.reservationId as string, ...ref },
             operation.nowEpochMs as number,
           );
           outcomes.push({ outcome: "released", state: reservation.state });
+          break;
+        }
+        case "expose": {
+          // The pre-transmission fence (SPEC §7, ADR-026), driven at the store level exactly
+          // as the client's `store.expose(ref, now)` call does it.
+          const ref = refFor();
+          const reservation = await store.expose(
+            { reservationId: operation.reservationId as string, ...ref },
+            operation.nowEpochMs as number,
+          );
+          outcomes.push({ outcome: "exposed", state: reservation.state });
           break;
         }
         case "snapshot": {
@@ -242,6 +277,15 @@ registerHandler("spend-ledger.behavior", async (vector: ConformanceVector) => {
             outcome: "snapshot",
             committedAtomic: state.committedAtomic,
             reservedAtomic: state.reservedAtomic,
+            // The exposure/cumulative counters are the headline figures SPEC §7 pins, but they
+            // are opt-in so the pre-0.2.0 ledger vectors keep their exact four-field snapshot.
+            ...(operation.exposure === true
+              ? {
+                  exposedAtomic: state.exposedAtomic,
+                  cumulativeCommittedAtomic: state.cumulativeCommittedAtomic,
+                  cumulativeConsumedAtomic: state.cumulativeConsumedAtomic,
+                }
+              : {}),
             reservationStates: state.reservations.map((item) => item.state),
             entryCount: state.entries.length,
           });
@@ -252,7 +296,200 @@ registerHandler("spend-ledger.behavior", async (vector: ConformanceVector) => {
       }
     } catch (error) {
       if (!isTx402Error(error)) throw error;
+      // A BudgetExceededError carries `capKind` (per-request/per-hour/cumulative); surface it so
+      // a cumulative refusal is distinguishable from a per-hour one, which share an error code.
+      const capKind = (error.details as { capKind?: unknown }).capKind;
+      outcomes.push({
+        outcome: "error",
+        errorCode: error.code,
+        ...(typeof capKind === "string" ? { capKind } : {}),
+      });
+    }
+  }
+  expect(outcomes).toEqual(expected.outcomes);
+});
+
+registerHandler("spend-freeze.behavior", async (vector: ConformanceVector) => {
+  const input = vector.input as { operations: Record<string, unknown>[] };
+  const expected = vector.expected as {
+    outcomes: unknown[];
+    incapableOutcomes?: unknown[];
+  };
+  const store = new MemorySpendStore();
+  // Parameterized by the store's declared global-freeze capability (SPEC §5.2, §13). The
+  // reference store is `atomicGlobalFreeze: true`, so it runs the `outcomes` arm; a durable
+  // store that declares `false` (Redis Cluster, id-per-scope DO — S7/S8) runs
+  // `incapableOutcomes`, where `freeze("*")` fails closed instead of freezing. A per-scope
+  // vector omits `incapableOutcomes`, so both arms use `outcomes`.
+  const arm =
+    store.capabilities.atomicGlobalFreeze || expected.incapableOutcomes === undefined
+      ? expected.outcomes
+      : expected.incapableOutcomes;
+  const refs = new Map<string, { policyScope: string; assetId: string }>();
+  const outcomes: Record<string, unknown>[] = [];
+  for (const operation of input.operations) {
+    const refFor = (): { policyScope: string; assetId: string } =>
+      refs.get(operation.reservationId as string) ?? {
+        policyScope: operation.policyScope as string,
+        assetId: operation.assetId as string,
+      };
+    try {
+      switch (operation.action) {
+        case "reserve": {
+          const { reservation } = await store.reserve(operation as never);
+          refs.set(reservation.reservationId, {
+            policyScope: reservation.policyScope,
+            assetId: reservation.assetId,
+          });
+          outcomes.push({ outcome: "reserved", state: reservation.state });
+          break;
+        }
+        case "commit": {
+          const ref = refFor();
+          await store.commit({
+            reservationId: operation.reservationId as string,
+            policyScope: ref.policyScope,
+            assetId: ref.assetId,
+            committedAtEpochMs: operation.committedAtEpochMs as number,
+            ...(operation.settlementId === undefined
+              ? {}
+              : { settlementId: operation.settlementId as string }),
+          });
+          outcomes.push({ outcome: "committed" });
+          break;
+        }
+        case "release": {
+          const ref = refFor();
+          const reservation = await store.release(
+            { reservationId: operation.reservationId as string, ...ref },
+            operation.nowEpochMs as number,
+          );
+          outcomes.push({ outcome: "released", state: reservation.state });
+          break;
+        }
+        case "expose": {
+          const ref = refFor();
+          const reservation = await store.expose(
+            { reservationId: operation.reservationId as string, ...ref },
+            operation.nowEpochMs as number,
+          );
+          outcomes.push({ outcome: "exposed", state: reservation.state });
+          break;
+        }
+        case "freeze": {
+          await store.freeze(operation.scope as string, operation.nowEpochMs as number);
+          outcomes.push({ outcome: "frozen" });
+          break;
+        }
+        case "unfreeze": {
+          await store.unfreeze(operation.scope as string, operation.nowEpochMs as number);
+          outcomes.push({ outcome: "unfrozen" });
+          break;
+        }
+        case "snapshot": {
+          const state = await store.getBudgetState(operation as never);
+          outcomes.push({
+            outcome: "snapshot",
+            committedAtomic: state.committedAtomic,
+            reservedAtomic: state.reservedAtomic,
+            // `frozen` is the headline freeze signal; the exposure/cumulative counters stay
+            // opt-in so a freeze vector only asserts what it cares about.
+            frozen: state.frozen,
+            ...(operation.exposure === true
+              ? {
+                  exposedAtomic: state.exposedAtomic,
+                  cumulativeCommittedAtomic: state.cumulativeCommittedAtomic,
+                  cumulativeConsumedAtomic: state.cumulativeConsumedAtomic,
+                }
+              : {}),
+            reservationStates: state.reservations.map((item) => item.state),
+            entryCount: state.entries.length,
+          });
+          break;
+        }
+        default:
+          throw new Error(`Unknown freeze operation ${String(operation.action)}`);
+      }
+    } catch (error) {
+      if (!isTx402Error(error)) throw error;
       outcomes.push({ outcome: "error", errorCode: error.code });
+    }
+  }
+  expect(outcomes).toEqual(arm);
+});
+
+registerHandler("recipient-pin.behavior", async (vector: ConformanceVector) => {
+  const input = vector.input as { operations: Record<string, unknown>[] };
+  const expected = vector.expected as { outcomes: unknown[] };
+  const store = new MemorySpendStore();
+  const outcomes: Record<string, unknown>[] = [];
+  for (const operation of input.operations) {
+    try {
+      switch (operation.action) {
+        case "set-recipient-pins": {
+          await store.setRecipientPins(
+            operation.scope as string,
+            operation.network as string,
+            operation.recipients as string[],
+            operation.nowEpochMs as number,
+          );
+          outcomes.push({ outcome: "pins-set" });
+          break;
+        }
+        case "set-tofu-enabled": {
+          await store.setTofuEnabled(
+            operation.scope as string,
+            operation.enabled as boolean,
+            operation.nowEpochMs as number,
+          );
+          outcomes.push({ outcome: "tofu-set" });
+          break;
+        }
+        case "set-recipient-assertion-required": {
+          await store.setRecipientAssertionRequired(
+            operation.scope as string,
+            operation.required as boolean,
+            operation.nowEpochMs as number,
+          );
+          outcomes.push({ outcome: "assertion-set" });
+          break;
+        }
+        case "reserve": {
+          // The authoritative assert/claim (SPEC §3.4 step 3): the recipient fields are
+          // asserted against the store's administered set in the same atom as the budget.
+          const { recipientPinEstablished } = await store.reserve(operation as never);
+          outcomes.push({ outcome: "reserved", pinEstablished: recipientPinEstablished });
+          break;
+        }
+        case "snapshot-pins": {
+          const recipients = await store.getRecipientPins(
+            operation.scope as string,
+            operation.network as string,
+          );
+          outcomes.push({ outcome: "pins", recipients: [...recipients] });
+          break;
+        }
+        default:
+          throw new Error(`Unknown recipient-pin operation ${String(operation.action)}`);
+      }
+    } catch (error) {
+      if (!isTx402Error(error)) throw error;
+      // Surface the RP-8 conditional details verbatim: `reason` always, and
+      // `network`/`presentedRecipient`/`expectedRecipients` only when the error carries them
+      // (present for not-allowlisted/pin-mismatch, absent for assertion-required — SPEC §6.5).
+      const details = error.details as Record<string, unknown>;
+      outcomes.push({
+        outcome: "error",
+        errorCode: error.code,
+        ...(details.reason === undefined ? {} : { reason: details.reason }),
+        ...(details.network === undefined ? {} : { network: details.network }),
+        ...(details.presentedRecipient === undefined
+          ? {}
+          : { presentedRecipient: details.presentedRecipient }),
+        ...(details.expectedRecipients === undefined
+          ? {}
+          : { expectedRecipients: details.expectedRecipients }),
+      });
     }
   }
   expect(outcomes).toEqual(expected.outcomes);

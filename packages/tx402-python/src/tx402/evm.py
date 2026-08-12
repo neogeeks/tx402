@@ -1,4 +1,4 @@
-"""Base/EVM exact-scheme planning, RPC validation, and signer adaptation (SPEC §7.1)."""
+"""Base/EVM exact-scheme planning, RPC validation, and signer adaptation."""
 
 from __future__ import annotations
 
@@ -259,7 +259,7 @@ def _safe_host(url: str) -> str:
 class EvmRpcPool:
     """At most two manifest RPCs; chain identity is checked before every balance read.
 
-    The pool holds no circuit state of its own (PLAN.md O19). It asks the client's shared
+    The pool holds no circuit state of its own. It asks the client's shared
     :class:`~tx402.health.HealthIndex` whether an endpoint may be used and reports what
     happened, so one provider cannot be simultaneously open here and closed elsewhere.
     """
@@ -409,7 +409,7 @@ class EvmRpcPool:
         owner: str,
         now_epoch_ms: int | None = None,
     ) -> EvmBalanceReading:
-        """Proves ``eth_chainId`` and reads ``balanceOf`` on the same endpoint (SPEC §7.1).
+        """Proves ``eth_chainId`` and reads ``balanceOf`` on the same endpoint.
 
         Both calls go to one endpoint on purpose: a balance is only meaningful once the
         endpoint that served it has said which chain it speaks for.
@@ -792,7 +792,7 @@ def _require_evm_signer(signer: object, context: Tx402ErrorContext) -> EvmSigner
 
 
 class EvmChainAdapter:
-    """The Base implementation of the two questions core asks (SPEC §7.1)."""
+    """The Base implementation of the two questions core asks."""
 
     family = "eip155"
 
@@ -876,7 +876,7 @@ class EvmChainAdapter:
             viable=viable,
             rejection_reasons=() if viable else ("insufficient-balance",),
             # The merchant bears settlement gas for the exact scheme, so the buyer's
-            # expected fee in the payment asset is zero (SPEC §7.1).
+            # expected fee in the payment asset is zero.
             estimated_fee_atomic="0",
             endpoint_id=reading.endpoint_id,
         )

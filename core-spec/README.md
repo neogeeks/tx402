@@ -3,19 +3,19 @@
 Language-neutral artifacts shared by both SDKs. Nothing here is TypeScript- or Python-specific, and
 neither implementation may keep a private copy of any of it.
 
-| Directory      | Contents                                                                         |
-| :------------- | :------------------------------------------------------------------------------- |
-| `schemas/`     | JSON Schema 2020-12 for every tx402 internal data shape (SPEC §5)                |
-| `conformance/` | Test vectors both SDKs are validated against (ADR-005), plus the runner contract |
-| `manifests/`   | The signed release manifest and the trusted signing public key (SPEC §5.4)       |
+| Directory      | Contents                                                               |
+| :------------- | :--------------------------------------------------------------------- |
+| `schemas/`     | JSON Schema 2020-12 for every tx402 internal data shape                |
+| `conformance/` | Test vectors both SDKs are validated against, plus the runner contract |
+| `manifests/`   | The signed release manifest and the trusted signing public key         |
 
 ## What is frozen
 
 The following were frozen at **M0** (session S2) and are the last cheap moment to rename anything:
 
 - every field name in `schemas/`
-- the fifteen error codes and fifteen error class names in `schemas/common.schema.json`
-- the canonical serialization used for manifest signing (ADR-012)
+- the seventeen error codes and seventeen error class names in `schemas/common.schema.json`
+- the canonical serialization used for manifest signing
 - the conformance vector format and vector IDs
 
 Changing any of them after M0 is a wire-visible or API-visible break and follows SPEC §15: during
@@ -35,7 +35,7 @@ conformance runners do this.
 | `route-candidate.schema.json`             | §5.2           | Includes non-viable candidates and their reasons          |
 | `spend-reservation.schema.json`           | §5.3           | 120 s TTL, four states                                    |
 | `spend-entry.schema.json`                 | §5.3           | Committed spend, rolling 3 600 000 ms window              |
-| `release-manifest.schema.json`            | §5.4           | Canonical CAIP-2 keys plus the alias map (ADR-010)        |
+| `release-manifest.schema.json`            | §5.4           | Canonical CAIP-2 keys plus the alias map                  |
 | `conformance-vector.schema.json`          | ADR-005        | The fixture format itself                                 |
 
 ### Why the normalized schemas are not the wire format

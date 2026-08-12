@@ -25,7 +25,7 @@ export const X402_PROTOCOL_VERSION = 2;
  * advisory is authenticated and an inbox is not.
  *
  * Python mirrors these in `packages/tx402-python/src/tx402/meta.py`, and
- * `TestCrossLanguageParity` reads this file as text to pin the two together (ADR-005).
+ * `TestCrossLanguageParity` reads this file as text to pin the two together.
  * Changing a URL here without changing it there fails that test.
  */
 export const PROJECT_URLS = {
@@ -48,9 +48,9 @@ export const REQUEST_ID_HEADER = "X-TX402-REQUEST-ID";
  * x402 protocol v2 headers.
  *
  * Verified against `@x402/core` 2.20.0. The v1 `X-PAYMENT` / `X-PAYMENT-RESPONSE` headers
- * are deliberately absent — v0.1 does not support protocol v1 (ADR-004).
+ * are deliberately absent — v0.1 does not support protocol v1.
  *
- * Callers may not supply any of these; doing so raises `ReservedHeaderError` (SPEC §6.1).
+ * Callers may not supply any of these; doing so raises `ReservedHeaderError`.
  */
 export const PROTOCOL_HEADERS = {
   paymentRequired: "PAYMENT-REQUIRED",

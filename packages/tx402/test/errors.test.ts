@@ -17,9 +17,11 @@ import {
   InvalidPaymentRequiredError,
   NonReplayableRequestError,
   PaidRedirectBlockedError,
+  RecipientUnpinnedError,
   ReservedHeaderError,
   ResourceDeliveryError,
   SignerError,
+  SpendScopeFrozenError,
   TX402_ERROR_TAXONOMY,
   TransportError,
   Tx402Error,
@@ -52,7 +54,7 @@ describe("Tx402Error", () => {
     expect(new TransportError("reset", { context }).retryability).toBe("caller-policy");
 
     // Conditional, after-correction, and no-automatic-retry all mean "not without the
-    // caller doing something first", so all three report false (ADR-011).
+    // caller doing something first", so all three report false.
     expect(new AmbiguousPaymentError("timed out", { context }).retryable).toBe(false);
     expect(new AmbiguousPaymentError("timed out", { context }).retryability).toBe(
       "no-automatic-retry",
@@ -147,7 +149,7 @@ describe("taxonomy table", () => {
   });
 
   it("has a constructible, correctly coded class for every row", () => {
-    // Instantiating all fifteen is the only way to catch a subclass wired to the wrong
+    // Instantiating all seventeen is the only way to catch a subclass wired to the wrong
     // code — a copy-paste slip that nothing else in the suite would notice.
     const classes: Record<string, new (message: string, options: never) => Tx402Error> = {
       ConfigurationError,
@@ -165,6 +167,8 @@ describe("taxonomy table", () => {
       ResourceDeliveryError,
       PaidRedirectBlockedError,
       TransportError,
+      SpendScopeFrozenError,
+      RecipientUnpinnedError,
     };
 
     expect(Object.keys(classes)).toEqual(TX402_ERROR_TAXONOMY.map((e) => e.className));

@@ -4,7 +4,7 @@ Covers what the frozen vectors cannot: the state machine actually running. T-003
 paid call), T-004/T-005 (deterministic selection across two offered networks), T-020 (a dark
 primary RPC), and T-010/T-011/T-012 (the re-challenge loop and its money rules).
 
-Every merchant and RPC here is an ``httpx.MockTransport``. Per PLAN.md open item O24 the
+Every merchant and RPC here is an ``httpx.MockTransport``. By deliberate policy the
 transports never rebuild an outbound request: a shim that does drops the deadline the SDK
 owns, and against a stub that never answers that is not a slow test, it is no deadline.
 """
@@ -326,7 +326,7 @@ class TestMultiNetworkRouting:
     def test_selection_is_identical_across_repeated_runs(self) -> None:
         """SPEC §6.4 step 19: identical inputs and health state, identical output.
 
-        The preference matters to the *test*, not just to the scenario, and PLAN.md open
+        The preference matters to the *test*, not just to the scenario, and the recorded
         item O34 is why. Step 19 conditions determinism on health state, and both keys
         below preference — ``health_score`` and ``observed_latency_ms`` — are derived from
         a fresh wall-clock measurement of the balance probe. Two candidates that tie on
@@ -389,7 +389,7 @@ class TestRpcFailover:
             for _ in range(8):
                 assert sdk.get(URL).status_code == 200
         # Warming is the property under test: the primary costs its deadline five times and
-        # then never again, because its circuit is open (SPEC §6.5).
+        # then never again, because its circuit is open.
         assert contacted == 5
 
     def test_reset_health_clears_the_index_without_touching_the_ledger(self) -> None:
@@ -473,7 +473,7 @@ class TestRechallengeLoop:
             sdk.get(URL)
         assert merchant.paid == 1
         state = budget(store, f"{BASE}/erc20:{BASE_ASSET}")
-        assert [item.state for item in state.reservations] == ["reserved"]
+        assert [item.state for item in state.reservations] == ["exposed"]
 
     def test_t012_a_cross_origin_redirect_raises_paid_redirect_blocked(self) -> None:
         """SPEC §6.1: "Cross-origin redirect raises ``PaidRedirectBlockedError``."
@@ -506,7 +506,7 @@ class TestRechallengeLoop:
         assert raised.value.__cause__ is not None
         assert merchant.paid == 1
         state = budget(store, f"{BASE}/erc20:{BASE_ASSET}")
-        assert [item.state for item in state.reservations] == ["reserved"]
+        assert [item.state for item in state.reservations] == ["exposed"]
 
     def test_a_same_origin_redirect_is_not_followed_and_is_not_a_refusal(self) -> None:
         merchant = Merchant(paid_statuses=[307], paid_headers={"location": "/delivered"})

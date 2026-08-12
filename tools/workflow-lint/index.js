@@ -25,7 +25,7 @@
  *    wholesale rather than reported per-job.
  * 4. **A matrix expression refers to a key the matrix declares**, which catches a renamed
  *    matrix axis leaving a dangling `${{ matrix.node }}`.
- * 5. **Any job holding `id-token: write` uses only SHA-pinned actions** (PLAN.md O48). Such
+ * 5. **Any job holding `id-token: write` uses only SHA-pinned actions**. Such
  *    a job can exchange the repository's OIDC identity for publish rights on npm and PyPI,
  *    so an action referenced by a mutable tag is a third party who can rewrite what runs
  *    with those rights. This check is what stops a later edit reintroducing `@v7`: it is
@@ -58,6 +58,18 @@ const JOB_LEVEL_CONTEXTS = new Set([
 ]);
 
 const CONTEXT = /\$\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\.([a-zA-Z0-9_-]+)/g;
+
+/**
+ * Whether a job can mint a publishing credential. `id-token: write` grants the OIDC token used to
+ * publish to npm/PyPI; `write-all` grants it (and everything else) too, so both are publish-capable.
+ * Both the SHA-pinning check and the O30 gate-dependency check must use this same definition — the
+ * O30 check once keyed only on `id-token: write`, so a `write-all` publish job slipped past the
+ * `needs:` requirement.
+ */
+function isPublishPrivileged(job) {
+  const permissions = job?.permissions ?? {};
+  return permissions === "write-all" || permissions?.["id-token"] === "write";
+}
 
 const problems = [];
 
@@ -96,8 +108,7 @@ for (const file of readdirSync(WORKFLOWS).filter((name) => /\.ya?ml$/u.test(name
     }
 
     // A job that can mint a publishing credential may not run a mutable reference.
-    const permissions = job?.permissions ?? {};
-    const privileged = permissions === "write-all" || permissions?.["id-token"] === "write";
+    const privileged = isPublishPrivileged(job);
     if (privileged) {
       for (const step of Array.isArray(job?.steps) ? job.steps : []) {
         const uses = step?.uses;
@@ -131,6 +142,36 @@ for (const file of readdirSync(WORKFLOWS).filter((name) => /\.ya?ml$/u.test(name
               `declare (has: ${[...axes].join(", ")})`,
           );
         }
+      }
+    }
+  }
+
+  // O30: a published release must re-run the durable/gateway gates ON THE TAGGED COMMIT. In the
+  // release workflow, every publish job (one holding `id-token: write`) must `needs` those gate
+  // jobs — and the gate jobs must exist — so the gate cannot be silently dropped by editing the
+  // `needs` list. Only release.yml publishes, so only it is held to this.
+  if (file === "release.yml") {
+    const REQUIRED_GATES = ["durable-store", "durable-object", "gateway-golden"];
+    for (const gate of REQUIRED_GATES) {
+      if (jobs[gate] === undefined) {
+        problems.push(`${file}: required release gate job "${gate}" is not defined (O30)`);
+      }
+    }
+    for (const [id, job] of Object.entries(jobs)) {
+      if (!isPublishPrivileged(job)) continue;
+      const declared = job?.needs;
+      const needs = Array.isArray(declared)
+        ? declared
+        : declared === undefined
+          ? []
+          : [declared];
+      const missing = REQUIRED_GATES.filter((gate) => !needs.includes(gate));
+      if (missing.length > 0) {
+        problems.push(
+          `${file}: publish job "${id}" does not \`needs\` the durable/gateway gate(s) ` +
+            `${missing.join(", ")} — a tag could publish without proving the durable adapters ` +
+            `or the gateway on the tagged commit (O30)`,
+        );
       }
     }
   }

@@ -1,7 +1,7 @@
 {
   "name": "tx402",
-  "version": "0.1.0",
-  "description": "Resilient x402 buyer SDK \u2014 deterministic multi-chain payment routing, local spend guardrails, and a drop-in fetch wrapper for autonomous agents.",
+  "version": "0.2.0",
+  "description": "Resilient x402 buyer SDK — deterministic multi-chain payment routing, local spend guardrails, and a drop-in fetch wrapper for autonomous agents.",
   "license": "Apache-2.0",
   "homepage": "https://tx402.io",
   "repository": {
@@ -35,6 +35,26 @@
       "types": "./dist/signers/index.d.ts",
       "default": "./dist/signers/index.js"
     },
+    "./spend-store-contract": {
+      "types": "./dist/core/spend-store-contract.d.ts",
+      "default": "./dist/core/spend-store-contract.js"
+    },
+    "./redis": {
+      "types": "./dist/redis/index.d.ts",
+      "default": "./dist/redis/index.js"
+    },
+    "./durable-object": {
+      "types": "./dist/durable-object/index.d.ts",
+      "default": "./dist/durable-object/index.js"
+    },
+    "./gateway": {
+      "types": "./dist/gateway/index.d.ts",
+      "default": "./dist/gateway/index.js"
+    },
+    "./gateway/worker": {
+      "types": "./dist/gateway/worker.d.ts",
+      "default": "./dist/gateway/worker.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [
@@ -55,8 +75,8 @@
     "sdk"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "build": "tsc -p tsconfig.build.json && tsc -p tsconfig.durable-object.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.durable-object.json --noEmit",
     "test": "vitest run",
     "test:watch": "vitest"
   },
@@ -68,6 +88,8 @@
     "@solana/kit": ">=5.1.0",
     "@x402/evm": "~2.20.0",
     "@x402/svm": "~2.20.0",
+    "ioredis": "^5.4.0",
+    "redis": "^4.7.0",
     "viem": "^2.48.11"
   },
   "peerDependenciesMeta": {
@@ -83,11 +105,19 @@
     "@solana/kit": {
       "optional": true
     },
+    "ioredis": {
+      "optional": true
+    },
+    "redis": {
+      "optional": true
+    },
     "viem": {
       "optional": true
     }
   },
   "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "~0.12",
+    "@cloudflare/workers-types": "^4",
     "@solana-program/token": "^0.9.0",
     "@solana/kit": "^5.1.0",
     "@tx402-dev/evm-rpc-stub": "workspace:*",
@@ -98,6 +128,10 @@
     "@x402/svm": "~2.20.0",
     "ajv": "^8.20.0",
     "ajv-formats": "^3.0.1",
+    "esbuild": "0.24.2",
+    "ioredis": "^5.4.0",
+    "miniflare": "4.20260310.0",
+    "redis": "^4.7.0",
     "viem": "^2.48.11"
   },
   "publishConfig": {

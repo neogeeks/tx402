@@ -1,0 +1,94 @@
+{
+  "$schema": "https://tx402.dev/schemas/v1/conformance-vector.schema.json",
+  "id": "recipient-pin.behavior.canonical",
+  "kind": "recipient-pin.behavior",
+  "milestone": "M6",
+  "title": "Recipient comparison is eip155 lowercase-hex and solana verbatim base58 (SPEC §6.4)",
+  "spec": ["SPEC §6", "SPEC §6.4", "SPEC §3.4", "ADR-028"],
+  "description": "The pin comparison is canonical per network family (SPEC §6.4), core-path with no chain libraries. On eip155, a pin administered in mixed-case hex admits a reserve presenting the same address in a DIFFERENT case — both sides lowercase before comparison (the sameAddress rule; no EIP-55 checksum). The pin readback preserves the verbatim administered string. On solana, base58 is injective and case-sensitive, so a pin admits an exact-match reserve and refuses one that differs only in case — a lowercased base58 is a different key and is not-allowlisted.",
+  "input": {
+    "operations": [
+      {
+        "action": "set-recipient-pins",
+        "scope": "merchant-evm.example",
+        "network": "eip155:8453",
+        "recipients": ["0xAbCdEf0000000000000000000000000000000001"],
+        "nowEpochMs": 1785715200000
+      },
+      {
+        "action": "reserve",
+        "reservationId": "00000000-0000-7000-8000-000000000921",
+        "requestId": "canon-EVM",
+        "policyScope": "merchant-evm.example",
+        "requestFingerprint": "sha256:e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1",
+        "assetId": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "amountAtomic": "1",
+        "maxPerHourAtomic": "10",
+        "recipientNetwork": "eip155:8453",
+        "recipientCanonical": "0xABCDEF0000000000000000000000000000000001",
+        "recipientEnforcement": "allowlist",
+        "nowEpochMs": 1785715200000
+      },
+      {
+        "action": "snapshot-pins",
+        "scope": "merchant-evm.example",
+        "network": "eip155:8453"
+      },
+      {
+        "action": "set-recipient-pins",
+        "scope": "merchant-sol.example",
+        "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+        "recipients": ["So11111111111111111111111111111111111111112"],
+        "nowEpochMs": 1785715200000
+      },
+      {
+        "action": "reserve",
+        "reservationId": "00000000-0000-7000-8000-000000000922",
+        "requestId": "canon-SOL-match",
+        "policyScope": "merchant-sol.example",
+        "requestFingerprint": "sha256:e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2",
+        "assetId": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/token:EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "amountAtomic": "1",
+        "maxPerHourAtomic": "10",
+        "recipientNetwork": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+        "recipientCanonical": "So11111111111111111111111111111111111111112",
+        "recipientEnforcement": "allowlist",
+        "nowEpochMs": 1785715200000
+      },
+      {
+        "action": "reserve",
+        "reservationId": "00000000-0000-7000-8000-000000000923",
+        "requestId": "canon-SOL-case",
+        "policyScope": "merchant-sol.example",
+        "requestFingerprint": "sha256:e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3",
+        "assetId": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/token:EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "amountAtomic": "1",
+        "maxPerHourAtomic": "10",
+        "recipientNetwork": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+        "recipientCanonical": "so11111111111111111111111111111111111111112",
+        "recipientEnforcement": "allowlist",
+        "nowEpochMs": 1785715200000
+      }
+    ]
+  },
+  "expected": {
+    "outcomes": [
+      { "outcome": "pins-set" },
+      { "outcome": "reserved", "pinEstablished": false },
+      {
+        "outcome": "pins",
+        "recipients": ["0xAbCdEf0000000000000000000000000000000001"]
+      },
+      { "outcome": "pins-set" },
+      { "outcome": "reserved", "pinEstablished": false },
+      {
+        "outcome": "error",
+        "errorCode": "TX402_RECIPIENT_UNPINNED",
+        "reason": "not-allowlisted",
+        "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+        "presentedRecipient": "so11111111111111111111111111111111111111112",
+        "expectedRecipients": ["So11111111111111111111111111111111111111112"]
+      }
+    ]
+  }
+}

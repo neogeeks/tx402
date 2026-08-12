@@ -6,10 +6,17 @@ import {
   ConfigurationError,
   DomainNotAllowedError,
   InvalidPaymentRequiredError,
+  isTx402Error,
+  RecipientUnpinnedError,
+  TransportError,
   UnsupportedSchemeError,
   type Tx402ErrorContext,
 } from "./errors.js";
-import type { SpendStore } from "./ledger.js";
+import {
+  canonicalizeRecipient,
+  type RecipientPinStore,
+  type SpendStore,
+} from "./ledger.js";
 import {
   requireNetwork,
   type ManifestAsset,
@@ -22,18 +29,59 @@ import type {
   NormalizedPaymentRequirement,
 } from "./protocol.js";
 
+/**
+ * The `causeCategory` a recipient-pin/policy STORE outage surfaces as: a read failure in
+ * the advisory pre-filter is infrastructure unavailability — a retryable `TransportError`, fail-
+ * closed before any signature — never a `RecipientUnpinnedError` (a refusal) or a raw error.
+ */
+const RECIPIENT_STORE_UNAVAILABLE_CAUSE = "recipient-store-unavailable";
+
+/** Wrap a raw recipient-store read failure as the §6.3 retryable outage; pass a typed error through. */
+function recipientStoreOutage(error: unknown, context: Tx402ErrorContext): Error {
+  if (isTx402Error(error)) return error;
+  return new TransportError("The recipient pin store is unavailable", {
+    context,
+    details: { causeCategory: RECIPIENT_STORE_UNAVAILABLE_CAUSE },
+    cause: error,
+  });
+}
+
 export interface PolicyConfig {
   readonly maxPerRequest?: unknown;
   readonly maxPerHour?: unknown;
+  /**
+   * Optional per-scope+asset lifetime ceiling (D-A1, SPEC §4.1). A decimal-`<SYMBOL>` string
+   * parsed by the money parser; `maxTotal ≥ maxPerHour ≥ maxPerRequest` or `ConfigurationError`.
+   * Absent ⇒ no caller cumulative cap (an administered one may still bind, §4.3).
+   */
+  readonly maxTotal?: unknown;
   readonly allowedNetworks?: readonly string[];
   readonly allowedDomains?: readonly string[];
   readonly maxPaidAttempts?: number;
 }
 
+/**
+ * Recipient pinning config, passed to {@link PolicyEngine} separately from
+ * `policy`. `"off"` (default) is behaviour identical to v0.1.0. `"allowlist"` requires `allow`.
+ * `"tofu"` requires the configured store to implement {@link RecipientPinStore} (checked at
+ * client construction, else `ConfigurationError recipient-tofu-needs-pin-store`); `allow` MAY
+ * also be present (allowlist wins, TOFU fills gaps). Each `allow` entry's `host` is normalized
+ * and `network` resolved through the manifest at construction. The client-side allow-list is an
+ * advisory pre-filter only — the store holds the authoritative recipient set (§6.2).
+ */
+export interface RecipientPolicyConfig {
+  readonly mode?: "off" | "allowlist" | "tofu";
+  readonly allow?: ReadonlyArray<{
+    readonly host: string;
+    readonly network: string;
+    readonly recipients: readonly string[];
+  }>;
+}
+
 export interface RoutingPolicyConfig {
   readonly maxQuoteAgeMs?: number;
   /**
-   * Tie-break preference only (SPEC §4.3). Listing a network here cannot make it payable —
+   * Tie-break preference only. Listing a network here cannot make it payable —
    * it must still be offered by the merchant, allowed by policy, present in the manifest, and
    * backed by a sufficient balance. Aliases are accepted and normalized to canonical CAIP-2,
    * because a preference expressed as `solana:mainnet` must match a candidate identified by
@@ -41,7 +89,7 @@ export interface RoutingPolicyConfig {
    */
   readonly preferNetworks?: readonly string[];
   /**
-   * Replaces the signed manifest's RPC endpoints for specific networks (ADR-015).
+   * Replaces the signed manifest's RPC endpoints for specific networks.
    *
    * Keyed by CAIP-2 identifier or alias; the value replaces `rpcUrls` for that network and
    * nothing else. Every other manifest fact — which networks exist, which assets they carry,
@@ -56,7 +104,7 @@ export interface RoutingPolicyConfig {
    *
    * Exists because the manifest ships keyless public endpoints, and a keyless public
    * endpoint has a per-IP quota. An operator running at volume has a keyed endpoint and
-   * previously had no way to tell tx402 about it (PLAN.md open item O35).
+   * previously had no way to tell tx402 about it.
    */
   readonly rpcOverrides?: Readonly<Record<string, readonly string[]>>;
 }
@@ -67,11 +115,13 @@ export interface PolicyRequirement extends NormalizedPaymentRequirement {
    * The **manifest** asset this requirement was matched to — decimals, symbol, and the
    * canonical address — not the merchant's claim about it. Route planning and the signer
    * presentation read token metadata from here, so a merchant cannot restate a token's
-   * decimals and change what an amount means (SPEC §0, ADR-006).
+   * decimals and change what an amount means.
    */
   readonly manifestAsset: ManifestAsset;
   readonly maxPerRequestAtomic: string;
   readonly maxPerHourAtomic: string;
+  /** Present only when a caller cumulative cap is configured. */
+  readonly maxTotalAtomic?: string;
 }
 
 export interface PolicyDecision {
@@ -84,6 +134,7 @@ interface PreparedAsset {
   readonly assetId: string;
   readonly maxPerRequest: bigint;
   readonly maxPerHour: bigint;
+  readonly maxTotal?: bigint;
 }
 
 const DEFAULT_MAX_PER_REQUEST = "0.50 USDC";
@@ -103,8 +154,13 @@ function configuration(path: string, reason: string, cause?: unknown): Configura
   });
 }
 
+/** Advisory recipient allow-list key: the pin identity is `(normalized host, network)`. */
+function recipientKey(host: string, network: string): string {
+  return `${host}\u0000${network}`;
+}
+
 /**
- * The canonical policy host of `url` (ADR-018, amended S15d).
+ * The canonical policy host of `url` (ADR-018).
  *
  * The canonical form is the **A-label (ASCII) host**: what a WHATWG URL parser produces,
  * lowercased, with one trailing root dot removed. `https://bücher.example/x` and
@@ -121,7 +177,7 @@ function configuration(path: string, reason: string, cause?: unknown): Configura
 export function normalizePolicyHost(url: string | URL): string {
   // One dot, not every dot: `a.test.` is `a.test`, and `a.test..` keeps the inner one. The
   // root-label host `.` normalizes to the empty string — an accepted, non-routable edge
-  // that matches only the `"*"` pattern, which already permits every host (O43).
+  // that matches only the `"*"` pattern, which already permits every host.
   return new URL(url).hostname.toLowerCase().replace(/\.$/u, "");
 }
 
@@ -204,11 +260,16 @@ export class PolicyEngine {
   readonly preferNetworks: readonly string[];
   /** Caller-supplied RPC endpoints, keyed by canonical CAIP-2 (ADR-015). */
   readonly rpcOverrides: Readonly<Record<string, readonly string[]>>;
+  /** The caller's recipient-enforcement disposition sent into `reserve` (SPEC §6.1, ADR-028). */
+  readonly recipientMode: "off" | "allowlist" | "tofu";
+  /** Advisory allow-list, keyed `${normalizedHost}\u0000${canonicalNetwork}` → canonical set. */
+  readonly #recipientAllow = new Map<string, ReadonlySet<string>>();
 
   constructor(
     manifest: ReleaseManifest,
     policy: PolicyConfig = {},
     routing: RoutingPolicyConfig = {},
+    recipientPolicy: RecipientPolicyConfig = {},
   ) {
     this.#manifest = manifest;
     const configuredNetworks =
@@ -354,14 +415,65 @@ export class PolicyEngine {
         if (maxPerHour < maxPerRequest) {
           throw configuration("policy.maxPerHour", "below-max-per-request");
         }
+        let maxTotal: bigint | undefined;
+        if (policy.maxTotal !== undefined) {
+          try {
+            maxTotal = parsePositiveMoneyAtomic(policy.maxTotal, asset);
+          } catch (error) {
+            const reason =
+              error instanceof MoneyParseError ? error.reason : "invalid-money";
+            throw configuration("policy.maxTotal", reason, error);
+          }
+          // Ordering: maxTotal ≥ maxPerHour ≥ maxPerRequest (SPEC §4.1, ADR-025).
+          if (maxTotal < maxPerHour) {
+            throw configuration("policy.maxTotal", "below-max-per-hour");
+          }
+        }
         this.#assets.set(`${networkId}\u0000${assetReference(asset)}`, {
           manifest: asset,
           assetId: assetId(networkId, network, asset),
           maxPerRequest,
           maxPerHour,
+          ...(maxTotal === undefined ? {} : { maxTotal }),
         });
       }
     }
+
+    // Recipient policy (SPEC §6.1, ADR-028). `mode` defaults to "off" (opt-in, §14). The
+    // `allow` entries are the advisory pre-filter only; the store is the authority (§6.2).
+    this.recipientMode = recipientPolicy.mode ?? "off";
+    if (!["off", "allowlist", "tofu"].includes(this.recipientMode)) {
+      throw configuration("recipientPolicy.mode", "unexpected-value");
+    }
+    if (this.recipientMode === "allowlist" && (recipientPolicy.allow ?? []).length === 0) {
+      throw configuration("recipientPolicy.allow", "empty-list");
+    }
+    (recipientPolicy.allow ?? []).forEach((entry, index) => {
+      const path = `recipientPolicy.allow[${index}]`;
+      if (typeof entry?.host !== "string" || entry.host.length === 0) {
+        throw configuration(`${path}.host`, "expected-string");
+      }
+      // Host and network share the pin's identity with the budget scope (ADR-018); resolve the
+      // network through the manifest so a misspelled one fails here, not silently later.
+      const host = normalizePolicyHost(`https://${entry.host}`);
+      const network = requireNetwork(
+        manifest,
+        entry.network,
+        configContext(),
+        `${path}.network`,
+      );
+      if (!Array.isArray(entry.recipients) || entry.recipients.length === 0) {
+        throw configuration(`${path}.recipients`, "empty-list");
+      }
+      const canonical = entry.recipients.map((recipient, r) => {
+        if (typeof recipient !== "string" || recipient.length === 0) {
+          throw configuration(`${path}.recipients[${r}]`, "expected-string");
+        }
+        return canonicalizeRecipient(network, recipient);
+      });
+      this.#recipientAllow.set(recipientKey(host, network), new Set(canonical));
+    });
+
     Object.freeze(this);
   }
 
@@ -444,12 +556,36 @@ export class PolicyEngine {
       );
     }
 
+    // 9a. Recipient (advisory, SPEC §6.2, ADR-028). Read-only and NON-mutating — plan()/
+    // inspect()/--dry-run call evaluate and must never establish or mutate a pin. It is a fast
+    // user-facing rejection, NOT the security boundary: reserve asserts authoritatively against
+    // the store (§3.4 step 3). A pin-store outage here is a retryable TransportError (§6.3),
+    // not a RecipientUnpinnedError, so the read is left to propagate its own error.
+    const recipientOk =
+      this.recipientMode === "off"
+        ? supported
+        : await this.#recipientPreFilter(
+            supported,
+            normalizedHost,
+            options.spendStore,
+            context,
+          );
+    if (recipientOk.length === 0) {
+      throw new RecipientUnpinnedError("No offered recipient is pinned for this scope", {
+        context,
+        details: { merchantScope: normalizedHost, reason: "not-allowlisted" },
+      });
+    }
+
     // 10. Per-request amount.
-    const underRequestCap = supported.filter(
+    const underRequestCap = recipientOk.filter(
       ({ requirement, asset }) => BigInt(requirement.amountAtomic) <= asset.maxPerRequest,
     );
     if (underRequestCap.length === 0) {
-      const { requirement, asset } = supported.reduce((best, candidate) =>
+      // Report the cheapest route from the recipient-FILTERED set (O50) — matching the Python
+      // adapter and this method's own hourly-cap branch below, so the diagnostic route/amount is
+      // identical across languages. `recipientOk` is non-empty here (checked above).
+      const { requirement, asset } = recipientOk.reduce((best, candidate) =>
         BigInt(candidate.requirement.amountAtomic) < BigInt(best.requirement.amountAtomic)
           ? candidate
           : best,
@@ -507,6 +643,9 @@ export class PolicyEngine {
             manifestAsset: asset.manifest,
             maxPerRequestAtomic: asset.maxPerRequest.toString(),
             maxPerHourAtomic: asset.maxPerHour.toString(),
+            ...(asset.maxTotal === undefined
+              ? {}
+              : { maxTotalAtomic: asset.maxTotal.toString() }),
           }),
         );
       }
@@ -566,5 +705,64 @@ export class PolicyEngine {
       normalizedHost,
       requirements: Object.freeze(fresh),
     });
+  }
+
+  /**
+   * The advisory recipient pre-filter (SPEC §6.2). Read-only: it drops a requirement whose
+   * canonical recipient is disallowed (allowlist) or mismatched (tofu), keeps a tofu route with
+   * no pin yet (`pinPending`), and NEVER writes — the authoritative claim happens atomically in
+   * `reserve`. Allowlist wins where a static allow entry exists, for both modes; a `tofu` scope
+   * with no pin and `tofuEnabled` false fails closed (§6.1) rather than silently admitting.
+   */
+  async #recipientPreFilter(
+    supported: { requirement: NormalizedPaymentRequirement; asset: PreparedAsset }[],
+    normalizedHost: string,
+    spendStore: SpendStore,
+    context: Tx402ErrorContext,
+  ): Promise<{ requirement: NormalizedPaymentRequirement; asset: PreparedAsset }[]> {
+    const pinStore = spendStore as SpendStore & Partial<RecipientPinStore>;
+    const kept: { requirement: NormalizedPaymentRequirement; asset: PreparedAsset }[] = [];
+    for (const entry of supported) {
+      const network = entry.requirement.network;
+      const canonical = canonicalizeRecipient(network, entry.requirement.payTo);
+      const allow = this.#recipientAllow.get(recipientKey(normalizedHost, network));
+      if (allow !== undefined) {
+        if (allow.has(canonical)) kept.push(entry); // allowlist wins (§6.1)
+        continue;
+      }
+      if (this.recipientMode === "allowlist") continue; // no static entry admits this pair
+      // tofu mode, no static allow entry — READ the pin (never write). A STORE outage here is a
+      // retryable TransportError(recipient-store-unavailable), fail-closed pre-signature (§6.3, O17).
+      let pins: readonly string[];
+      try {
+        pins = (await pinStore.getRecipientPins?.(normalizedHost, network)) ?? [];
+      } catch (error) {
+        throw recipientStoreOutage(error, context);
+      }
+      if (pins.length > 0) {
+        if (pins.map((pin) => canonicalizeRecipient(network, pin)).includes(canonical)) {
+          kept.push(entry);
+        }
+        continue;
+      }
+      // No pin yet — keep (pinPending), but fail closed if TOFU was never provisioned (§6.1).
+      let policy: { tofuEnabled: boolean; recipientAssertionRequired: boolean } | undefined;
+      try {
+        policy = await pinStore.getRecipientPolicy?.(normalizedHost);
+      } catch (error) {
+        throw recipientStoreOutage(error, context);
+      }
+      if (policy?.tofuEnabled !== true) {
+        throw new ConfigurationError("Recipient TOFU is not provisioned for this scope", {
+          context,
+          details: {
+            configPath: "recipientPolicy",
+            reason: "recipient-tofu-not-provisioned",
+          },
+        });
+      }
+      kept.push(entry);
+    }
+    return kept;
   }
 }

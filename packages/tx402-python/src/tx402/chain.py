@@ -1,4 +1,4 @@
-"""The seam between the core request loop and a chain adapter (SPEC §3, §6.4, §6.6).
+"""The seam between the core request loop and a chain adapter.
 
 Port of ``packages/tx402/src/core/chain.ts``. Core owns the state machine, the policy gate,
 and the ledger. It knows nothing about EIP-712, SPL token accounts, or JSON-RPC. A chain
@@ -29,14 +29,14 @@ BALANCE_TIMEOUT_MS: Final = 600
 #: Maximum RPC providers consulted per network (SPEC §6.4 step 15).
 MAX_PROVIDERS_PER_NETWORK: Final = 2
 
-#: Default authorization lifetime in seconds (SPEC §6.6).
+#: Default authorization lifetime in seconds.
 #:
 #: The effective lifetime is ``min(60, merchant maxTimeoutSeconds)``. It may never exceed
 #: the merchant bound, so the merchant's value is a ceiling and this is a cap tx402 applies
 #: on top of it.
 MAX_AUTHORIZATION_SECONDS: Final = 60
 
-#: Circuit open duration for an RPC endpoint (SPEC §6.5).
+#: Circuit open duration for an RPC endpoint.
 #:
 #: Re-exported from :mod:`tx402.health` rather than restated: the circuit lives entirely in
 #: the HealthIndex, and two copies of this number could drift apart without any test
@@ -77,13 +77,13 @@ class ChainAuthorizationRequest:
     resource_host: str
     #: SEC-009 request fingerprint, presented to the signer as the request hash.
     request_hash: str
-    #: Upper bound on authorization lifetime, in seconds (SPEC §6.6).
+    #: Upper bound on authorization lifetime, in seconds.
     max_authorization_seconds: int = MAX_AUTHORIZATION_SECONDS
 
 
 @dataclass(frozen=True, slots=True)
 class ChainRoute:
-    """What an adapter can observe about one requirement (SPEC §5.2).
+    """What an adapter can observe about one requirement.
 
     ``health_score`` and ``rank`` are deliberately absent: they belong to the route planner,
     computed from the one shared :class:`~tx402.health.HealthIndex` rather than from

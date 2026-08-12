@@ -1,4 +1,4 @@
-/** Strict x402 v2 challenge decoding and tx402 normalization (SPEC §6.2). */
+/** Strict x402 v2 challenge decoding and tx402 normalization. */
 
 import { createHash } from "node:crypto";
 

@@ -26,7 +26,7 @@ X402_PROTOCOL_VERSION: Final = 2
 #: repository-scoped advisory is authenticated and an inbox is not.
 #:
 #: These must stay identical to ``PROJECT_URLS`` in ``packages/tx402/src/meta.ts``;
-#: ``TestCrossLanguageParity`` reads that file as text and fails if they drift (ADR-005).
+#: ``TestCrossLanguageParity`` reads that file as text and fails if they drift.
 PROJECT_URLS: Final[dict[str, str]] = {
     "homepage": "https://tx402.io",
     "repository": "https://github.com/neogeeks/tx402",
@@ -44,10 +44,10 @@ REQUEST_ID_HEADER: Final = "X-TX402-REQUEST-ID"
 #: x402 protocol v2 headers.
 #:
 #: Verified against ``@x402/core`` 2.20.0. The v1 ``X-PAYMENT`` / ``X-PAYMENT-RESPONSE``
-#: headers are deliberately absent — v0.1 does not support protocol v1 (ADR-004).
+#: headers are deliberately absent — v0.1 does not support protocol v1.
 #:
-#: Callers may not supply any of these; doing so raises ``ReservedHeaderError``
-#: (SPEC §6.1).
+#: Callers may not supply any of these; doing so raises ``ReservedHeaderError``.
+#:
 PROTOCOL_HEADERS: Final[dict[str, str]] = {
     "payment_required": "PAYMENT-REQUIRED",
     "payment_signature": "PAYMENT-SIGNATURE",

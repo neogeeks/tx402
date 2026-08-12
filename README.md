@@ -4,8 +4,10 @@
 
 **The spend-governance layer for x402 — a non-custodial buyer SDK in TypeScript and Python.**
 
-Give an agent a wallet it can't overspend: caps and budgets enforced before any key is touched,
+Give an agent a wallet with enforced spend limits: caps and budgets checked before any key is touched,
 deterministic payment routing across whatever chains the merchant offered, and one signature per payment.
+The caps bound what a _cooperating_ client spends through tx402; a fully compromised process still holds
+the signer, and constraining that is the 0.3.0 verifying-signer work (see the security model).
 
 [![npm](https://img.shields.io/npm/v/tx402?label=npm%20tx402&color=cb3837)](https://www.npmjs.com/package/tx402)
 [![PyPI](https://img.shields.io/pypi/v/tx402?label=PyPI%20tx402&color=3775a9)](https://pypi.org/project/tx402/)
@@ -101,7 +103,7 @@ with Tx402Client(
 </table>
 
 That is the whole integration. `res` is a normal response; if the resource cost money, it was paid
-for. If it could not be paid for, you get a **typed** error that tells you which of fifteen things
+for. If it could not be paid for, you get a **typed** error that tells you which of seventeen things
 went wrong — not a bare `402`.
 
 Or, without writing any code at all:
@@ -122,9 +124,14 @@ npx tx402 call <merchant-url> --max-spend "0.10 USDC" --json
                 ├─ 4. plan routes            every offered chain probed concurrently, then ranked
                 ├─ 5. RESERVE                atomically, from your local ledger
                 ├─ 6. sign                   ← the first time a key is touched
-                ├─ 7. retry once             exactly one PAYMENT-SIGNATURE
-                └─ 8. read PAYMENT-RESPONSE  → commit the reservation
+                ├─ 7. EXPOSE fence           durable, before the wire; the hold stops expiring
+                ├─ 8. retry once             exactly one PAYMENT-SIGNATURE
+                └─ 9. read PAYMENT-RESPONSE  → commit (settled) · release (declined) · stays exposed (ambiguous)
 ```
+
+The EXPOSE fence (step 7) records the reservation durably **before** the signed request goes on the wire, so a
+crash or ambiguous reply can't lose the payment. An exposed hold never expires on its own — it waits for an
+operator to reconcile it, so an already-sent payment can never be silently retried.
 
 **Steps 3 and 5 happening before step 6 is the property the entire design is built around.** A
 budget check that runs after signing is not a budget check.
@@ -163,23 +170,23 @@ compiled into both packages; construction fails if the signature does not verify
 
 ## Documentation
 
-|                                                                 |                                                    |
-| --------------------------------------------------------------- | -------------------------------------------------- |
-| [Quickstart](https://docs.tx402.io/start/quickstart/)           | Real settled testnet payment, no source reading    |
-| [Request lifecycle](https://docs.tx402.io/guides/lifecycle/)    | The state machine, end to end                      |
-| [Spend policy](https://docs.tx402.io/guides/policy/)            | Caps, allowlists, the ledger                       |
-| [Routing & health](https://docs.tx402.io/guides/routing/)       | How a route is chosen, and why it is deterministic |
-| [CLI](https://docs.tx402.io/guides/cli/)                        | Flags and exit codes                               |
-| [Error reference](https://docs.tx402.io/reference/errors/)      | All fifteen codes — generated from shipped source  |
-| [Configuration](https://docs.tx402.io/reference/configuration/) | Every option, in both languages' spellings         |
-| [Key management](https://docs.tx402.io/security/keys/)          | What to do instead of an environment variable      |
+|                                                                 |                                                     |
+| --------------------------------------------------------------- | --------------------------------------------------- |
+| [Quickstart](https://docs.tx402.io/start/quickstart/)           | Real settled testnet payment, no source reading     |
+| [Request lifecycle](https://docs.tx402.io/guides/lifecycle/)    | The state machine, end to end                       |
+| [Spend policy](https://docs.tx402.io/guides/policy/)            | Caps, allowlists, the ledger                        |
+| [Routing & health](https://docs.tx402.io/guides/routing/)       | How a route is chosen, and why it is deterministic  |
+| [CLI](https://docs.tx402.io/guides/cli/)                        | Flags and exit codes                                |
+| [Error reference](https://docs.tx402.io/reference/errors/)      | All seventeen codes — generated from shipped source |
+| [Configuration](https://docs.tx402.io/reference/configuration/) | Every option, in both languages' spellings          |
+| [Key management](https://docs.tx402.io/security/keys/)          | What to do instead of an environment variable       |
 
 ## Repository layout
 
 ```
 packages/tx402/          npm "tx402"    — SDK + CLI (TypeScript, the reference implementation)
 packages/tx402-python/   PyPI "tx402"   — SDK + CLI (Python, at behavioural parity)
-core-spec/               language-neutral: JSON Schemas, 73 frozen conformance vectors,
+core-spec/               language-neutral: JSON Schemas, 88 frozen conformance vectors,
                          and the signed release manifest. Neither SDK keeps a private copy.
 docs/                    the documentation site (Astro Starlight)
 examples/                runnable quickstart and dry-run, both languages
@@ -187,7 +194,7 @@ tools/                   size gate, manifest signer, conformance index, test mer
                          RPC stubs, fuzz + performance harnesses, supply-chain gates
 ```
 
-**The two SDKs are held together by files, not by intent.** All 73 conformance vectors execute in
+**The two SDKs are held together by files, not by intent.** All 88 conformance vectors execute in
 both languages against the same normalized output, route ordering, error codes and money rule. The
 release manifest is signed by the Node tool and verified by the Python SDK, so the canonical-JSON
 encoding and the Ed25519 envelope are proven identical by the signature itself.
@@ -230,7 +237,7 @@ Scope, response times, and the guarantees a report can be filed against are in
 ## Contributing
 
 [CONTRIBUTING.md](CONTRIBUTING.md) leads with the three rules that actually get a PR rejected:
-the docs and the 73 frozen conformance vectors define behaviour, those vectors run identically in
+the docs and the 88 frozen conformance vectors define behaviour, those vectors run identically in
 both languages, and behavioural changes land in both languages together. Participation is governed by the
 [Contributor Covenant](CODE_OF_CONDUCT.md).
 

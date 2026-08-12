@@ -5,5 +5,16 @@
     "outDir": "dist",
     "types": ["node"]
   },
-  "include": ["src/**/*.ts", "test/**/*.ts", "vitest.config.ts"]
+  "include": ["src/**/*.ts", "test/**/*.ts", "vitest.config.ts"],
+  "//": "The Durable Object subtree + its test/worker need the Workers globals, which conflict with node's; they are typechecked separately (tsconfig.durable-object.json) so this node-typed program stays clean.",
+  "exclude": [
+    "src/durable-object/**",
+    "src/gateway/worker.ts",
+    "test/durable-object.test.ts",
+    "test/durable-object/**",
+    "test/gateway/**",
+    "test/gateway-durable-object.test.ts",
+    "vitest.durable-object.config.ts",
+    "vitest.gateway-durable-object.config.ts"
+  ]
 }

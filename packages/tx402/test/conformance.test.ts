@@ -1,5 +1,5 @@
 /**
- * Executes the shared conformance suite against the TypeScript SDK (ADR-005).
+ * Executes the shared conformance suite against the TypeScript SDK.
  *
  * The contract these tests implement is written down once, in
  * `core-spec/conformance/README.md`, and the Python suite at

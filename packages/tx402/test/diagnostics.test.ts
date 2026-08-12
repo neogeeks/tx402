@@ -1,5 +1,5 @@
 /**
- * T-015: the logger receives seeded secrets and none of them appear (SPEC §12.2, §10).
+ * T-015: the logger receives seeded secrets and none of them appear.
  *
  * Mirrors `packages/tx402-python/tests/test_diagnostics.py`. Per ADR-005 the two SDKs must
  * emit the same event stream, so the same properties are asserted in both languages and the
@@ -256,6 +256,7 @@ describe("SPEC §10 event contract", () => {
       "sign.started": ["requestId", "signerKind"],
       "sign.completed": ["requestId", "signerKind", "durationMs"],
       "request.retried": ["requestId", "attempt", "selectedNetwork"],
+      "payment.exposed": ["requestId", "reservationId", "assetId", "amountAtomic"],
       "payment.completed": ["requestId", "paid", "totalSdkOverheadMs"],
     };
     for (const [name, fields] of Object.entries(required)) {
@@ -276,6 +277,7 @@ describe("SPEC §10 event contract", () => {
       "sign.started",
       "sign.completed",
       "request.retried",
+      "payment.exposed",
       "payment.completed",
     ]);
   });

@@ -1,0 +1,78 @@
+{
+  "$schema": "https://tx402.dev/schemas/v1/conformance-vector.schema.json",
+  "id": "recipient-pin.behavior.concurrent-claim",
+  "kind": "recipient-pin.behavior",
+  "milestone": "M6",
+  "title": "Concurrent TOFU claims for one recipient converge to a single pin — exactly one reserve establishes it",
+  "spec": ["SPEC §6", "SPEC §6.2", "SPEC §3.4", "ADR-028"],
+  "description": "The TOFU claim is claim-if-absent inside the reservation atom, so several workers paying the same recipient converge to one pin rather than racing to write several. Modelled as three sequential reserves on one store (the atomicity a durable store's true-parallel harness asserts under real concurrency): the first reports recipientPinEstablished:true and the next two report false — each observes the pin the first claimed. The pin readback holds exactly one recipient, so exactly one worker would have emitted recipient.pinned (the round-6/7 TOFU-race guard, replay-safe).",
+  "input": {
+    "operations": [
+      {
+        "action": "set-tofu-enabled",
+        "scope": "merchant-cc.example",
+        "enabled": true,
+        "nowEpochMs": 1785715200000
+      },
+      {
+        "action": "reserve",
+        "reservationId": "00000000-0000-7000-8000-000000000941",
+        "requestId": "cc-W1",
+        "policyScope": "merchant-cc.example",
+        "requestFingerprint": "sha256:c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c111",
+        "assetId": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "amountAtomic": "1",
+        "maxPerHourAtomic": "10",
+        "recipientNetwork": "eip155:8453",
+        "recipientCanonical": "0xeeee000000000000000000000000000000000005",
+        "recipientEnforcement": "tofu",
+        "nowEpochMs": 1785715200000
+      },
+      {
+        "action": "reserve",
+        "reservationId": "00000000-0000-7000-8000-000000000942",
+        "requestId": "cc-W2",
+        "policyScope": "merchant-cc.example",
+        "requestFingerprint": "sha256:c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c222",
+        "assetId": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "amountAtomic": "1",
+        "maxPerHourAtomic": "10",
+        "recipientNetwork": "eip155:8453",
+        "recipientCanonical": "0xeeee000000000000000000000000000000000005",
+        "recipientEnforcement": "tofu",
+        "nowEpochMs": 1785715200000
+      },
+      {
+        "action": "reserve",
+        "reservationId": "00000000-0000-7000-8000-000000000943",
+        "requestId": "cc-W3",
+        "policyScope": "merchant-cc.example",
+        "requestFingerprint": "sha256:c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c333",
+        "assetId": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "amountAtomic": "1",
+        "maxPerHourAtomic": "10",
+        "recipientNetwork": "eip155:8453",
+        "recipientCanonical": "0xeeee000000000000000000000000000000000005",
+        "recipientEnforcement": "tofu",
+        "nowEpochMs": 1785715200000
+      },
+      {
+        "action": "snapshot-pins",
+        "scope": "merchant-cc.example",
+        "network": "eip155:8453"
+      }
+    ]
+  },
+  "expected": {
+    "outcomes": [
+      { "outcome": "tofu-set" },
+      { "outcome": "reserved", "pinEstablished": true },
+      { "outcome": "reserved", "pinEstablished": false },
+      { "outcome": "reserved", "pinEstablished": false },
+      {
+        "outcome": "pins",
+        "recipients": ["0xeeee000000000000000000000000000000000005"]
+      }
+    ]
+  }
+}

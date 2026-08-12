@@ -1,0 +1,131 @@
+{
+  "$schema": "https://tx402.dev/schemas/v1/conformance-vector.schema.json",
+  "id": "spend-freeze.behavior.preserves-accounting",
+  "kind": "spend-freeze.behavior",
+  "milestone": "M6",
+  "title": "A freeze creates no reservation and preserves committed/exposed accounting; existing exposed keeps counting (KS-7)",
+  "spec": ["SPEC §5.4", "SPEC §7", "SPEC §3.4", "ADR-026", "ADR-027"],
+  "description": "SPEC §5.4 (KS-7): a freeze is a stop-future-authorization control, never a rollback. R1 is committed (3) and R2 is exposed (4) before the scope is frozen. While frozen, a new reserve R3 is denied with TX402_SPEND_FROZEN — no reservation is created — yet the snapshot is byte-for-byte identical to the pre-freeze one except `frozen: true`: committed 3, exposed 4, cumulativeConsumed 7 all keep counting, and the exposed R2 is still held. Unfreezing changes only `frozen` back to false; every committed/exposed figure is preserved. A freeze cannot revoke a transmitted signature.",
+  "input": {
+    "operations": [
+      {
+        "action": "reserve",
+        "reservationId": "00000000-0000-7000-8000-000000000811",
+        "requestId": "preserve-R1",
+        "policyScope": "merchant-freeze.example",
+        "requestFingerprint": "sha256:c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1",
+        "assetId": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "amountAtomic": "3",
+        "maxPerHourAtomic": "100",
+        "nowEpochMs": 1785715200000
+      },
+      {
+        "action": "commit",
+        "reservationId": "00000000-0000-7000-8000-000000000811",
+        "committedAtEpochMs": 1785715200000
+      },
+      {
+        "action": "reserve",
+        "reservationId": "00000000-0000-7000-8000-000000000812",
+        "requestId": "preserve-R2",
+        "policyScope": "merchant-freeze.example",
+        "requestFingerprint": "sha256:c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2",
+        "assetId": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "amountAtomic": "4",
+        "maxPerHourAtomic": "100",
+        "nowEpochMs": 1785715200000
+      },
+      {
+        "action": "expose",
+        "reservationId": "00000000-0000-7000-8000-000000000812",
+        "nowEpochMs": 1785715200000
+      },
+      {
+        "action": "snapshot",
+        "policyScope": "merchant-freeze.example",
+        "assetId": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "exposure": true,
+        "nowEpochMs": 1785715200000
+      },
+      {
+        "action": "freeze",
+        "scope": "merchant-freeze.example",
+        "nowEpochMs": 1785715200000
+      },
+      {
+        "action": "reserve",
+        "reservationId": "00000000-0000-7000-8000-000000000813",
+        "requestId": "preserve-R3",
+        "policyScope": "merchant-freeze.example",
+        "requestFingerprint": "sha256:c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3",
+        "assetId": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "amountAtomic": "1",
+        "maxPerHourAtomic": "100",
+        "nowEpochMs": 1785715200000
+      },
+      {
+        "action": "snapshot",
+        "policyScope": "merchant-freeze.example",
+        "assetId": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "exposure": true,
+        "nowEpochMs": 1785715200000
+      },
+      {
+        "action": "unfreeze",
+        "scope": "merchant-freeze.example",
+        "nowEpochMs": 1785715200000
+      },
+      {
+        "action": "snapshot",
+        "policyScope": "merchant-freeze.example",
+        "assetId": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "exposure": true,
+        "nowEpochMs": 1785715200000
+      }
+    ]
+  },
+  "expected": {
+    "outcomes": [
+      { "outcome": "reserved", "state": "reserved" },
+      { "outcome": "committed" },
+      { "outcome": "reserved", "state": "reserved" },
+      { "outcome": "exposed", "state": "exposed" },
+      {
+        "outcome": "snapshot",
+        "committedAtomic": "3",
+        "reservedAtomic": "0",
+        "frozen": false,
+        "exposedAtomic": "4",
+        "cumulativeCommittedAtomic": "3",
+        "cumulativeConsumedAtomic": "7",
+        "reservationStates": ["committed", "exposed"],
+        "entryCount": 1
+      },
+      { "outcome": "frozen" },
+      { "outcome": "error", "errorCode": "TX402_SPEND_FROZEN" },
+      {
+        "outcome": "snapshot",
+        "committedAtomic": "3",
+        "reservedAtomic": "0",
+        "frozen": true,
+        "exposedAtomic": "4",
+        "cumulativeCommittedAtomic": "3",
+        "cumulativeConsumedAtomic": "7",
+        "reservationStates": ["committed", "exposed"],
+        "entryCount": 1
+      },
+      { "outcome": "unfrozen" },
+      {
+        "outcome": "snapshot",
+        "committedAtomic": "3",
+        "reservedAtomic": "0",
+        "frozen": false,
+        "exposedAtomic": "4",
+        "cumulativeCommittedAtomic": "3",
+        "cumulativeConsumedAtomic": "7",
+        "reservationStates": ["committed", "exposed"],
+        "entryCount": 1
+      }
+    ]
+  }
+}

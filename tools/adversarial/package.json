@@ -1,0 +1,7 @@
+{
+  "name": "@tx402-dev/adversarial",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Unified deterministic offline adversarial driver (PRD-phase1 §27): concurrency, store failure, signer failure, budget exhaustion, and freeze in one run. Not published."
+}

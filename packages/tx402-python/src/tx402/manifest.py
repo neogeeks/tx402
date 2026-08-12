@@ -1,4 +1,4 @@
-"""Release manifest verification (SPEC §5.4, ADR-012).
+"""Release manifest verification.
 
 Mirrors ``packages/tx402/src/core/manifest.ts``. The manifest is the only channel through
 which chain addresses, token addresses, RPC endpoints, and decimals reach the SDK — SPEC §0
@@ -129,7 +129,7 @@ def verify_release_manifest(
 
     Args:
         candidate: the document under test.
-        now_epoch_ms: injected clock (SPEC §4.3), so expiry is testable without touching
+        now_epoch_ms: injected clock, so expiry is testable without touching
             the system clock.
         trusted_keys: defaults to the keys compiled into this build.
         required_networks: networks the manifest must declare. Empty by default: SPEC

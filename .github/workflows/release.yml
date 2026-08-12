@@ -10,7 +10,7 @@ on:
 # Least privilege at the top; each job widens only what it needs. `id-token: write` is what
 # makes OIDC trusted publishing work, and it is granted per job rather than here.
 #
-# **Every action in this file is pinned to a commit SHA** (PLAN.md O48). A mutable tag like
+# **Every action in this file is pinned to a commit SHA**. A mutable tag like
 # `@v7` is a pointer somebody else can move, and these jobs hold an OIDC identity that can
 # publish to two registries — so a moved tag is a supply-chain compromise with publish
 # rights, not an inconvenience. The trailing comment records which release each SHA was, so
@@ -25,7 +25,7 @@ env:
   NODE_VERSION_DEFAULT: "20"
   # The workspace's floor. `pnpm check` builds the documentation site, and Astro requires
   # 22.12+. Until S15d the verify job below ran `pnpm check` on Node 20, so the release
-  # gate would have failed on the tag at its very last step (PLAN.md O60).
+  # gate would have failed on the tag at its very last step.
   NODE_VERSION_WORKSPACE: "22"
 
 jobs:
@@ -37,6 +37,25 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          # Full history so the tag's containment in protected `main` can be proven below.
+          fetch-depth: 0
+
+      # A tag may point at ANY commit. Publishing is gated on the same suites CI runs, but those
+      # only prove the tagged TREE — not that it is the tested protected-main history. This binds
+      # the tag to `main`: the tagged commit must be reachable from `origin/main`, so a release can
+      # never be cut from untested or force-pushed history.
+      - name: The tagged commit is contained in protected main
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --quiet origin main
+          tag_sha="$(git rev-parse HEAD)"
+          if ! git merge-base --is-ancestor "$tag_sha" origin/main; then
+            echo "::error::The tagged commit ${tag_sha} is not contained in origin/main." \
+                 "A release may only be tagged on the tested protected-main history."
+            exit 1
+          fi
+          echo "tag ${tag_sha} is on protected main"
 
       - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
         with:
@@ -59,7 +78,7 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
-      # Every gate, in the order CI runs them (PLAN.md open item O38).
+      # Every gate, in the order CI runs them.
       - name: Full check
         run: pnpm check
 
@@ -77,7 +96,7 @@ jobs:
       # what it measures depends on the runtime's own HTTP stack, not only on tx402: locally
       # the same commit reports 0.169 ms on Node 20 and 2.18 ms on Node 22, against a 2 ms
       # gate, and the plain-`fetch` baseline moves with it. Measuring the SDK on the runtime
-      # its users are promised is the defensible choice; PLAN.md O61 tracks re-calibrating.
+      # its users are promised is the defensible choice; re-calibrating is tracked separately.
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: ${{ env.NODE_VERSION_DEFAULT }}
@@ -86,6 +105,7 @@ jobs:
       - name: Release gates
         run: |
           pnpm fuzz
+          pnpm adversarial
           pnpm perf
           pnpm supply-chain
           pnpm reproducible
@@ -93,18 +113,18 @@ jobs:
       # The tag, both package manifests, and both generated CLI version modules must agree.
       # They are five separate places a number appears, and `--expect` folds the tag into
       # the same check the working tree is held to rather than giving it a weaker one of
-      # its own (PLAN.md O51).
+      # its own.
       - name: Tag matches every declared version
         run: node tools/version-sync/index.js check --expect "${GITHUB_REF_NAME}"
 
       # Every documented install, packed and installed into an empty directory, with every
       # entry point it advertises imported. `pnpm check` runs the *documentation* half of
-      # this; the packing half needs the built artifact and a network, so it runs here
-      # (PLAN.md O47).
+      # this; the packing half needs the built artifact and a network, so it runs here.
+      #
       - name: Documented installs load their entry points
         run: pnpm install-smoke
 
-      # PLAN.md open item O12. The development key `tx402-release-1` must never sign a
+      # The development key `tx402-release-1` must never sign a
       # published release, and the check is by key id rather than by intention.
       - name: Release manifest is signed by the release key, not the dev key
         run: |
@@ -118,10 +138,139 @@ jobs:
             exit 1
           fi
 
-  # SPEC §12.4 requires published documentation before release, and O49 found nothing
-  # enforcing it: the docs workflow was allowed to skip its own deploy and this workflow
-  # neither depended on it nor looked at the site. Its own job, so the log says plainly
-  # which page was missing, and a `needs` of both publish jobs so a dead site stops a tag.
+  # The durable-store, Durable Object, and gateway gates CI runs are re-run here ON THE TAGGED
+  # COMMIT and are `needs:` of both publish jobs. `pnpm check` does not include them, and the
+  # tag workflow provisioned no Redis/DO before — so a tag could publish without ever proving the
+  # durable adapters or the gateway on the exact commit being shipped. These mirror ci.yml.
+  durable-store:
+    name: Durable store (Redis 7)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: ${{ env.NODE_VERSION_DEFAULT }}
+      - name: Install (pnpm)
+        run: pnpm install --frozen-lockfile
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          enable-cache: true
+      - name: Sync (uv)
+        run: uv sync --all-extras
+        working-directory: packages/tx402-python
+      - name: Install and launch Redis (standalone AOF + 3-master Cluster)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y redis-server redis-tools
+          sudo systemctl disable --now redis-server 2>/dev/null || true
+          sudo service redis-server stop 2>/dev/null || true
+          sudo pkill -x redis-server 2>/dev/null || true
+          sleep 1
+          redis-server --daemonize yes --appendonly yes --port 6379 \
+            --dir "$RUNNER_TEMP" --pidfile "$RUNNER_TEMP/redis-standalone.pid" \
+            --logfile "$RUNNER_TEMP/redis-standalone.log"
+          for p in 7001 7002 7003; do
+            mkdir -p "$RUNNER_TEMP/cluster-$p"
+            redis-server --daemonize yes --port "$p" --cluster-enabled yes \
+              --cluster-config-file "$RUNNER_TEMP/cluster-$p/nodes.conf" \
+              --cluster-node-timeout 5000 --appendonly yes --dir "$RUNNER_TEMP/cluster-$p" \
+              --pidfile "$RUNNER_TEMP/cluster-$p/redis.pid" \
+              --logfile "$RUNNER_TEMP/cluster-$p/redis.log"
+          done
+          for port in 6379 7001 7002 7003; do
+            for _ in $(seq 1 40); do
+              redis-cli -p "$port" ping 2>/dev/null | grep -q PONG && break
+              sleep 0.5
+            done
+          done
+          test "$(redis-cli -p 6379 config get appendonly | tail -1)" = "yes"
+          yes yes | redis-cli --cluster create 127.0.0.1:7001 127.0.0.1:7002 127.0.0.1:7003 --cluster-yes
+          redis-cli -p 7001 cluster info | grep cluster_state
+      - name: Redis reachable + durable suite (TS + Python)
+        run: pnpm durable:check redis
+        env:
+          TX402_TEST_REDIS_URL: redis://localhost:6379
+          TX402_TEST_REDIS_CLUSTER: 127.0.0.1:7001,127.0.0.1:7002,127.0.0.1:7003
+          TX402_TEST_REDIS_RESTART: "1"
+
+  durable-object:
+    name: Durable Object (local Workers runtime)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: "22"
+      - name: Install (pnpm)
+        run: pnpm install --frozen-lockfile
+      - name: DO harness (checkDurableSpendStore, both topologies)
+        run: pnpm durable:check do
+
+  gateway-golden:
+    name: Gateway golden
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: "22"
+      - name: Install (pnpm)
+        run: pnpm install --frozen-lockfile
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          enable-cache: true
+      - name: Sync (uv)
+        run: uv sync --all-extras
+        working-directory: packages/tx402-python
+      - name: Install and launch Redis (standalone AOF)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y redis-server redis-tools
+          sudo systemctl disable --now redis-server 2>/dev/null || true
+          sudo service redis-server stop 2>/dev/null || true
+          sudo pkill -x redis-server 2>/dev/null || true
+          sleep 1
+          redis-server --daemonize yes --appendonly yes --port 6379 \
+            --dir "$RUNNER_TEMP" --pidfile "$RUNNER_TEMP/redis-gateway.pid" \
+            --logfile "$RUNNER_TEMP/redis-gateway.log"
+          for _ in $(seq 1 40); do
+            redis-cli -p 6379 ping 2>/dev/null | grep -q PONG && break
+            sleep 0.5
+          done
+          test "$(redis-cli -p 6379 config get appendonly | tail -1)" = "yes"
+      - name: Build distributions
+        run: pnpm build
+      - name: Gateway wire golden (drift check)
+        run: pnpm gateway:golden
+      - name: Gateway conformance — TS client over Redis
+        run: pnpm -C packages/tx402 exec vitest run test/gateway-store.test.ts test/gateway-golden.test.ts
+        env:
+          TX402_TEST_REDIS_URL: redis://localhost:6379
+      - name: Gateway conformance — Python client over Redis + DO
+        run: uv run pytest tests/test_gateway_store.py tests/test_gateway_durable.py --no-cov -q
+        working-directory: packages/tx402-python
+        env:
+          TX402_TEST_GATEWAY: "1"
+          TX402_TEST_REDIS_URL: redis://localhost:6379
+
+  # Published documentation is a release gate, and for a long time nothing enforced it: the
+  # deploy was allowed to skip silently and this workflow neither depended on it nor looked
+  # at the site, so a release could ship with dead Documentation URLs.
+  #
+  # The site is now deployed deliberately, by hand, with `pnpm docs:deploy` before the tag —
+  # there is no docs workflow to race. This job is what makes that ordering non-optional: it
+  # reads the LIVE site, gets its own job so the log says plainly which page was missing, and
+  # is a `needs` of both publish jobs so a stale or dead site stops the tag before either
+  # registry is touched.
   docs-published:
     name: Documentation is published
     needs: verify
@@ -142,7 +291,7 @@ jobs:
 
   npm:
     name: Publish to npm
-    needs: [verify, docs-published]
+    needs: [verify, docs-published, durable-store, durable-object, gateway-golden]
     runs-on: ubuntu-latest
     environment: release
     permissions:
@@ -173,16 +322,16 @@ jobs:
       # `pnpm publish` does not perform the OIDC token exchange — it expects an `_authToken`
       # in `.npmrc` — so the first 0.1.0 attempt went out unauthenticated and the registry
       # answered `E404 PUT .../tx402` (npm masks an unauthorized write to an existing package
-      # as a 404). PyPI's action does OIDC natively and published fine (PLAN.md O114).
+      # as a 404). PyPI's action does OIDC natively and published fine.
       #
       # Fix: upgrade the npm CLI, pack with pnpm so the `workspace:` protocol and
       # `publishConfig` are applied to the tarball, then publish that tarball with the npm CLI,
       # which does the OIDC exchange and attaches provenance. Still no `NODE_AUTH_TOKEN` and no
-      # long-lived credential to leak (PLAN.md O10/O23).
+      # long-lived credential to leak.
       # OIDC trusted publishing needs the npm CLI >= 11.5.1. Pin to the 11.x line rather than
       # `@latest`: npm 12 dropped Node 20 (it requires `^22.22.2 || ^24 || >=26`), and this job
       # runs on the SDK's Node-20 floor, so `npm@latest` fails EBADENGINE here. npm 11.x keeps
-      # Node 20 support (`^20.17.0 || >=22.9.0`) and has the OIDC token exchange (PLAN.md O114).
+      # Node 20 support (`^20.17.0 || >=22.9.0`) and has the OIDC token exchange.
       - name: Upgrade npm for OIDC trusted publishing
         run: npm install -g "npm@^11.5.1"
 
@@ -194,7 +343,7 @@ jobs:
 
   pypi:
     name: Publish to PyPI
-    needs: [verify, docs-published]
+    needs: [verify, docs-published, durable-store, durable-object, gateway-golden]
     runs-on: ubuntu-latest
     environment: release
     permissions:
@@ -215,13 +364,13 @@ jobs:
 
       # PyPI trusted publishing: the workflow's OIDC identity is exchanged for a short-lived
       # upload token. The exposed long-lived token was revoked at S11 and deliberately never
-      # replaced (PLAN.md O23).
+      # replaced.
       - name: Publish
         uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # release/v1
         with:
           packages-dir: packages/tx402-python/dist
           # 0.1.0's sdist+wheel published on the first tag attempt; the npm leg failed and
-          # needs a re-tag (PLAN.md O114). A re-run must not fail here just because this
+          # needs a re-tag. A re-run must not fail here just because this
           # version already exists — an immutable registry upload is idempotent by design.
           skip-existing: true
 
@@ -293,7 +442,7 @@ jobs:
           version="${GITHUB_REF_NAME#v}"
           # Asserted, not printed. Against the unattested 0.0.0 placeholder this exact
           # command returned empty output and exit status 0, so the step that "checked
-          # provenance" would have passed on a package with none (PLAN.md O48).
+          # provenance" would have passed on a package with none.
           npm audit signatures
           attestations="$(npm view "tx402@$version" dist.attestations --json)"
           echo "$attestations"

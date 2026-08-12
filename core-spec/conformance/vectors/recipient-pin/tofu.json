@@ -1,0 +1,104 @@
+{
+  "$schema": "https://tx402.dev/schemas/v1/conformance-vector.schema.json",
+  "id": "recipient-pin.behavior.tofu",
+  "kind": "recipient-pin.behavior",
+  "milestone": "M6",
+  "title": "TOFU claims a first-use pin inside reserve, admits the matching recipient thereafter, refuses a changed one as pin-mismatch, and fails closed when TOFU is not provisioned",
+  "spec": ["SPEC §6", "SPEC §6.1", "SPEC §6.2", "SPEC §3.4", "ADR-028"],
+  "description": "TOFU is enabled for merchant-b. B1 reserves with no pin yet and recipientEnforcement tofu: the claim happens in the reserve atom and recipientPinEstablished is true (exactly one worker would emit recipient.pinned). B2 pays the same recipient and is admitted with recipientPinEstablished:false — the pin already exists, so no re-claim (the replay-safety guard). B3 pays a changed recipient and is refused TX402_RECIPIENT_UNPINNED reason pin-mismatch (source=tofu), with the RP-8 details. The pin readback shows the single claimed recipient. Finally merchant-c has recipientEnforcement tofu but TOFU was never provisioned, so its reserve fails closed with TX402_CONFIG_INVALID reason recipient-tofu-not-provisioned (SPEC §6.1) rather than silently admitting.",
+  "input": {
+    "operations": [
+      {
+        "action": "set-tofu-enabled",
+        "scope": "merchant-b.example",
+        "enabled": true,
+        "nowEpochMs": 1785715200000
+      },
+      {
+        "action": "reserve",
+        "reservationId": "00000000-0000-7000-8000-000000000911",
+        "requestId": "tofu-B1",
+        "policyScope": "merchant-b.example",
+        "requestFingerprint": "sha256:b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+        "assetId": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "amountAtomic": "1",
+        "maxPerHourAtomic": "10",
+        "recipientNetwork": "eip155:8453",
+        "recipientCanonical": "0xcccc000000000000000000000000000000000003",
+        "recipientEnforcement": "tofu",
+        "nowEpochMs": 1785715200000
+      },
+      {
+        "action": "reserve",
+        "reservationId": "00000000-0000-7000-8000-000000000912",
+        "requestId": "tofu-B2",
+        "policyScope": "merchant-b.example",
+        "requestFingerprint": "sha256:b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2",
+        "assetId": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "amountAtomic": "1",
+        "maxPerHourAtomic": "10",
+        "recipientNetwork": "eip155:8453",
+        "recipientCanonical": "0xcccc000000000000000000000000000000000003",
+        "recipientEnforcement": "tofu",
+        "nowEpochMs": 1785715200000
+      },
+      {
+        "action": "reserve",
+        "reservationId": "00000000-0000-7000-8000-000000000913",
+        "requestId": "tofu-B3",
+        "policyScope": "merchant-b.example",
+        "requestFingerprint": "sha256:b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3",
+        "assetId": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "amountAtomic": "1",
+        "maxPerHourAtomic": "10",
+        "recipientNetwork": "eip155:8453",
+        "recipientCanonical": "0xdddd000000000000000000000000000000000004",
+        "recipientEnforcement": "tofu",
+        "nowEpochMs": 1785715200000
+      },
+      {
+        "action": "snapshot-pins",
+        "scope": "merchant-b.example",
+        "network": "eip155:8453"
+      },
+      {
+        "action": "reserve",
+        "reservationId": "00000000-0000-7000-8000-000000000914",
+        "requestId": "tofu-C1",
+        "policyScope": "merchant-c.example",
+        "requestFingerprint": "sha256:c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1",
+        "assetId": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "amountAtomic": "1",
+        "maxPerHourAtomic": "10",
+        "recipientNetwork": "eip155:8453",
+        "recipientCanonical": "0xcccc000000000000000000000000000000000003",
+        "recipientEnforcement": "tofu",
+        "nowEpochMs": 1785715200000
+      }
+    ]
+  },
+  "expected": {
+    "outcomes": [
+      { "outcome": "tofu-set" },
+      { "outcome": "reserved", "pinEstablished": true },
+      { "outcome": "reserved", "pinEstablished": false },
+      {
+        "outcome": "error",
+        "errorCode": "TX402_RECIPIENT_UNPINNED",
+        "reason": "pin-mismatch",
+        "network": "eip155:8453",
+        "presentedRecipient": "0xdddd000000000000000000000000000000000004",
+        "expectedRecipients": ["0xcccc000000000000000000000000000000000003"]
+      },
+      {
+        "outcome": "pins",
+        "recipients": ["0xcccc000000000000000000000000000000000003"]
+      },
+      {
+        "outcome": "error",
+        "errorCode": "TX402_CONFIG_INVALID",
+        "reason": "recipient-tofu-not-provisioned"
+      }
+    ]
+  }
+}

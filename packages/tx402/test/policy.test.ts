@@ -97,6 +97,18 @@ describe("PolicyEngine", () => {
     });
   });
 
+  it("threads a configured maxTotal onto the requirement as maxTotalAtomic (SPEC §4.1)", async () => {
+    // Defaults: maxPerRequest 0.50, maxPerHour 10.00 — both ≤ 20, so the ordering holds.
+    const engine = new PolicyEngine(BUNDLED_MANIFEST, { maxTotal: "20 USDC" });
+    await expect(evaluate(engine, required())).resolves.toHaveProperty(
+      "requirements.0.maxTotalAtomic",
+      "20000000",
+    );
+    // Absent config ⇒ no maxTotalAtomic on the requirement (no caller cumulative cap).
+    const noTotal = await evaluate(new PolicyEngine(BUNDLED_MANIFEST), required());
+    expect(noTotal.requirements[0]).not.toHaveProperty("maxTotalAtomic");
+  });
+
   it("enforces manifest schemes/assets before monetary limits", async () => {
     const engine = new PolicyEngine(BUNDLED_MANIFEST, {
       maxPerRequest: "0.000001 USDC",
@@ -118,10 +130,14 @@ describe("PolicyEngine", () => {
     const forbidden = vi.fn(() => Promise.reject(new Error("must not run")));
     const store: SpendStore = {
       kind: "spy",
+      capabilities: { atomicGlobalFreeze: true },
       reserve: forbidden,
       commit: forbidden,
       release: forbidden,
+      expose: forbidden,
       getBudgetState,
+      listExposed: forbidden,
+      isFrozen: forbidden,
     };
     const engine = new PolicyEngine(BUNDLED_MANIFEST, {
       maxPerRequest: "0.000001 USDC",
@@ -211,6 +227,14 @@ describe("PolicyEngine", () => {
           maxPerHour: "1 USDC",
         }),
     ).toThrowError(/below-max-per-request/u);
+    // maxTotal ≥ maxPerHour is validated at construction (SPEC §4.1, ADR-025).
+    expect(
+      () =>
+        new PolicyEngine(BUNDLED_MANIFEST, {
+          maxPerHour: "1 USDC",
+          maxTotal: "0.5 USDC",
+        }),
+    ).toThrowError(/below-max-per-hour/u);
     expect(() => new PolicyEngine(BUNDLED_MANIFEST, { allowedNetworks: [] })).toThrow();
     expect(
       () => new PolicyEngine(BUNDLED_MANIFEST, { allowedDomains: ["https://bad"] }),

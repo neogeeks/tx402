@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://tx402.dev/schemas/v1/common.schema.json",
   "title": "tx402 shared definitions",
-  "description": "Primitive definitions shared by every tx402 schema. Frozen at M0 (PLAN.md session S2): changing any pattern here is a wire-visible change and requires an ADR.",
+  "description": "Primitive definitions shared by every tx402 schema. Frozen: changing any pattern here is a wire-visible change and requires a recorded decision.",
 
   "$defs": {
     "caip2": {
@@ -49,6 +49,13 @@
       "type": "string",
       "pattern": "^[1-9][0-9]*$",
       "maxLength": 78
+    },
+
+    "atomicAccumulator": {
+      "title": "Non-negative integer accumulator (unbounded width)",
+      "description": "A lifetime aggregate — cumulative committed, exposed total, cumulative consumed — that sums many inputs and so can carry PAST 78 digits. Unlike atomicAmount (a single input, capped at 78 digits) it has NO maxLength: the durable atoms use unbounded big-integer arithmetic, so a cumulative sum neither truncates nor saturates (SPEC §13, ADR-025/ADR-030).",
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)$"
     },
 
     "sha256Digest": {
@@ -143,7 +150,9 @@
         "TX402_PAYMENT_AMBIGUOUS",
         "TX402_RESOURCE_DELIVERY",
         "TX402_REDIRECT_BLOCKED",
-        "TX402_TRANSPORT"
+        "TX402_TRANSPORT",
+        "TX402_SPEND_FROZEN",
+        "TX402_RECIPIENT_UNPINNED"
       ]
     },
 
@@ -166,7 +175,9 @@
         "AmbiguousPaymentError",
         "ResourceDeliveryError",
         "PaidRedirectBlockedError",
-        "TransportError"
+        "TransportError",
+        "SpendScopeFrozenError",
+        "RecipientUnpinnedError"
       ]
     },
 

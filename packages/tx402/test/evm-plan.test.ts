@@ -1,5 +1,5 @@
 /**
- * The pure half of the Base adapter (SPEC §7.1, §6.6).
+ * The pure half of the Base adapter.
  *
  * Everything asserted here happens before an address is resolved, a balance is read, or a
  * signer is touched, which is what makes an unusable merchant offer free to reject.

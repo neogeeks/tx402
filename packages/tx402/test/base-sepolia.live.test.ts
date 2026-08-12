@@ -1,5 +1,5 @@
 /**
- * Base Sepolia live coverage (SPEC §12.1 "Public testnet", PLAN.md open item O2).
+ * Base Sepolia live coverage against the public testnet.
  *
  * Skipped unless `TX402_BASE_SEPOLIA_PRIVATE_KEY` is set, so it never runs in ordinary CI and
  * never needs a funded wallet to be present for the suite to be green. Point it at a

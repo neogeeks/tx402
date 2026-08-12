@@ -27,7 +27,7 @@ export interface EvmTypedDataField {
 }
 
 /**
- * The human-readable summary that must accompany every signing request (SPEC §6.6).
+ * The human-readable summary that must accompany every signing request.
  *
  * EIP-712 typed data is precise and unreadable. SPEC §6.6 requires the request presented to
  * an external signer to also carry the domain, asset, atomic amount, decimal amount,
@@ -70,11 +70,11 @@ export interface EvmTypedDataRequest {
 }
 
 /**
- * The EVM signer contract (SPEC §7.1).
+ * The EVM signer contract.
  *
  * Address discovery is asynchronous because the realistic implementations — a KMS, a
  * hardware wallet, a remote signing service — cannot answer synchronously. tx402 resolves it
- * once per signer and caches it (ADR-010 decision 5, as amended at S5).
+ * once per signer and caches it (ADR-010 decision 5).
  */
 export interface EvmSigner {
   readonly kind: "evm";

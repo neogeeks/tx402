@@ -1,15 +1,16 @@
 # tx402 documentation
 
-> tx402 is the spend-governance layer for x402 buyers: a non-custodial SDK (TypeScript + Python) that lets AI agents pay for HTTP 402-protected APIs safely — per-request caps, hourly budgets, and allowlists enforced *before* any key is signed, plus deterministic multi-chain routing (Base + Solana), RPC-endpoint failover, and typed, ambiguity-safe outcomes. Buyer-side only: it never custodies funds, calls a facilitator's verify/settle, or bridges/swaps. This site is the official documentation. A clean Markdown version of any page is available by appending `.md` to its path (e.g. `/guides/policy.md`).
+> tx402 is the spend-governance layer for x402 buyers: a non-custodial SDK (TypeScript + Python) that lets AI agents pay for HTTP 402-protected APIs safely — per-request caps, hourly budgets, and allowlists enforced *before* any key is signed, and, across a fleet sharing one durable store, a lifetime cumulative ceiling, an operator kill switch, and recipient pinning — plus deterministic multi-chain routing (Base + Solana), RPC-endpoint failover, and typed, ambiguity-safe outcomes. Buyer-side only: it never custodies funds, calls a facilitator's verify/settle, or bridges/swaps. This site is the official documentation. A clean Markdown version of any page is available by appending `.md` to its path (e.g. `/guides/policy.md`).
 
 ## Start
 - [Quickstart](https://docs.tx402.io/start/quickstart/): install and make a first paid call in minutes
 
 ## Guides
 - [Payment lifecycle](https://docs.tx402.io/guides/lifecycle/): the 402 handshake — decode, policy, reserve, sign, retry, commit
-- [Policy](https://docs.tx402.io/guides/policy/): spend caps, budgets, and allowlists enforced before signing
+- [Policy](https://docs.tx402.io/guides/policy/): spend caps, cumulative and hourly budgets, allowlists, and recipient pinning enforced before signing
 - [Routing](https://docs.tx402.io/guides/routing/): deterministic multi-chain routing and RPC-endpoint failover
-- [CLI](https://docs.tx402.io/guides/cli/): the `tx402` command-line interface
+- [CLI](https://docs.tx402.io/guides/cli/): the `tx402` command — paid calls and the five operator verbs
+- [Migrating to 0.2.0](https://docs.tx402.io/guides/migration/): what changed, and moving a single process to a fleet on one budget
 
 ## Reference
 - [Configuration](https://docs.tx402.io/reference/configuration/): every client and policy option
@@ -17,12 +18,19 @@
 - [TypeScript API](https://docs.tx402.io/reference/api-typescript/): exported types and functions
 
 ## Security
-- [Security model](https://docs.tx402.io/security/): trust boundary and non-custodial design
+- [Security model](https://docs.tx402.io/security/): trust boundary, the data/admin-state boundary, and non-custodial design
 - [Key handling](https://docs.tx402.io/security/keys/): signer abstraction and key management
 
 ## Operations
+- [Shared spend store](https://docs.tx402.io/operations/shared-store/): give a fleet one authoritative budget on Redis (self-hosted or Upstash)
+- [Capability gateway](https://docs.tx402.io/operations/gateway/): the service that holds the store credential and hands clients a scoped data/admin token
+- [Durable Object store](https://docs.tx402.io/operations/durable-object/): the Cloudflare Workers store and its id-per-scope vs single-coordinator topology
+- [Kill switch](https://docs.tx402.io/operations/kill-switch/): freeze spending for one merchant scope or the whole store
+- [Recipient rotation](https://docs.tx402.io/operations/recipient-rotation/): pin a merchant's payout address and rotate it safely
+- [Exposed reconciliation](https://docs.tx402.io/operations/exposed-reconciliation/): resolve maybe-settled payments that keep holding budget
 - [Running the test merchant](https://docs.tx402.io/operations/running/)
-- [Base testnet](https://docs.tx402.io/operations/base-testnet/)
+- [Base Sepolia testnet runbook](https://docs.tx402.io/operations/base-testnet/): fund and verify the Base Sepolia test wallet for the opt-in live suite
+- [Solana Devnet runbook](https://docs.tx402.io/operations/solana-devnet/): fund and verify the Solana Devnet test wallet for the opt-in live suite
 - [Releasing](https://docs.tx402.io/operations/releasing/)
 - [Release manifest](https://docs.tx402.io/operations/release-manifest/)
 - [Publishing](https://docs.tx402.io/operations/publishing/)

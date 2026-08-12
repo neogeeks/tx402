@@ -1,0 +1,105 @@
+{
+  "$schema": "https://tx402.dev/schemas/v1/conformance-vector.schema.json",
+  "id": "spend-ledger.behavior.exposure-no-escape",
+  "kind": "spend-ledger.behavior",
+  "milestone": "M6",
+  "title": "An exposed payment never expires, so it cannot escape the cap; the 120 s TTL only frees a never-transmitted reservation",
+  "spec": ["SPEC §7", "SPEC §3.4", "SPEC §3.4a", "ADR-026"],
+  "description": "The P0-1 fix. Two scopes advance past the 120 s reservation TTL. On the first, reservation A1 is exposed (the pre-transmission fence): it never expires, keeps consuming the hourly cap, and a second reserve A2 that would fit only if A1 had dropped is refused with TX402_POLICY_BUDGET. On the second scope the control reservation B1 is NEVER exposed, so at the same instant it has expired and B2 reserves the whole cap again — proving the TTL still applies to exactly the case SPEC §7 says is safe, a reservation that was never transmitted. Under v0.1 both scopes behaved like the control, which is the escape this change closes.",
+  "input": {
+    "operations": [
+      {
+        "action": "reserve",
+        "reservationId": "00000000-0000-7000-8000-000000000701",
+        "requestId": "no-escape-A1",
+        "policyScope": "merchant-exposed.example",
+        "requestFingerprint": "sha256:a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+        "assetId": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "amountAtomic": "10",
+        "maxPerHourAtomic": "10",
+        "nowEpochMs": 1785715200000
+      },
+      {
+        "action": "expose",
+        "reservationId": "00000000-0000-7000-8000-000000000701",
+        "nowEpochMs": 1785715200000
+      },
+      {
+        "action": "reserve",
+        "reservationId": "00000000-0000-7000-8000-000000000702",
+        "requestId": "no-escape-B1",
+        "policyScope": "merchant-control.example",
+        "requestFingerprint": "sha256:b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+        "assetId": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "amountAtomic": "10",
+        "maxPerHourAtomic": "10",
+        "nowEpochMs": 1785715200000
+      },
+      {
+        "action": "reserve",
+        "reservationId": "00000000-0000-7000-8000-000000000703",
+        "requestId": "no-escape-A2",
+        "policyScope": "merchant-exposed.example",
+        "requestFingerprint": "sha256:a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2",
+        "assetId": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "amountAtomic": "1",
+        "maxPerHourAtomic": "10",
+        "nowEpochMs": 1785715321000
+      },
+      {
+        "action": "reserve",
+        "reservationId": "00000000-0000-7000-8000-000000000704",
+        "requestId": "no-escape-B2",
+        "policyScope": "merchant-control.example",
+        "requestFingerprint": "sha256:b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2",
+        "assetId": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "amountAtomic": "10",
+        "maxPerHourAtomic": "10",
+        "nowEpochMs": 1785715321000
+      },
+      {
+        "action": "snapshot",
+        "policyScope": "merchant-exposed.example",
+        "assetId": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "exposure": true,
+        "nowEpochMs": 1785715321000
+      },
+      {
+        "action": "snapshot",
+        "policyScope": "merchant-control.example",
+        "assetId": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "exposure": true,
+        "nowEpochMs": 1785715321000
+      }
+    ]
+  },
+  "expected": {
+    "outcomes": [
+      { "outcome": "reserved", "state": "reserved" },
+      { "outcome": "exposed", "state": "exposed" },
+      { "outcome": "reserved", "state": "reserved" },
+      { "outcome": "error", "errorCode": "TX402_POLICY_BUDGET", "capKind": "per-hour" },
+      { "outcome": "reserved", "state": "reserved" },
+      {
+        "outcome": "snapshot",
+        "committedAtomic": "0",
+        "reservedAtomic": "0",
+        "exposedAtomic": "10",
+        "cumulativeCommittedAtomic": "0",
+        "cumulativeConsumedAtomic": "10",
+        "reservationStates": ["exposed"],
+        "entryCount": 0
+      },
+      {
+        "outcome": "snapshot",
+        "committedAtomic": "0",
+        "reservedAtomic": "10",
+        "exposedAtomic": "0",
+        "cumulativeCommittedAtomic": "0",
+        "cumulativeConsumedAtomic": "10",
+        "reservationStates": ["expired", "reserved"],
+        "entryCount": 0
+      }
+    ]
+  }
+}

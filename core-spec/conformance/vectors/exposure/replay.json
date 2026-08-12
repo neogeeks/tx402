@@ -1,0 +1,108 @@
+{
+  "$schema": "https://tx402.dev/schemas/v1/conformance-vector.schema.json",
+  "id": "spend-ledger.behavior.exposure-replay",
+  "kind": "spend-ledger.behavior",
+  "milestone": "M6",
+  "title": "expose / commit / release replays touch no counter, and a terminal reservation refuses a fresh expose",
+  "spec": ["SPEC §7", "SPEC §3.4", "ADR-026"],
+  "description": "The idempotency and terminal cells of the §3.4 state x operation matrix, driven through the store as a crashing-then-retrying client would hit them. A second expose of an already-exposed reservation returns the record and leaves exposedTotal at 5, not 10. A second commit returns the existing entry and does not re-increment cumulativeCommitted. Once A is committed, a fresh expose is refused as TX402_CONFIG_INVALID (reservation-already-terminal). On a second reservation B, release(exposed) frees the exposed amount and a replayed release returns the released record unchanged. The final snapshot shows every amount resolved into exactly one term.",
+  "input": {
+    "operations": [
+      {
+        "action": "reserve",
+        "reservationId": "00000000-0000-7000-8000-000000000721",
+        "requestId": "replay-A",
+        "policyScope": "merchant-replay.example",
+        "requestFingerprint": "sha256:d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1",
+        "assetId": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "amountAtomic": "5",
+        "maxPerHourAtomic": "20",
+        "nowEpochMs": 1785715200000
+      },
+      {
+        "action": "expose",
+        "reservationId": "00000000-0000-7000-8000-000000000721",
+        "nowEpochMs": 1785715200000
+      },
+      {
+        "action": "expose",
+        "reservationId": "00000000-0000-7000-8000-000000000721",
+        "nowEpochMs": 1785715200010
+      },
+      {
+        "action": "commit",
+        "reservationId": "00000000-0000-7000-8000-000000000721",
+        "committedAtEpochMs": 1785715200020,
+        "settlementId": "settlement-replay-A"
+      },
+      {
+        "action": "commit",
+        "reservationId": "00000000-0000-7000-8000-000000000721",
+        "committedAtEpochMs": 1785715200030,
+        "settlementId": "ignored-idempotent-replay"
+      },
+      {
+        "action": "expose",
+        "reservationId": "00000000-0000-7000-8000-000000000721",
+        "nowEpochMs": 1785715200040
+      },
+      {
+        "action": "reserve",
+        "reservationId": "00000000-0000-7000-8000-000000000722",
+        "requestId": "replay-B",
+        "policyScope": "merchant-replay.example",
+        "requestFingerprint": "sha256:d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2",
+        "assetId": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "amountAtomic": "3",
+        "maxPerHourAtomic": "20",
+        "nowEpochMs": 1785715200050
+      },
+      {
+        "action": "expose",
+        "reservationId": "00000000-0000-7000-8000-000000000722",
+        "nowEpochMs": 1785715200050
+      },
+      {
+        "action": "release",
+        "reservationId": "00000000-0000-7000-8000-000000000722",
+        "nowEpochMs": 1785715200060
+      },
+      {
+        "action": "release",
+        "reservationId": "00000000-0000-7000-8000-000000000722",
+        "nowEpochMs": 1785715200070
+      },
+      {
+        "action": "snapshot",
+        "policyScope": "merchant-replay.example",
+        "assetId": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "exposure": true,
+        "nowEpochMs": 1785715200080
+      }
+    ]
+  },
+  "expected": {
+    "outcomes": [
+      { "outcome": "reserved", "state": "reserved" },
+      { "outcome": "exposed", "state": "exposed" },
+      { "outcome": "exposed", "state": "exposed" },
+      { "outcome": "committed" },
+      { "outcome": "committed" },
+      { "outcome": "error", "errorCode": "TX402_CONFIG_INVALID" },
+      { "outcome": "reserved", "state": "reserved" },
+      { "outcome": "exposed", "state": "exposed" },
+      { "outcome": "released", "state": "released" },
+      { "outcome": "released", "state": "released" },
+      {
+        "outcome": "snapshot",
+        "committedAtomic": "5",
+        "reservedAtomic": "0",
+        "exposedAtomic": "0",
+        "cumulativeCommittedAtomic": "5",
+        "cumulativeConsumedAtomic": "5",
+        "reservationStates": ["committed", "released"],
+        "entryCount": 1
+      }
+    ]
+  }
+}

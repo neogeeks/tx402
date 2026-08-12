@@ -283,7 +283,7 @@ describe("test merchant — request log", () => {
   });
 });
 
-describe("test merchant — failed settlement (PLAN.md O40)", () => {
+describe("test merchant — failed settlement", () => {
   /**
    * A facilitator that verifies anything and settles nothing.
    *

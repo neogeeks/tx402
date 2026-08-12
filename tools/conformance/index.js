@@ -64,7 +64,7 @@ function findVectors(dir) {
 }
 
 /* ------------------------------------------------------------------------------------- */
-/* Prose claims about how many vectors there are (PLAN.md open item **O59**)              */
+/* Prose claims about how many vectors there are                                          */
 /* ------------------------------------------------------------------------------------- */
 
 /**
@@ -355,7 +355,7 @@ function check() {
 
   // Report what was actually verified, not how many files were opened. The old wording —
   // "${CLAIM_FILES.length} documents … agree" — printed unconditionally, so a claim that
-  // matched no pattern was indistinguishable from a claim that agreed (O106).
+  // matched no pattern was indistinguishable from a claim that agreed.
   const matched = claimMatchCount();
   console.log("OK    conformance index matches the vectors on disk");
   console.log(

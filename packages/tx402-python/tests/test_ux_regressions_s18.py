@@ -4,7 +4,7 @@ The twin of ``packages/tx402/test/ux-regressions-s18.test.ts``. Both were run ag
 ``7376245`` first to confirm they failed there; a regression that passes before the fix is
 not evidence.
 
-The documentation-fixture assertions (O72/O73, O76) live only in the TypeScript twin — the
+The documentation-fixture assertions live only in the TypeScript twin — the
 page they read is one shared file, and asserting it from two suites would pin it twice
 without pinning anything more. What is genuinely Python here is O74 and O75: both CLIs must
 emit the same ``--json`` document and the same stderr, and the only way that stays true is
@@ -77,7 +77,7 @@ class TestO74SettlementFactsReachTheOperator:
 
         document = json.loads(harness.stdout_text)
         assert document["settlement"]["status"] == "committed"
-        # Unhashed: a `sha256:…` cannot be looked up on a block explorer (ADR-019).
+        # Unhashed: a `sha256:…` cannot be looked up on a block explorer.
         assert document["settlement"]["transaction"] == "0xtx"
         assert not document["settlement"]["transaction"].startswith("sha256:")
         assert document["settlement"]["payer"] == EXPECTED_PAYER
@@ -86,7 +86,7 @@ class TestO74SettlementFactsReachTheOperator:
         import json
 
         # 403 carrying a successful PAYMENT-RESPONSE: settlement evidence outranks the
-        # status line (ADR-016), so the money moved and the resource did not arrive.
+        # status line, so the money moved and the resource did not arrive.
         merchant = Merchant(
             offers=[challenge(evm_requirement())],
             paid_statuses=[403],

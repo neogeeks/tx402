@@ -5,24 +5,37 @@
   "description": "Development workspace for tx402 — resilient x402 buyer SDK. Not published.",
   "type": "module",
   "packageManager": "pnpm@10.34.5",
+  "pnpmComment_overrides": "@cloudflare/vitest-pool-workers (S8, O8) pulls @types/node@24 transitively via wrangler; without this pin pnpm builds TWO vitest@2.1.9 peer-variants (one per @types/node), which the pool reports as 'multiple vitest versions installed' and fails the DO Workers-runtime suite. Pin @types/node to the repo's declared v20 line so vitest dedupes to one instance.",
+  "pnpm": {
+    "overrides": {
+      "@types/node": "^20.17.0"
+    }
+  },
   "engines": {
     "node": ">=22.12.0"
   },
   "scripts": {
     "build": "pnpm --filter \"!tx402-docs\" -r build",
-    "check": "pnpm toolchain:check && pnpm build && pnpm lint && pnpm format:check && pnpm typecheck && pnpm nul-check && pnpm workflow-lint && pnpm version:check && pnpm install-contract && pnpm conformance:check && pnpm conformance:selftest && pnpm manifest:verify && pnpm test && pnpm size && pnpm fuzz && pnpm docs:check && pnpm docs:live:selftest && pnpm supply-chain:selftest && pnpm toolchain:selftest && pnpm docs:build",
+    "check": "pnpm toolchain:check && pnpm build && pnpm lint && pnpm format:check && pnpm typecheck && pnpm nul-check && pnpm workflow-lint && pnpm version:check && pnpm install-contract && pnpm conformance:check && pnpm conformance:selftest && pnpm manifest:verify && pnpm test && pnpm size && pnpm fuzz && pnpm adversarial && pnpm adversarial:selftest && pnpm durable:selftest && pnpm docs:check && pnpm docs:live:selftest && pnpm supply-chain:selftest && pnpm toolchain:selftest && pnpm docs:build",
+    "adversarial": "node tools/adversarial/index.js",
+    "adversarial:selftest": "node tools/adversarial/index.js selftest",
+    "durable:selftest": "node tools/durable-check/index.js selftest",
     "conformance:build": "node tools/conformance/index.js build",
     "conformance:check": "node tools/conformance/index.js check",
     "conformance:selftest": "node tools/conformance/index.js selftest",
+    "contract:check": "node tools/contract-check/index.js",
     "docs:build": "pnpm --filter tx402-docs build",
     "docs:check": "node tools/docs-gen/index.js check",
     "docs:dev": "pnpm --filter tx402-docs dev",
     "docs:generate": "pnpm --filter tx402 build && node tools/docs-gen/index.js build",
+    "docs:deploy": "pnpm docs:build && pnpm dlx wrangler@4 pages deploy docs/dist --project-name tx402-docs --branch main --commit-dirty=true && node tools/docs-live/index.js check",
     "docs:live": "node tools/docs-live/index.js check",
     "docs:live:selftest": "node tools/docs-live/index.js selftest",
+    "durable:check": "node tools/durable-check/index.js",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "fuzz": "node tools/fuzz/index.js",
+    "gateway:golden": "node tools/gateway-golden/index.js check",
     "install-contract": "node tools/install-contract/index.js check",
     "install-smoke": "node tools/install-contract/index.js smoke",
     "lint": "eslint . --max-warnings 0",

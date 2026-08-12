@@ -1,7 +1,7 @@
 /**
  * tx402 canonical JSON — the deterministic byte form used for signing and hashing.
  *
- * Frozen at M0 (ADR-012). Two independent implementations must produce identical bytes for
+ * Frozen at M0. Two independent implementations must produce identical bytes for
  * identical input, or a manifest signed by the release tooling will not verify inside the
  * Python SDK. The `canonical-json.*` conformance vectors pin the output byte for byte.
  *

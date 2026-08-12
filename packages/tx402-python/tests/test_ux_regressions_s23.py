@@ -128,7 +128,7 @@ async def test_initial_request_timeout_bounds_the_async_unpaid_request() -> None
 
 
 def test_python_still_offers_exactly_one_budget_accessor() -> None:
-    """The deliberate non-change, pinned so it stays deliberate (ADR-021).
+    """The deliberate non-change, pinned so it stays deliberate.
 
     Python's ``get_budget_state`` is the *store query*: it takes a scope and an asset and
     reads the ledger. TypeScript additionally offers a synchronous snapshot of the most

@@ -1,10 +1,13 @@
 [build-system]
-requires = ["hatchling"]
+# Pinned so the build backend itself is reproducible: an unpinned backend can produce a
+# different wheel/sdist on a different day, which the reproducible-build gate would then flag.
+# Bump deliberately, in lockstep with the reproducible-build evidence.
+requires = ["hatchling==1.31.0"]
 build-backend = "hatchling.build"
 
 [project]
 name = "tx402"
-version = "0.1.0"
+version = "0.2.0"
 description = "Resilient x402 buyer SDK — deterministic multi-chain payment routing, local spend guardrails, and a drop-in httpx wrapper for autonomous agents."
 readme = "README.md"
 license = "Apache-2.0"
@@ -40,11 +43,15 @@ dependencies = [
 [project.optional-dependencies]
 evm = ["x402[evm]>=2.17,<2.18"]
 # `solders` is declared directly rather than relied on transitively: tx402 compiles and
-# validates the SPL transfer itself (ADR-013), so the SPL primitives it uses are a
+# validates the SPL transfer itself, so the SPL primitives it uses are a
 # first-party dependency of this package, not an implementation detail of x402's extra.
 # The same reasoning put `@solana-program/token` in the TypeScript optional peers at S6.
 svm = ["x402[svm]>=2.17,<2.18", "solders>=0.27,<1"]
-all = ["tx402[evm,svm]"]
+# The reference durable store. redis-py 5+ ships BOTH the sync client
+# (`redis.Redis`) and the async client (`redis.asyncio.Redis`), which back `RedisSpendStore`
+# and `AsyncRedisSpendStore` respectively — one dependency, both arms.
+redis = ["redis>=5"]
+all = ["tx402[evm,svm,redis]"]
 
 [project.scripts]
 tx402 = "tx402.cli:run"
@@ -70,6 +77,9 @@ dev = [
     "tomli>=2.0; python_version < '3.11'",
     "types-jsonschema>=4.26.0.20260518",
     "pytest-cov>=7.1.0",
+    # The durable-store harness drives a live Redis; redis-py 5+ provides
+    # both the sync and asyncio clients the two adapter arms are checked against.
+    "redis>=5",
 ]
 
 [tool.hatch.build.targets.wheel]
@@ -79,10 +89,11 @@ packages = ["src/tx402"]
 line-length = 92
 target-version = "py310"
 src = ["src", "tests"]
-# Tool-owned formatting: emitted by `node tools/manifest-signer/index.js embed`. Its content
-# is a signed document, so reflowing it here would only put ruff and the generator in a
-# loop. mypy still checks it.
-extend-exclude = ["src/tx402/bundled_manifest.py"]
+# Tool-owned formatting. `bundled_manifest.py` is emitted by `node tools/manifest-signer/index.js
+# embed` (a signed document — reflowing it would loop ruff against the generator). `stores/_lua.py`
+# is transcribed verbatim from the canonical TypeScript `redis/lua.ts` (its lines are Lua, not
+# Python, and are byte-identical across the two SDKs). mypy still checks both.
+extend-exclude = ["src/tx402/bundled_manifest.py", "src/tx402/stores/_lua.py"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "UP", "B", "A", "C4", "PT", "RET", "SIM", "TID", "RUF"]
@@ -104,16 +115,22 @@ testpaths = ["tests"]
 asyncio_mode = "auto"
 addopts = "--cov --cov-report=term-missing"
 
-# SPEC §12.1: >=90% line and branch coverage in core modules. Enforced from M0 (PLAN.md
-# open item O11) rather than deferred — the gate is far cheaper to hold from the first core
+# >=90% line and branch coverage in core modules, enforced from the first core module
+# rather than deferred — the gate is far cheaper to hold from the first core
 # module onward than to reach retroactively across eight milestones.
 [tool.coverage.run]
 branch = true
 source = ["src/tx402"]
-# Nothing is omitted. `src/tx402/cli.py` was exempt until M7 because the command surface
-# did not exist; it landed at S12 and joined the gate in the same change, so the exit-code
-# table and the `--dry-run` signer guarantee are held to the same 90 % threshold as the
-# core modules they front.
+# `src/tx402/cli.py` was exempt until M7 because the command surface did not exist; it landed
+# at S12 and joined the gate in the same change, so the exit-code table and the `--dry-run`
+# signer guarantee are held to the same 90 % threshold as the core modules they front.
+#
+# The durable Redis adapters (`src/tx402/stores/`) are the ONE exclusion: their correctness is
+# proven by the durable-harness running `check_durable_spend_store` against a
+# LIVE Redis (the `durable-store` CI job + a local instance), not by the no-Redis unit matrix,
+# which skips them for lack of a backend. This mirrors the TypeScript coverage scope, which
+# measures only `src/{core,evm,solana,signers}` and likewise excludes `src/redis` (ADR-008/§12.1).
+omit = ["src/tx402/stores/*"]
 
 [tool.coverage.report]
 fail_under = 90

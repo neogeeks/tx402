@@ -1,8 +1,17 @@
-import { defineConfig } from "vitest/config";
+import { configDefaults, defineConfig } from "vitest/config";
 
 export default defineConfig({
   test: {
     include: ["test/**/*.test.ts", "src/**/*.test.ts"],
+    // The Durable Object suites need the Workers runtime, not node — they run via
+    // vitest.durable-object.config.ts (@cloudflare/vitest-pool-workers). Excluded here so the
+    // default node run does not try to load `cloudflare:test` / `cloudflare:workers` (the DO
+    // adapter suite and the capability gateway over the DO both use it).
+    exclude: [
+      ...configDefaults.exclude,
+      "test/durable-object.test.ts",
+      "test/gateway-durable-object.test.ts",
+    ],
     coverage: {
       provider: "v8",
       // Chain adapters and the private-key convenience signer are production code carrying
@@ -16,7 +25,7 @@ export default defineConfig({
       ],
       reporter: ["text", "lcov"],
       // SPEC §12.1: >=90% line and branch coverage in core modules. Enforced from M0
-      // (PLAN.md open item O11) rather than deferred — the gate is far cheaper to hold from
+      // rather than deferred — the gate is far cheaper to hold from
       // the first core module onward than to reach retroactively across eight milestones.
       thresholds: {
         lines: 90,

@@ -1,5 +1,5 @@
 /**
- * The tx402 release-manifest signing envelope (ADR-012).
+ * The tx402 release-manifest signing envelope.
  *
  * Shared by the CLI in `index.js`. Kept separate so the envelope construction is readable
  * on its own — it is the part that must never quietly change.

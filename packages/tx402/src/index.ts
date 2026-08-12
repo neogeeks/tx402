@@ -36,11 +36,13 @@ export {
   RESERVED_REQUEST_HEADERS,
   REQUEST_ID_HEADER,
 } from "./meta.js";
+// The published package version, parity with Python's `tx402.__version__`.
+export { PACKAGE_VERSION } from "./version.js";
 
 /**
- * Error taxonomy (SPEC §8).
+ * Error taxonomy.
  *
- * Every failure the SDK raises is one of these fifteen classes, and every one carries the
+ * Every failure the SDK raises is one of these seventeen classes, and every one carries the
  * same `code` string in TypeScript and in Python. Switch on `error.code` rather than on
  * class identity — the code is what survives a serialization boundary.
  */
@@ -65,6 +67,8 @@ export {
   ResourceDeliveryError,
   PaidRedirectBlockedError,
   TransportError,
+  SpendScopeFrozenError,
+  RecipientUnpinnedError,
 } from "./core/errors.js";
 
 export type {
@@ -78,7 +82,7 @@ export type {
 } from "./core/errors.js";
 
 /**
- * Release manifest (SPEC §5.4).
+ * Release manifest.
  *
  * `BUNDLED_MANIFEST` is the signed manifest shipped with this build. Callers may supply
  * their own through `manifest` in client config; it is verified on identical terms.
@@ -109,13 +113,14 @@ export type {
 export { BUNDLED_MANIFEST } from "./core/bundled-manifest.js";
 export { TRUSTED_MANIFEST_KEYS, MANIFEST_SIGNING_DOMAIN } from "./core/trusted-keys.js";
 
-export { createTx402Client } from "./core/client.js";
+export { createTx402Client, EVENT_NAMES } from "./core/client.js";
 export type {
   BudgetState,
   PaymentInspection,
   Tx402Client,
   Tx402ClientConfig,
   Tx402Clock,
+  Tx402EventName,
   Tx402Logger,
   Tx402RequestInfo,
   Tx402RequestInit,
@@ -141,7 +146,7 @@ export type {
   Tx402Signers,
 } from "./core/signers.js";
 
-/** The core-to-adapter seam (SPEC §3). Chain adapters are loaded lazily; see `core/chain.ts`. */
+/** The core-to-adapter seam. Chain adapters are loaded lazily; see `core/chain.ts`. */
 export {
   BALANCE_TIMEOUT_MS,
   CIRCUIT_OPEN_MS,
@@ -160,7 +165,7 @@ export type {
 } from "./core/chain.js";
 
 /**
- * Endpoint health and route planning (SPEC §6.4, §6.5).
+ * Endpoint health and route planning.
  *
  * One `HealthIndex` per client scores every RPC endpoint every adapter uses; there is no
  * second circuit anywhere in the SDK. `client.resetHealth()` clears it.
@@ -215,11 +220,17 @@ export type { RequestFingerprintInput } from "./core/fingerprint.js";
 export { MemorySpendStore, RESERVATION_TTL_MS, ROLLING_WINDOW_MS } from "./core/ledger.js";
 export type {
   SpendStore,
+  RecipientPinStore,
+  SpendStoreAdmin,
+  StoreCapabilities,
+  ReservationRef,
+  BudgetLimits,
   SpendReservation,
   SpendReservationState,
   SpendEntry,
   SpendTotals,
   ReserveSpendInput,
+  ReserveSpendResult,
   CommitSpendInput,
   SpendQuery,
 } from "./core/ledger.js";
@@ -227,6 +238,7 @@ export type {
 export { PolicyEngine, normalizePolicyHost } from "./core/policy.js";
 export type {
   PolicyConfig,
+  RecipientPolicyConfig,
   RoutingPolicyConfig,
   PolicyDecision,
   PolicyRequirement,

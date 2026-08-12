@@ -1,5 +1,5 @@
 /**
- * Deterministic x402 test merchant (SPEC §13).
+ * Deterministic x402 test merchant.
  *
  * Emits configurable 402 challenges and validates paid retries. Everything it does is a
  * pure function of the scenario and the attempt number — there is no clock, no randomness,

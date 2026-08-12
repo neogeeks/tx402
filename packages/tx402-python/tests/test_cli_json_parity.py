@@ -1,4 +1,4 @@
-"""Cross-language CLI ``--json`` parity (PLAN.md open item **O107**).
+"""Cross-language CLI ``--json`` parity.
 
 ``docs/src/content/docs/guides/cli.mdx`` opens by promising both packages emit "the same
 ``--json`` document". S34 drove both CLIs across all 17 test-merchant scenarios and found
@@ -39,6 +39,8 @@ from tx402.client import Tx402Client
 REPO = Path(__file__).resolve().parents[3]
 GOLDEN = REPO / "core-spec" / "cli-json" / "expected.json"
 MERCHANT = REPO / "tools" / "test-merchant" / "cli.js"
+STORE_GATEWAY = REPO / "tools" / "store-gateway" / "cli.js"
+VERB_SCENARIOS = REPO / "tools" / "store-gateway" / "scenarios.json"
 DEV_KEY = "0xa11ce00000000000000000000000000000000000000000000000000000000001"
 
 #: Erased before comparison — the same set ``tools/cli-parity/index.js`` uses. The two lists
@@ -152,7 +154,12 @@ def _golden() -> dict[str, Any]:
     return data
 
 
-@pytest.mark.parametrize("scenario", sorted(_golden().keys()))
+def _call_scenarios() -> list[str]:
+    """The `tx402 call` golden keys — what the test merchant drives, not the verbs."""
+    return sorted(key for key in _golden() if not key.startswith("verb:"))
+
+
+@pytest.mark.parametrize("scenario", _call_scenarios())
 def test_python_cli_json_matches_the_cross_language_golden(scenario: str) -> None:
     proc = subprocess.Popen(
         [
@@ -181,3 +188,65 @@ def test_python_cli_json_matches_the_cross_language_golden(scenario: str) -> Non
     expected = _golden()[scenario]
     assert actual["exitCode"] == expected["exitCode"], scenario
     assert actual["json"] == expected["json"], scenario
+
+
+# --- operator verbs -------------------------------------------------
+#
+# The five verbs act on a shared store, so their `--json` is pinned by driving both CLIs
+# against an identical, deterministically-seeded store (`tools/store-gateway`). Python
+# cannot serve the reference gateway in process, so it spawns the Node gateway subprocess
+# (the store analog of the test merchant), as the TypeScript pin serves it from source —
+# both use the shared `seeds.js`, so the backing state is byte-identical either way.
+
+
+def _verb_scenarios() -> list[dict[str, Any]]:
+    data: list[dict[str, Any]] = json.loads(VERB_SCENARIOS.read_text(encoding="utf-8"))
+    return data
+
+
+def _run_python_verb(argv: list[str], env: dict[str, str]) -> dict[str, Any]:
+    out: list[str] = []
+    io = cli_module.CliIo(
+        argv=argv,
+        env=env,
+        stdout=out.append,
+        stderr=lambda _text: None,
+    )
+    exit_code = cli_module.run_cli(io)
+    return {"exitCode": exit_code, "json": _normalize(json.loads("".join(out)))}
+
+
+@pytest.mark.parametrize(
+    "scenario", _verb_scenarios(), ids=[s["key"] for s in _verb_scenarios()]
+)
+def test_python_cli_verb_json_matches_the_golden(scenario: dict[str, Any]) -> None:
+    proc = subprocess.Popen(
+        ["node", str(STORE_GATEWAY), "--seed", scenario["seed"], "--port", "0"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        text=True,
+        cwd=str(REPO),
+    )
+    try:
+        assert proc.stdout is not None
+        line = proc.stdout.readline()
+        if not line:
+            pytest.skip(
+                "store gateway did not start (workspace dist absent); verb parity is "
+                "covered by the cross-platform CI job and the TypeScript check gate."
+            )
+        info = json.loads(line)
+        env = {
+            "TX402_SPEND_STORE": info["url"],
+            "TX402_SPEND_STORE_TOKEN": info["dataToken"],
+        }
+        if scenario["provideAdmin"]:
+            env["TX402_SPEND_STORE_ADMIN"] = info["adminToken"]
+        actual = _run_python_verb(scenario["args"], env)
+    finally:
+        proc.terminate()
+        proc.wait()
+
+    expected = _golden()[scenario["key"]]
+    assert actual["exitCode"] == expected["exitCode"], scenario["key"]
+    assert actual["json"] == expected["json"], scenario["key"]

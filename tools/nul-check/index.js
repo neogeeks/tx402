@@ -2,7 +2,7 @@
 /**
  * Fails if any tracked text file contains a raw NUL byte.
  *
- * PLAN.md open item **O25**. At S7 four literal NUL bytes reached
+ * Four literal NUL bytes once reached
  * `src/evm/adapter.ts` and `src/solana/adapter.ts` — a cache-key separator written as a raw
  * control character instead of the `\u0000` escape. The resulting strings were correct and
  * **every gate passed**: lint, format, types, tests, coverage, size.

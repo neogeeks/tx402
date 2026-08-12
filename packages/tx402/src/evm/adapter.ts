@@ -46,11 +46,11 @@ import { resolveEvmAddress, toClientEvmSigner } from "./signer.js";
 export interface EvmChainAdapterOptions {
   /** Forwarded to every RPC pool. Present so tests can inject a transport and a deadline. */
   readonly rpc?: EvmRpcPoolOptions;
-  /** The client's shared health index (SPEC §6.5). Omitted, each pool keeps a private one. */
+  /** The client's shared health index. Omitted, each pool keeps a private one. */
   readonly health?: HealthIndex;
   /**
    * Caller-supplied RPC endpoints replacing the manifest's, keyed by canonical CAIP-2.
-   * Validated and alias-resolved upstream by `PolicyEngine` (ADR-015).
+   * Validated and alias-resolved upstream by `PolicyEngine`.
    */
   readonly rpcOverrides?: Readonly<Record<string, readonly string[]>>;
 }

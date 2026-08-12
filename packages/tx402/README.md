@@ -35,7 +35,7 @@ touched**, deterministically picks a route across the networks the merchant actu
 (scored by balance, fee, and local endpoint health), reserves the spend atomically, signs exactly
 one authorization with a fresh nonce, and retries once with it.
 
-If the resource can't be paid for, you get one of fifteen typed errors telling you which thing went
+If the resource can't be paid for, you get one of seventeen typed errors telling you which thing went
 wrong — not a bare `402`.
 
 ## Install
@@ -108,7 +108,7 @@ client construction fails if the signature does not verify.
 
 [`tx402` on PyPI](https://pypi.org/project/tx402/) is the same product in Python, released at the
 same version from the same commit. Both are held to identical behaviour — normalized output, route
-ordering, error codes, and the money rule — by 73 shared conformance vectors.
+ordering, error codes, and the money rule — by 88 shared conformance vectors.
 
 ## License
 

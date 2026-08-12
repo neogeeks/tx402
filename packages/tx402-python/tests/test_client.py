@@ -30,16 +30,20 @@ from tx402 import (
     InsufficientLiquidityError,
     NonReplayableRequestError,
     Policy,
+    RecipientPolicy,
+    RecipientUnpinnedError,
     ReservedHeaderError,
     ResourceDeliveryError,
     SignerError,
+    SpendScopeFrozenError,
     TransportError,
     Tx402Client,
     UnsupportedSchemeError,
 )
 from tx402.bundled_manifest import BUNDLED_MANIFEST
 from tx402.evm import EvmTypedDataRequest
-from tx402.ledger import MemorySpendStore
+from tx402.ledger import BudgetState, MemorySpendStore, ReservationRef, SpendEntry
+from tx402.policy import normalize_policy_host
 
 NETWORK = "eip155:8453"
 ASSET = BUNDLED_MANIFEST["networks"][NETWORK]["assets"][0]["address"]
@@ -397,7 +401,7 @@ def test_ambiguous_status_retains_reservation(status: int, category: str) -> Non
             asset_id=f"{NETWORK}/erc20:{ASSET}",
             now_epoch_ms=int(time.time() * 1000),
         ).reservations
-    ] == ["reserved"]
+    ] == ["exposed"]
 
 
 def test_unsuccessful_settlement_releases() -> None:
@@ -414,7 +418,7 @@ def test_absent_payment_response_still_delivers() -> None:
 
 
 def test_malformed_payment_response_is_not_delivery(caplog: Any) -> None:
-    """A header that is present and does not decode is a protocol violation (O53).
+    """A header that is present and does not decode is a protocol violation.
 
     It used to be folded in with an absent header and the resource returned as paid
     success. SPEC §6.7 makes parsing a precondition of paid-success, so the call now ends
@@ -436,7 +440,7 @@ def test_malformed_payment_response_is_not_delivery(caplog: Any) -> None:
             asset_id=f"{NETWORK}/erc20:{ASSET}",
             now_epoch_ms=int(time.time() * 1000),
         ).reservations
-    ] == ["reserved"]
+    ] == ["exposed"]
 
 
 def test_initial_and_paid_transport_failures_are_distinct() -> None:
@@ -454,14 +458,20 @@ def test_initial_and_paid_transport_failures_are_distinct() -> None:
 
 
 def test_paid_retry_timeout_is_owned_by_tx402() -> None:
-    """A deadline and a reset are the same fact about settlement (SPEC §6.7).
+    """A deadline and a reset are the same fact about settlement.
 
     Both report ``transport-after-signature``: the signature is on the wire either way, and
     the frozen ``completion.paid-attempt`` vectors give a transmission that never completed
     exactly one category in both languages.
     """
+    # The 1_000 ms deadline must fire before the paid attempt completes. ``with_deadline``
+    # races the attempt on an abandoned daemon thread, so the margin is between the main
+    # thread's ``queue.get`` timeout and that thread finishing its ``time.sleep``. A 100 ms
+    # margin flaked on loaded CI (a late-scheduled ``get`` let the daemon post first); a
+    # 5_000 ms delay makes the deadline win under any realistic jitter, and — because the
+    # daemon is abandoned, never joined — the test still returns at ~1_000 ms, not 5_000 ms.
     with (
-        client(Merchant(paid_delay_ms=1_100), payment_retry_timeout_ms=1_000) as sdk,
+        client(Merchant(paid_delay_ms=5_000), payment_retry_timeout_ms=1_000) as sdk,
         pytest.raises(AmbiguousPaymentError) as raised,
     ):
         sdk.get(URL)
@@ -523,3 +533,648 @@ def test_constructor_and_budget_snapshot_contract() -> None:
     )
     sdk.close()
     assert state.store_kind == "memory"
+
+
+# --- SPEC §7 / ADR-026: the pre-transmission exposure fence ---------------------------
+
+
+class _LevelLogger:
+    """Captures every event with the level it was emitted at."""
+
+    def __init__(self) -> None:
+        self.events: list[tuple[str, dict[str, Any]]] = []
+
+    def debug(self, event: Any) -> None:
+        self.events.append(("debug", dict(event)))
+
+    def info(self, event: Any) -> None:
+        self.events.append(("info", dict(event)))
+
+    def warn(self, event: Any) -> None:
+        self.events.append(("warn", dict(event)))
+
+    def error(self, event: Any) -> None:
+        self.events.append(("error", dict(event)))
+
+    def exposed(self) -> list[tuple[str, dict[str, Any]]]:
+        return [(lvl, e) for lvl, e in self.events if e.get("event") == "payment.exposed"]
+
+
+class _FailingExposeStore:
+    """A store whose ``expose`` fails like an outage; reserve/release still work."""
+
+    kind = "expose-explodes"
+
+    def __init__(self) -> None:
+        self._inner = MemorySpendStore()
+        self.capabilities = self._inner.capabilities
+
+    def reserve(self, **kwargs: Any) -> Any:
+        return self._inner.reserve(**kwargs)
+
+    def commit(self, **kwargs: Any) -> Any:
+        return self._inner.commit(**kwargs)
+
+    def release(self, **kwargs: Any) -> Any:
+        return self._inner.release(**kwargs)
+
+    def expose(self, **kwargs: Any) -> Any:
+        raise RuntimeError("fence backend unreachable")
+
+    def get_budget_state(self, **kwargs: Any) -> Any:
+        return self._inner.get_budget_state(**kwargs)
+
+    def list_exposed(self, **kwargs: Any) -> Any:
+        return self._inner.list_exposed(**kwargs)
+
+    def is_frozen(self, **kwargs: Any) -> bool:
+        return self._inner.is_frozen(**kwargs)
+
+
+def _fence_budget(store: Any) -> Any:
+    return store.get_budget_state(
+        policy_scope="merchant.test",
+        asset_id=f"{NETWORK}/erc20:{ASSET}",
+        now_epoch_ms=int(time.time() * 1000),
+    )
+
+
+def test_exposure_fence_resolves_committed_and_emits_info_on_delivery() -> None:
+    store = MemorySpendStore()
+    logger = _LevelLogger()
+    with client(Merchant(), store=store, logger=logger) as sdk:
+        assert sdk.get(URL).status_code == 200
+    state = _fence_budget(store)
+    # The fence exposed the reservation before transmission; a delivered payment commits it,
+    # so the amount lands in cumulativeCommitted with nothing stranded in exposedTotal.
+    assert state.committed_atomic == "50000"
+    assert state.exposed_atomic == "0"
+    assert state.reserved_atomic == "0"
+    exposed = logger.exposed()
+    assert len(exposed) == 1
+    assert exposed[0][0] == "info"
+    assert exposed[0][1]["amountAtomic"] == "50000"
+
+
+def test_exposure_fence_resolves_released_when_the_merchant_refuses() -> None:
+    store = MemorySpendStore()
+    with (
+        client(Merchant(paid_status=403, payment_response=""), store=store) as sdk,
+        pytest.raises(ResourceDeliveryError) as raised,
+    ):
+        sdk.get(URL)
+    assert raised.value.details["reason"] == "paid-request-rejected"
+    # A definitive refusal is evidence nothing settled: the exposed reservation is released.
+    state = _fence_budget(store)
+    assert state.committed_atomic == "0"
+    assert state.reserved_atomic == "0"
+    assert state.exposed_atomic == "0"
+
+
+def test_exposure_fence_failure_aborts_transmission_and_releases_sync() -> None:
+    store = _FailingExposeStore()
+    signer = Signer()
+    merchant = Merchant()
+    logger = _LevelLogger()
+    # Constructed directly (not via the `client` helper) so the failing store types cleanly.
+    with (
+        Tx402Client(
+            evm_signer=signer,
+            spend_store=store,
+            transport=httpx.MockTransport(merchant),
+            evm_rpc_transport=rpc_transport(),
+            logger=logger,
+        ) as sdk,
+        pytest.raises(TransportError) as raised,
+    ):
+        sdk.get(URL)
+    assert raised.value.retryable is True
+    assert raised.value.details["causeCategory"] == "exposure-fence-failed"
+    assert raised.value.details["storeKind"] == "expose-explodes"
+    # Signed (the fence is after signing) but never transmitted: only the initial 402
+    # request reached the merchant, and the reservation was released, so no budget is held.
+    assert len(signer.requests) == 1
+    assert len(merchant.requests) == 1
+    state = _fence_budget(store)
+    assert state.reserved_atomic == "0"
+    assert state.exposed_atomic == "0"
+    assert state.committed_atomic == "0"
+    exposed = logger.exposed()
+    assert len(exposed) == 1
+    assert exposed[0][0] == "error"
+    assert exposed[0][1]["reason"] == "exposure-fence-failed"
+
+
+@pytest.mark.asyncio
+async def test_exposure_fence_resolves_committed_on_the_async_path() -> None:
+    store = MemorySpendStore()
+    logger = _LevelLogger()
+    async with AsyncTx402Client(
+        evm_signer=Signer(),
+        spend_store=store,
+        transport=httpx.MockTransport(Merchant()),
+        evm_rpc_transport=rpc_transport(),
+        logger=logger,
+    ) as sdk:
+        assert (await sdk.get(URL)).status_code == 200
+    state = _fence_budget(store)
+    assert state.committed_atomic == "50000"
+    assert state.exposed_atomic == "0"
+    exposed = logger.exposed()
+    assert len(exposed) == 1
+    assert exposed[0][0] == "info"
+
+
+@pytest.mark.asyncio
+async def test_exposure_fence_failure_aborts_transmission_and_releases_async() -> None:
+    store = _FailingExposeStore()
+    signer = Signer()
+    merchant = Merchant()
+    async with AsyncTx402Client(
+        evm_signer=signer,
+        spend_store=store,
+        transport=httpx.MockTransport(merchant),
+        evm_rpc_transport=rpc_transport(),
+    ) as sdk:
+        with pytest.raises(TransportError) as raised:
+            await sdk.get(URL)
+    # The async fence runs through the same `_dispatch` seam as reserve and commit; a
+    # failure aborts the transmit and releases exactly as the sync path does.
+    assert raised.value.details["causeCategory"] == "exposure-fence-failed"
+    assert len(signer.requests) == 1
+    assert len(merchant.requests) == 1
+    state = _fence_budget(store)
+    assert state.reserved_atomic == "0"
+    assert state.exposed_atomic == "0"
+
+
+def _frozen_events(logger: _LevelLogger) -> list[tuple[str, dict[str, Any]]]:
+    return [(lvl, e) for lvl, e in logger.events if e.get("event") == "spend.frozen"]
+
+
+def test_kill_switch_denies_before_the_signer_and_emits_spend_frozen_sync() -> None:
+    store = MemorySpendStore()
+    # Whole-store freeze: atomic_global_freeze is True in-process, so "*" is a permitted
+    # scope and blocks every reserve.
+    store.freeze("*")
+    signer = Signer()
+    merchant = Merchant()
+    logger = _LevelLogger()
+    with (
+        client(merchant, signer=signer, store=store, logger=logger) as sdk,
+        pytest.raises(SpendScopeFrozenError) as raised,
+    ):
+        sdk.get(URL)
+    # The freeze check is reserve step 2 — reached before any signer exists in scope
+    # (SEC-002), so it is a non-retryable policy refusal and nothing is signed.
+    assert raised.value.retryable is False
+    assert raised.value.retryability == "no"
+    assert raised.value.details["frozenScope"] == "*"
+    assert signer.requests == []
+    # Only the initial 402 probe reached the merchant; no paid retry was transmitted.
+    assert len(merchant.requests) == 1
+    frozen = _frozen_events(logger)
+    assert len(frozen) == 1
+    assert frozen[0][0] == "warn"
+
+
+def test_kill_switch_admits_again_once_unfrozen_sync() -> None:
+    store = MemorySpendStore()
+    store.freeze("*")
+    store.unfreeze("*")
+    signer = Signer()
+    with client(Merchant(), signer=signer, store=store) as sdk:
+        assert sdk.get(URL).status_code == 200
+    assert len(signer.requests) == 1
+
+
+@pytest.mark.asyncio
+async def test_kill_switch_denies_on_the_async_path_and_emits_spend_frozen() -> None:
+    store = MemorySpendStore()
+    store.freeze("*")
+    signer = Signer()
+    merchant = Merchant()
+    logger = _LevelLogger()
+    async with AsyncTx402Client(
+        evm_signer=signer,
+        spend_store=store,
+        transport=httpx.MockTransport(merchant),
+        evm_rpc_transport=rpc_transport(),
+        logger=logger,
+    ) as sdk:
+        with pytest.raises(SpendScopeFrozenError) as raised:
+            await sdk.get(URL)
+    # The async reserve is offloaded through the same _dispatch seam; the frozen refusal
+    # propagates and emits spend.frozen exactly as the sync path does.
+    assert raised.value.details["frozenScope"] == "*"
+    assert signer.requests == []
+    assert len(merchant.requests) == 1
+    frozen = _frozen_events(logger)
+    assert len(frozen) == 1
+    assert frozen[0][0] == "warn"
+
+
+# ── SPEC §6 recipient pinning (ADR-023: run the behaviour) ──────────────────────────────
+
+SCOPE = normalize_policy_host(URL)
+
+
+def _recipient_events(logger: _LevelLogger, name: str) -> list[tuple[str, dict[str, Any]]]:
+    return [(lvl, e) for lvl, e in logger.events if e.get("event") == name]
+
+
+def test_recipient_tofu_establishes_pin_and_emits_recipient_pinned_sync() -> None:
+    store = MemorySpendStore()
+    store.set_tofu_enabled(SCOPE, True)
+    signer = Signer()
+    logger = _LevelLogger()
+    with client(
+        Merchant(),
+        signer=signer,
+        store=store,
+        logger=logger,
+        recipient_policy=RecipientPolicy(mode="tofu"),
+    ) as sdk:
+        assert sdk.get(URL).status_code == 200
+    assert len(signer.requests) == 1
+    # The claim happened in the reserve atom; the store pins the merchant's payTo,
+    # canonicalized to lowercase hex.
+    assert store.get_recipient_pins(SCOPE, NETWORK) == (RECIPIENT.lower(),)
+    pinned = _recipient_events(logger, "recipient.pinned")
+    assert len(pinned) == 1
+    assert pinned[0][0] == "info"
+    assert pinned[0][1]["network"] == NETWORK
+    assert pinned[0][1]["recipient"] == RECIPIENT.lower()
+
+
+def test_recipient_tofu_second_call_re_emits_nothing_sync() -> None:
+    store = MemorySpendStore()
+    store.set_tofu_enabled(SCOPE, True)
+    logger = _LevelLogger()
+    with client(
+        Merchant(),
+        store=store,
+        logger=logger,
+        recipient_policy=RecipientPolicy(mode="tofu"),
+    ) as sdk:
+        assert sdk.get(URL).status_code == 200
+        assert sdk.get(URL).status_code == 200
+    # The pin was claimed once; the second reserve matched it (replay-safe, ADR-028).
+    assert len(_recipient_events(logger, "recipient.pinned")) == 1
+
+
+class _FailingPinStore(MemorySpendStore):
+    """A store whose advisory recipient read is DOWN — an infrastructure outage."""
+
+    def get_recipient_pins(self, scope: str, network: str) -> tuple[str, ...]:
+        raise RuntimeError("recipient pin store is down")
+
+
+def test_o17_recipient_store_outage_fails_closed_sync() -> None:
+    store = _FailingPinStore()
+    store.set_tofu_enabled(SCOPE, True)
+    signer = Signer()
+    logger = _LevelLogger()
+    with (
+        client(
+            Merchant(),
+            signer=signer,
+            store=store,
+            logger=logger,
+            recipient_policy=RecipientPolicy(mode="tofu"),
+        ) as sdk,
+        pytest.raises(TransportError) as raised,
+    ):
+        sdk.get(URL)
+    # §6.3: an advisory recipient-store outage is a retryable TransportError, not a refusal.
+    assert raised.value.details.get("causeCategory") == "recipient-store-unavailable"
+    assert raised.value.retryable is True
+    # Fail-closed: pre-signature, so nothing was signed; request.failed fired once.
+    assert signer.requests == []
+    assert len(_recipient_events(logger, "request.failed")) == 1
+
+
+@pytest.mark.asyncio
+async def test_o17_recipient_store_outage_fails_closed_async() -> None:
+    # O38: the ASYNC recipient pre-filter (`_recipient_filter_async`) must fail closed
+    # identically — the async path was byte-parallel to the sync one but had no regression.
+    store = _FailingPinStore()
+    store.set_tofu_enabled(SCOPE, True)
+    signer = Signer()
+    logger = _LevelLogger()
+    with pytest.raises(TransportError) as raised:
+        async with AsyncTx402Client(
+            evm_signer=signer,
+            spend_store=store,
+            transport=httpx.MockTransport(Merchant()),
+            evm_rpc_transport=rpc_transport(),
+            recipient_policy=RecipientPolicy(mode="tofu"),
+            logger=logger,
+        ) as sdk:
+            await sdk.get(URL)
+    assert raised.value.details.get("causeCategory") == "recipient-store-unavailable"
+    assert raised.value.retryable is True
+    assert signer.requests == []
+    assert len(_recipient_events(logger, "request.failed")) == 1
+
+
+class _FailingRecipientPolicyStore(MemorySpendStore):
+    """A store whose recipient PIN read succeeds (empty) but whose recipient POLICY read is
+    DOWN. The second recipient read is reached only when there is no pin and TOFU is
+    unprovisioned, so it exercises the store-outage arm the pin store misses."""
+
+    def get_recipient_policy(self, scope: str) -> dict[str, bool]:
+        raise RuntimeError("recipient policy store is down")
+
+
+def test_o17_recipient_policy_read_outage_fails_closed_sync() -> None:
+    store = _FailingRecipientPolicyStore()
+    signer = Signer()
+    logger = _LevelLogger()
+    with (
+        client(
+            Merchant(),
+            signer=signer,
+            store=store,
+            logger=logger,
+            recipient_policy=RecipientPolicy(mode="tofu"),
+        ) as sdk,
+        pytest.raises(TransportError) as raised,
+    ):
+        sdk.get(URL)
+    assert raised.value.details.get("causeCategory") == "recipient-store-unavailable"
+    assert raised.value.retryable is True
+    assert signer.requests == []
+    assert len(_recipient_events(logger, "request.failed")) == 1
+
+
+@pytest.mark.asyncio
+async def test_o17_recipient_policy_read_outage_fails_closed_async() -> None:
+    store = _FailingRecipientPolicyStore()
+    signer = Signer()
+    logger = _LevelLogger()
+    with pytest.raises(TransportError) as raised:
+        async with AsyncTx402Client(
+            evm_signer=signer,
+            spend_store=store,
+            transport=httpx.MockTransport(Merchant()),
+            evm_rpc_transport=rpc_transport(),
+            recipient_policy=RecipientPolicy(mode="tofu"),
+            logger=logger,
+        ) as sdk:
+            await sdk.get(URL)
+    assert raised.value.details.get("causeCategory") == "recipient-store-unavailable"
+    assert raised.value.retryable is True
+    assert signer.requests == []
+    assert len(_recipient_events(logger, "request.failed")) == 1
+
+
+class _NoneRecipientPolicyStore(MemorySpendStore):
+    """A store whose recipient policy read returns ``None`` (no policy for the scope). TS
+    treats ``policy?.tofuEnabled !== true`` as not-provisioned and fails closed; pre-S13d
+    Python read ``None.get('tofu_enabled')`` OUTSIDE the try/except, raising a raw
+    ``AttributeError`` with no ``request.failed``. The fix sends a ``None`` policy
+    to the same closed ``recipient-tofu-not-provisioned`` refusal."""
+
+    def get_recipient_policy(self, scope: str) -> dict[str, bool]:
+        return None  # type: ignore[return-value]
+
+
+def test_o38_none_recipient_policy_fails_closed_sync() -> None:
+    store = _NoneRecipientPolicyStore()
+    signer = Signer()
+    logger = _LevelLogger()
+    with (
+        client(
+            Merchant(),
+            signer=signer,
+            store=store,
+            logger=logger,
+            recipient_policy=RecipientPolicy(mode="tofu"),
+        ) as sdk,
+        pytest.raises(ConfigurationError) as raised,
+    ):
+        sdk.get(URL)
+    # A None policy is "TOFU not provisioned", not a store outage — a fail-closed
+    # ConfigurationError, never a raw AttributeError. Pre-signature: nothing signed,
+    # request.failed fired exactly once.
+    assert raised.value.details.get("reason") == "recipient-tofu-not-provisioned"
+    assert signer.requests == []
+    assert len(_recipient_events(logger, "request.failed")) == 1
+
+
+@pytest.mark.asyncio
+async def test_o38_none_recipient_policy_fails_closed_async() -> None:
+    store = _NoneRecipientPolicyStore()
+    signer = Signer()
+    logger = _LevelLogger()
+    with pytest.raises(ConfigurationError) as raised:
+        async with AsyncTx402Client(
+            evm_signer=signer,
+            spend_store=store,
+            transport=httpx.MockTransport(Merchant()),
+            evm_rpc_transport=rpc_transport(),
+            recipient_policy=RecipientPolicy(mode="tofu"),
+            logger=logger,
+        ) as sdk:
+            await sdk.get(URL)
+    assert raised.value.details.get("reason") == "recipient-tofu-not-provisioned"
+    assert signer.requests == []
+    assert len(_recipient_events(logger, "request.failed")) == 1
+
+
+class _RecordingBudgetStore(MemorySpendStore):
+    """Records the ``now_epoch_ms`` a default budget query resolves to."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.last_now: int | None = None
+
+    def get_budget_state(
+        self, *, policy_scope: str, asset_id: str, now_epoch_ms: int
+    ) -> BudgetState:
+        self.last_now = now_epoch_ms
+        return super().get_budget_state(
+            policy_scope=policy_scope, asset_id=asset_id, now_epoch_ms=now_epoch_ms
+        )
+
+
+def test_o19_default_budget_query_uses_configured_clock_sync() -> None:
+    pinned = 1_800_000_000_000  # a fixed instant within the manifest window, != real now
+    store = _RecordingBudgetStore()
+    with client(Merchant(), store=store, clock=lambda: pinned) as sdk:
+        sdk.get_budget_state(policy_scope=SCOPE, asset_id=ASSET)
+    # The default query used the client's CONFIGURED clock, not _system_clock; the
+    # pre-fix code used the system clock, so a live reservation read as expired.
+    assert store.last_now == pinned
+
+
+@pytest.mark.asyncio
+async def test_o19_default_budget_query_uses_configured_clock_async() -> None:
+    pinned = 1_800_000_000_000
+    store = _RecordingBudgetStore()
+    async with AsyncTx402Client(
+        evm_signer=Signer(),
+        spend_store=store,
+        transport=httpx.MockTransport(Merchant()),
+        evm_rpc_transport=rpc_transport(),
+        clock=lambda: pinned,
+    ) as sdk:
+        await sdk.get_budget_state(policy_scope=SCOPE, asset_id=ASSET)
+    assert store.last_now == pinned
+
+
+class _CommitFailsStore(MemorySpendStore):
+    """A store whose commit fails AFTER the merchant settled — money moved, not recorded."""
+
+    def commit(
+        self,
+        *,
+        ref: ReservationRef,
+        committed_at_epoch_ms: int,
+        settlement_id: str | None = None,
+    ) -> SpendEntry:
+        raise RuntimeError("store down after settlement")
+
+
+def test_o18_post_settlement_commit_failure_emits_request_failed_once() -> None:
+    store = _CommitFailsStore()
+    logger = _LevelLogger()
+    with (
+        client(Merchant(), store=store, logger=logger) as sdk,
+        pytest.raises(ResourceDeliveryError) as raised,
+    ):
+        sdk.get(URL)
+    assert raised.value.code == "TX402_RESOURCE_DELIVERY"
+    # The terminal event fired ONCE, not inside _commit_failure and again outside (§11).
+    assert len(_recipient_events(logger, "request.failed")) == 1
+
+
+def test_recipient_admin_allowlist_mismatch_refuses_before_signer_sync() -> None:
+    store = MemorySpendStore()
+    # An operator pins a DIFFERENT recipient; the client always sends its payTo, so the
+    # authoritative reserve assertion refuses it whatever the caller's mode.
+    store.set_recipient_pins(
+        SCOPE, NETWORK, ("0x000000000000000000000000000000000000dead",)
+    )
+    signer = Signer()
+    merchant = Merchant()
+    logger = _LevelLogger()
+    with (
+        client(merchant, signer=signer, store=store, logger=logger) as sdk,
+        pytest.raises(RecipientUnpinnedError) as raised,
+    ):
+        sdk.get(URL)
+    assert raised.value.retryable is False
+    assert raised.value.details["reason"] == "not-allowlisted"
+    assert raised.value.details["presentedRecipient"] == RECIPIENT.lower()
+    assert raised.value.details["expectedRecipients"] == [
+        "0x000000000000000000000000000000000000dead"
+    ]
+    # Pre-signature policy refusal (SEC-002): nothing signed, only the 402 probe sent.
+    assert signer.requests == []
+    assert len(merchant.requests) == 1
+    rejected = _recipient_events(logger, "recipient.rejected")
+    assert len(rejected) == 1
+    assert rejected[0][0] == "warn"
+    assert rejected[0][1]["reason"] == "not-allowlisted"
+
+
+def test_recipient_client_allowlist_admits_without_claiming_sync() -> None:
+    store = MemorySpendStore()
+    logger = _LevelLogger()
+    with client(
+        Merchant(),
+        store=store,
+        logger=logger,
+        recipient_policy=RecipientPolicy(
+            mode="allowlist",
+            allow=[{"host": SCOPE, "network": NETWORK, "recipients": [RECIPIENT]}],
+        ),
+    ) as sdk:
+        assert sdk.get(URL).status_code == 200
+    # Allowlist mode never claims a pin (SPEC §6.2 "allowlist wins, TOFU fills gaps").
+    assert store.get_recipient_pins(SCOPE, NETWORK) == ()
+    assert _recipient_events(logger, "recipient.pinned") == []
+
+
+class _DataOnlyStore:
+    """A valid data-plane SpendStore with NO RecipientPinStore methods."""
+
+    def __init__(self) -> None:
+        self._inner = MemorySpendStore()
+        self.kind = self._inner.kind
+        self.capabilities = self._inner.capabilities
+
+    def reserve(self, **kwargs: Any) -> Any:
+        return self._inner.reserve(**kwargs)
+
+    def commit(self, **kwargs: Any) -> Any:
+        return self._inner.commit(**kwargs)
+
+    def release(self, **kwargs: Any) -> Any:
+        return self._inner.release(**kwargs)
+
+    def expose(self, **kwargs: Any) -> Any:
+        return self._inner.expose(**kwargs)
+
+    def get_budget_state(self, **kwargs: Any) -> Any:
+        return self._inner.get_budget_state(**kwargs)
+
+    def list_exposed(self, **kwargs: Any) -> Any:
+        return self._inner.list_exposed(**kwargs)
+
+    def is_frozen(self, **kwargs: Any) -> Any:
+        return self._inner.is_frozen(**kwargs)
+
+
+def test_recipient_tofu_fails_closed_without_a_pin_store() -> None:
+    # A store missing get_recipient_pins/get_recipient_policy cannot back TOFU.
+    with pytest.raises(ConfigurationError) as raised:
+        Tx402Client(
+            evm_signer=Signer(),
+            spend_store=_DataOnlyStore(),
+            transport=httpx.MockTransport(Merchant()),
+            evm_rpc_transport=rpc_transport(),
+            recipient_policy=RecipientPolicy(mode="tofu"),
+        )
+    assert raised.value.details["reason"] == "recipient-tofu-needs-pin-store"
+
+
+@pytest.mark.asyncio
+async def test_recipient_tofu_establishes_pin_on_the_async_path() -> None:
+    store = MemorySpendStore()
+    store.set_tofu_enabled(SCOPE, True)
+    signer = Signer()
+    logger = _LevelLogger()
+    async with AsyncTx402Client(
+        evm_signer=signer,
+        spend_store=store,
+        transport=httpx.MockTransport(Merchant()),
+        evm_rpc_transport=rpc_transport(),
+        logger=logger,
+        recipient_policy=RecipientPolicy(mode="tofu"),
+    ) as sdk:
+        assert (await sdk.get(URL)).status_code == 200
+    # The async advisory read and reserve claim run through the _dispatch seam;
+    # the pin is established and recipient.pinned emitted exactly as on the sync path.
+    assert store.get_recipient_pins(SCOPE, NETWORK) == (RECIPIENT.lower(),)
+    pinned = _recipient_events(logger, "recipient.pinned")
+    assert len(pinned) == 1
+    assert pinned[0][0] == "info"
+
+
+def test_recipient_allowlist_recipients_string_is_rejected_not_iterated() -> None:
+    # A bare string is a Sequence in Python; without the explicit str guard it would be
+    # iterated per-character into the allow set (parity with the TS Array.isArray check).
+    with pytest.raises(ConfigurationError) as raised:
+        Tx402Client(
+            evm_signer=Signer(),
+            transport=httpx.MockTransport(Merchant()),
+            evm_rpc_transport=rpc_transport(),
+            recipient_policy=RecipientPolicy(
+                mode="allowlist",
+                allow=[{"host": SCOPE, "network": NETWORK, "recipients": RECIPIENT}],
+            ),
+        )
+    assert raised.value.details["configPath"] == "recipient_policy.allow[0].recipients"

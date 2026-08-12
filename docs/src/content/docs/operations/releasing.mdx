@@ -2,7 +2,7 @@
 title: Cutting a release
 description: The tag-triggered release workflow, trusted publishing on both registries, and the release signing key.
 sidebar:
-  order: 5
+  order: 4
 ---
 
 A release is cut from `main`, by CI, and never from a laptop. That is not ceremony: a
@@ -25,21 +25,31 @@ git tag v0.1.0
 git push origin v0.1.0
 ```
 
-The workflow has five jobs:
+The workflow has eight jobs:
 
 ```text
-verify ──▶ docs-published ──┬──▶ npm  ──┐
-                            └──▶ pypi ──┴──▶ smoke
+verify ─────────┐
+docs-published ─┤
+durable-store ──┤
+durable-object ─┼──┬──▶ npm  ──┐
+gateway-golden ─┘  │           ├──▶ smoke
+                   └──▶ pypi ──┘
 ```
 
-`npm` and `pypi` both declare `needs: [verify, docs-published]`, so **either of the first two
-jobs failing blocks the release outright** — nothing is published and nothing is partially
-published.
+`npm` and `pypi` both declare `needs: [verify, docs-published, durable-store, durable-object,
+gateway-golden]`, so **any of those gate jobs failing blocks the release outright** — nothing is
+published and nothing is partially published. Every gate runs **on the tagged commit**, not on a
+CI run of `main`.
 
 ### verify
 
-Re-runs every gate **on the tagged commit**. A green CI run on `main` is not evidence about
-a tag, because a tag need not point at the commit that was tested.
+Re-runs the aggregate `pnpm check`, the measured release gates (`fuzz`, `adversarial`, `perf`,
+`supply-chain`, `reproducible`), and the Python suite **on the tagged commit**. A green CI run on
+`main` is not evidence about a tag, because a tag need not point at the commit that was tested.
+
+Before any of that it proves the tagged commit is **contained in protected `main`**
+(`git merge-base --is-ancestor` against `origin/main`), so a release can never be cut from
+untested or force-pushed history.
 
 It also checks three things a human typed:
 
@@ -50,6 +60,16 @@ It also checks three things a human typed:
 That last check is why the release key matters, and it is a hard failure rather than a
 warning.
 
+### durable-store, durable-object, gateway-golden
+
+The Redis, Durable Object, and capability-gateway suites CI runs, re-run **on the tagged
+commit** — `pnpm check` does not include them, so they are their own jobs and their own hard
+gates. `durable-store` provisions a standalone AOF Redis plus a 3-master Cluster and runs
+`durable:check redis` (both TS clients, both Python arms); `durable-object` runs
+`durable:check do` in the local Workers runtime on both topologies; `gateway-golden` drift-checks
+the wire golden and runs the behind-gateway conformance over Redis and the DO from both clients.
+`tools/workflow-lint` fails the workflow if a publish job drops any of these from its `needs`.
+
 ### docs-published
 
 Probes the **live** `https://docs.tx402.io` and requires every page the site must serve to
@@ -59,10 +79,22 @@ permanent, and pointing it at documentation that is unreachable is not something
 workflow can undo.
 
 **Look at this job first when a tag does not publish.** It is the one gate that depends on
-something outside this repository — the documentation site is deployed by a separate workflow,
-so a tag pushed while the site is stale or down stops here with both publish jobs never
+something outside this repository — the documentation site is **deployed by hand**, before the
+tag, so a tag pushed while the site is stale or down stops here with both publish jobs never
 starting. From the registry side the only symptom is that nothing was published, which is why
 it is worth knowing the job exists.
+
+Deploying is a deliberate step rather than a workflow, so that publishing a package can never
+race a half-built site:
+
+```bash
+pnpm docs:deploy
+```
+
+That builds the site, deploys `docs/dist` to the `tx402-docs` Cloudflare Pages project with
+`wrangler`, and then reads the result back over the public internet with `tools/docs-live` —
+the same probe the release gate runs. Run it, confirm it reports every required page, and only
+then push the tag.
 
 ### npm and PyPI
 
@@ -135,15 +167,17 @@ The private key must not pass through a terminal that is being recorded, a shell
 a coding assistant's context.
 
 ```bash
-node tools/manifest-signer/index.js keygen --key-id tx402-release-2
+node tools/manifest-signer/index.js keygen --key-id tx402-release-3
 ```
 
-That writes two files:
+The id is `tx402-release-3` because `keygen` refuses to overwrite an existing private key, and
+`tx402-release-2` is the current one — a rotation always bumps to the next id. That writes two
+files:
 
 | File | Handling |
 | :--- | :--- |
-| `core-spec/manifests/keys/tx402-release-2.pub.json` | **Commit it.** It is public by design. |
-| `core-spec/manifests/keys/tx402-release-2.private.pem` | **Never commit it.** Gitignored. |
+| `core-spec/manifests/keys/tx402-release-3.pub.json` | **Commit it.** It is public by design. |
+| `core-spec/manifests/keys/tx402-release-3.private.pem` | **Never commit it.** Gitignored. |
 
 ### Storing it
 
@@ -185,11 +219,20 @@ CI uploads them as build artifacts on every run.
 ```bash
 pnpm sbom            # sbom/tx402-{npm,pypi}-{core,evm,solana,all}.cdx.json + LICENSES.md
 pnpm supply-chain    # licence policy + vulnerability gate
-pnpm reproducible    # two clean builds must be byte-identical
+pnpm reproducible    # rebuild the npm tarball + Python wheel/sdist twice, compare
 ```
 
 The licence gate blocks on anything outside a permissive allowlist, evaluating SPDX `OR` and
 `AND` expressions rather than comparing strings — `Apache-2.0 OR BSD-3-Clause` is a choice of
-two acceptable licences and passes. The vulnerability gate blocks on critical and high
-findings in **shipped** dependencies only; a development-tree advisory is reported and does
-not fail the build, because a gate nobody can keep green is a gate that gets disabled.
+two acceptable licences and passes. A conditional or platform-specific dependency whose metadata
+this host cannot read (a `win32`-only or older-Python package) is resolved from a hand-read map
+with a cited source rather than waved through, and the emitted CycloneDX is schema-valid (a
+non-SPDX value is a `license.name`, never a `license.id`). The vulnerability gate blocks on
+critical and high findings in **shipped** dependencies only; a development-tree advisory is
+reported and does not fail the build, because a gate nobody can keep green is a gate that gets
+disabled.
+
+`pnpm reproducible` clean-builds the actual published artifacts — the npm `dist/`, the packed npm
+tarball, and the Python wheel + sdist (under a fixed `SOURCE_DATE_EPOCH` and a pinned build
+backend) — twice, and compares each by its extracted content. `pnpm supply-chain:selftest` proves
+the comparison can detect a changed artifact, so a green gate is trustworthy.

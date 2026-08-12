@@ -1,5 +1,5 @@
 /**
- * TypeScript conformance runner (ADR-005).
+ * TypeScript conformance runner.
  *
  * Implements the two-stage contract in `core-spec/conformance/README.md`. The Python runner
  * at `packages/tx402-python/tests/conformance/runner.py` is a direct counterpart — the two

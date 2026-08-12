@@ -92,7 +92,7 @@ deliberate one.
 3. **Use a dedicated, low-balance wallet** for anything automated. The blast radius of a
    compromise is the wallet balance, so keep it small — that is the rule for these wallets and it is the
    cheapest control available.
-4. **Set `maxPerHour` even with a hardware signer.** A cap bounds a compromise that a signing
+4. **Set `maxPerHour` even with a hardware signer.** A cap bounds induced spend that a signing
    boundary does not: an attacker with request-forging ability but no key still has to get past
    your policy.
 5. **Never commit a key.** Not to `.env`, not to a fixture, not to a test. The repository's

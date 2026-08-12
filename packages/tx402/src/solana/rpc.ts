@@ -39,7 +39,7 @@ export interface SvmRpcPoolOptions {
   readonly fetchImpl?: typeof globalThis.fetch;
   readonly maxProviders?: number;
   /**
-   * The client's shared health index (SPEC §6.5, O22). The Solana pool carried its own
+   * The client's shared health index. The Solana pool carried its own
    * 30-second circuit at M4; it now reports into the same index as the EVM pool so one
    * provider cannot be simultaneously open here and closed there.
    */
@@ -78,7 +78,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 /**
  * Races the RPC in tx402's own control flow. The abort signal is only socket cleanup; it is
- * not trusted to enforce the deadline (S5's Request/WeakRef failure).
+ * not trusted to enforce the deadline (an earlier Request/WeakRef failure).
  */
 async function raceRpcDeadline<T>(
   work: Promise<T>,

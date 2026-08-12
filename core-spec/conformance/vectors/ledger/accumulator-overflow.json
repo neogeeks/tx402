@@ -1,0 +1,73 @@
+{
+  "$schema": "https://tx402.dev/schemas/v1/conformance-vector.schema.json",
+  "id": "spend-ledger.behavior.accumulator-overflow",
+  "kind": "spend-ledger.behavior",
+  "milestone": "M6",
+  "title": "Cumulative accumulator carries past 78 digits without truncating",
+  "spec": ["SPEC §4.2", "SPEC §13", "SPEC ADR-025", "SPEC ADR-030"],
+  "input": {
+    "operations": [
+      {
+        "action": "reserve",
+        "reservationId": "00000000-0000-7000-8000-0000000000c1",
+        "requestId": "request-c1",
+        "policyScope": "scope-1",
+        "requestFingerprint": "sha256:c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1",
+        "assetId": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "amountAtomic": "999999999999999999999999999999999999999999999999999999999999999999999999999999",
+        "maxPerHourAtomic": "999999999999999999999999999999999999999999999999999999999999999999999999999999",
+        "nowEpochMs": 1785715200000
+      },
+      {
+        "action": "commit",
+        "reservationId": "00000000-0000-7000-8000-0000000000c1",
+        "policyScope": "scope-1",
+        "assetId": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "committedAtEpochMs": 1785715200000
+      },
+      {
+        "action": "reserve",
+        "reservationId": "00000000-0000-7000-8000-0000000000c2",
+        "requestId": "request-c2",
+        "policyScope": "scope-1",
+        "requestFingerprint": "sha256:c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2",
+        "assetId": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "amountAtomic": "999999999999999999999999999999999999999999999999999999999999999999999999999999",
+        "maxPerHourAtomic": "999999999999999999999999999999999999999999999999999999999999999999999999999999",
+        "nowEpochMs": 1785718800001
+      },
+      {
+        "action": "commit",
+        "reservationId": "00000000-0000-7000-8000-0000000000c2",
+        "policyScope": "scope-1",
+        "assetId": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "committedAtEpochMs": 1785718800001
+      },
+      {
+        "action": "snapshot",
+        "policyScope": "scope-1",
+        "assetId": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "exposure": true,
+        "nowEpochMs": 1785718800001
+      }
+    ]
+  },
+  "expected": {
+    "outcomes": [
+      { "outcome": "reserved", "state": "reserved" },
+      { "outcome": "committed" },
+      { "outcome": "reserved", "state": "reserved" },
+      { "outcome": "committed" },
+      {
+        "outcome": "snapshot",
+        "committedAtomic": "999999999999999999999999999999999999999999999999999999999999999999999999999999",
+        "reservedAtomic": "0",
+        "exposedAtomic": "0",
+        "cumulativeCommittedAtomic": "1999999999999999999999999999999999999999999999999999999999999999999999999999998",
+        "cumulativeConsumedAtomic": "1999999999999999999999999999999999999999999999999999999999999999999999999999998",
+        "reservationStates": ["committed"],
+        "entryCount": 1
+      }
+    ]
+  }
+}

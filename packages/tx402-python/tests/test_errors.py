@@ -35,7 +35,7 @@ class TestTx402Error:
         assert isinstance(error, Exception)
 
     def test_derives_retryable_from_retryability(self) -> None:
-        """Only transport is automatically retryable (ADR-011)."""
+        """Only transport is automatically retryable."""
         transport = TransportError("reset", context=CONTEXT)
         assert transport.retryable is True
         assert transport.retryability == "caller-policy"
@@ -94,7 +94,7 @@ class TestTx402Error:
         assert error.to_dict()["context"]["paid"] == "unknown"
 
     def test_context_serializes_to_the_camel_case_wire_form(self) -> None:
-        """The wire shape must match TypeScript's exactly (ADR-005)."""
+        """The wire shape must match TypeScript's exactly."""
         context = Tx402ErrorContext(
             request_id="req-1",
             phase="route",
