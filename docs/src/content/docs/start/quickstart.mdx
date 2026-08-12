@@ -78,16 +78,31 @@ install cannot do it. `client.inspect()` is the call that needs neither a key no
 ## 2. Start a merchant to pay
 
 x402 is young enough that public demo merchants come and go, so this page does not send you
-to one it cannot promise is up. Run one instead — it is a single command, it speaks real
-x402 v2, and with `--facilitator` it performs a **real settlement on the testnet**, so the
-payment below moves real testnet USDC and shows up on a block explorer.
+to one it cannot promise is up. Run one instead — it speaks real x402 v2, and with
+`--facilitator` it performs a **real settlement on the testnet**, so the payment below moves
+real testnet USDC and shows up on a block explorer.
 
 ```bash
 git clone --depth 1 https://github.com/neogeeks/tx402 && cd tx402
+pnpm install
 node tools/test-merchant/cli.js \
   --requirements baseSepolia \
   --facilitator https://x402.org/facilitator
 ```
+
+:::caution[`pnpm install`, not `npm install`]
+This repository is a **pnpm** workspace, and its workspace layout lives in
+`pnpm-workspace.yaml` — a file npm does not read. `npm install` therefore **exits 0, reports
+that it added packages, and installs none of the merchant's dependencies**, so the next command
+fails with `Cannot find package '@x402/core'`. The success message is the trap; use `pnpm`.
+
+If you do not have pnpm: `corepack enable` (bundled with Node 20+), or see
+[pnpm.io/installation](https://pnpm.io/installation).
+
+This applies only to running this repository's test merchant. **Installing `tx402` itself into
+your own project works with npm, pnpm, yarn or bun** — that is step 1, and it is an ordinary
+package install.
+:::
 
 It prints one JSON line and keeps running:
 
@@ -112,12 +127,26 @@ merchant on any other host must be `https://`, and there is no flag to change th
 # Base Sepolia — 0x-prefixed 32-byte hex
 export TX402_DEV_PRIVATE_KEY=0x...
 
-# Solana Devnet — the JSON array a `solana-keygen` file contains, or its base58 form
+# Solana Devnet — the 64-number JSON array a `solana-keygen` file contains
 export TX402_DEV_SOLANA_KEYPAIR="$(cat ~/.config/solana/id.json)"
 ```
 
 Set whichever matches the chain you funded. Setting both is fine: tx402 offers the router
 two signers and the merchant's own offer decides which one is used.
+
+:::note[If your Solana key is base58]
+`keypairToSolanaSigner` / `keypair_to_solana_signer` take the **64-number JSON array** that
+`solana-keygen` writes — not a base58 string. Wallets such as Phantom export base58, and
+handing that straight to either SDK is rejected rather than misread. Convert it first, without
+the key ever reaching your shell history or `ps`:
+
+```bash
+export TX402_DEV_SOLANA_KEYPAIR="$(TX402_B58_IN='<your base58 key>' node tools/b58-keypair.js)"
+```
+
+`tools/b58-keypair.js` is dependency-free and reads the key from the environment rather than
+from `argv` for exactly that reason.
+:::
 
 tx402 prints a warning to stderr **every time** it reads this variable. That is deliberate, not
 noise: anything that can read this process's environment can read the key.

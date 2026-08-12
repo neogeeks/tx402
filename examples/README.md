@@ -45,10 +45,16 @@ low-balance testnet wallet and wrong for anything else; see
 The quickstart's local test merchant is the easiest one. From the repository root:
 
 ```bash
+pnpm install
 node tools/test-merchant/cli.js \
   --requirements baseSepolia \
   --facilitator https://x402.org/facilitator
 ```
+
+`pnpm install`, not `npm install`: this repository's workspace layout lives in
+`pnpm-workspace.yaml`, which npm does not read, so `npm install` exits 0 having installed none
+of the merchant's dependencies and the next command fails with `Cannot find package
+'@x402/core'`. If you do not have pnpm, `corepack enable` is enough.
 
 It prints one JSON line with a `url`; the resource path is `/resource`. With `--facilitator` it
 performs a **real settlement**, so testnet USDC actually moves.
@@ -64,9 +70,17 @@ copying one of these files into your own project does not carry a relaxation alo
 ### TypeScript
 
 ```bash
+pnpm install
+pnpm build                 # the examples import the workspace `tx402`, so build it first
 pnpm --filter tx402-example-typescript quickstart
 pnpm --filter tx402-example-typescript dry-run
 ```
+
+**`pnpm build` is not optional on a fresh clone.** These examples import `tx402` from the
+workspace rather than from the registry, and the workspace package resolves through its
+compiled `dist/`, which a clone does not contain. Without it both scripts fail immediately with
+`ERR_MODULE_NOT_FOUND`. The Python examples import the source directly, which is why they need
+no equivalent step.
 
 **These scripts need Node 22.6 or newer**, because they run `.ts` files directly through
 `node --experimental-strip-types`. That is a property of how the _examples_ are run, not of the
