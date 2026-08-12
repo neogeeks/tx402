@@ -1,7 +1,9 @@
 """The complete tx402 error taxonomy (SPEC §8).
 
-Mirrors ``packages/tx402/src/core/errors.ts`` exactly. Frozen at M0: the fifteen codes and
-fifteen class names are a cross-language contract, and the conformance vector
+Mirrors ``packages/tx402/src/core/errors.ts`` exactly. Frozen at M0 as fifteen; extended
+to **seventeen** at 0.2.0 when the kill switch and recipient pinning each added one code
+(SPEC §8 — ``TX402_SPEND_FROZEN``, ``TX402_RECIPIENT_UNPINNED``). The seventeen codes and
+seventeen class names are a cross-language contract, and the conformance vector
 ``errors.taxonomy.frozen`` fails if either language drifts (ADR-005).
 
 Two rules that are easy to get wrong, both recorded in ADR-011:
@@ -48,9 +50,11 @@ __all__ = [
     "NonReplayableRequestError",
     "PaidRedirectBlockedError",
     "Phase",
+    "RecipientUnpinnedError",
     "ResourceDeliveryError",
     "Retryability",
     "SignerError",
+    "SpendScopeFrozenError",
     "TransportError",
     "Tx402Error",
     "Tx402ErrorContext",
@@ -87,6 +91,10 @@ TX402_ERROR_CODES: Final[Mapping[str, str]] = MappingProxyType(
         "resource_delivery": "TX402_RESOURCE_DELIVERY",
         "redirect_blocked": "TX402_REDIRECT_BLOCKED",
         "transport": "TX402_TRANSPORT",
+        # 0.2.0 additions (SPEC §8). Kill switch (SPEC §5) + recipient pinning (SPEC §6);
+        # both are policy/exit 3, retryability "no".
+        "spend_frozen": "TX402_SPEND_FROZEN",
+        "recipient_unpinned": "TX402_RECIPIENT_UNPINNED",
     }
 )
 
@@ -281,6 +289,22 @@ TX402_ERROR_TAXONOMY: Final[tuple[Tx402ErrorDescriptor, ...]] = (
         "caller-policy",
         ("causeCategory",),
     ),
+    # ── 0.2.0 additions (SPEC §8), appended in specification order. ──
+    _descriptor(
+        TX402_ERROR_CODES["spend_frozen"],
+        "SpendScopeFrozenError",
+        "no",
+        ("scope", "frozenScope"),
+    ),
+    # merchantScope, reason ALWAYS required; network/presentedRecipient/expectedRecipients
+    # are conditionally required (all three for not-allowlisted/pin-mismatch, all three
+    # absent for assertion-required, SPEC §6.5) and enforced by the schema, not this table.
+    _descriptor(
+        TX402_ERROR_CODES["recipient_unpinned"],
+        "RecipientUnpinnedError",
+        "no",
+        ("merchantScope", "reason"),
+    ),
 )
 
 #: Descriptor lookup by code.
@@ -456,9 +480,18 @@ class ClockSkewError(Tx402Error):
 class AmbiguousPaymentError(Tx402Error):
     """The signature was transmitted but the outcome is unknown (SPEC §6.7).
 
-    The reservation is deliberately **retained** until its TTL rather than released: the
-    payment may have settled, and releasing would let it be spent twice against the cap.
-    ``context.paid`` is ``"unknown"``.
+    The reservation is deliberately **retained** rather than released: the payment may have
+    settled, and releasing would let it be spent twice against the cap. ``context.paid`` is
+    ``"unknown"``.
+
+    ``details["reservationExpiresAtEpochMs"]`` carries the reservation's **declared**
+    expiry. It is a frozen §8 required detail, so it is always present — but once the
+    pre-transmission exposure fence has run (SPEC §7, ADR-026) an ambiguous outcome leaves
+    the reservation ``exposed``, and an exposed reservation **does not expire**: it is held
+    until an operator's ``resolve_exposed``. So the timestamp is **advisory once the
+    reservation is exposed** — the declared expiry the reservation would have had, not a
+    time the record will actually reach (O13). Money disposition is unaffected; the
+    reservation is correctly retained either way.
     """
 
     code = TX402_ERROR_CODES["payment_ambiguous"]
@@ -484,3 +517,36 @@ class TransportError(Tx402Error):
     """A network-level failure. The only automatically retryable error."""
 
     code = TX402_ERROR_CODES["transport"]
+
+
+class SpendScopeFrozenError(Tx402Error):
+    """``reserve`` was denied because the scope — or the whole store — is frozen (SPEC §5).
+
+    A stop-future-authorization control, never a chain rollback: an existing reservation,
+    including an exposed one, keeps counting across a freeze (KS-7). The store raises it
+    from ``reserve``; a store *outage* is a generic error → retryable ``TransportError``, so
+    this code is reserved for an authoritative freeze, never an outage.
+
+    ``details["scope"]`` is the reservation's own scope; ``details["frozenScope"]`` is what
+    was actually frozen — the same scope, or the sentinel ``"*"`` (whole store). Both are
+    hostnames/sentinels, redaction-safe.
+    """
+
+    code = TX402_ERROR_CODES["spend_frozen"]
+
+
+class RecipientUnpinnedError(Tx402Error):
+    """``reserve`` refused an unpinned recipient (SPEC §6).
+
+    Authoritative in ``reserve``, driven by the store's administered pin record, so a
+    compromised caller cannot relax it (SPEC §3.4 step 3). The behaviour is in reserve; the
+    code, class and taxonomy row land now (SPEC §8).
+
+    ``details["merchantScope"]`` and ``details["reason"]`` (``not-allowlisted`` |
+    ``pin-mismatch`` | ``assertion-required``) are always present. ``details["network"]``,
+    ``details["presentedRecipient"]`` and ``details["expectedRecipients"]`` are required
+    together for ``not-allowlisted``/``pin-mismatch`` and absent for ``assertion-required``
+    (SPEC §6.5) — a conditional the schema enforces.
+    """
+
+    code = TX402_ERROR_CODES["recipient_unpinned"]

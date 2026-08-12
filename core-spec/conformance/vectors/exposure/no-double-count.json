@@ -1,0 +1,123 @@
+{
+  "$schema": "https://tx402.dev/schemas/v1/conformance-vector.schema.json",
+  "id": "spend-ledger.behavior.exposure-no-double-count",
+  "kind": "spend-ledger.behavior",
+  "milestone": "M6",
+  "title": "An exposed payment is counted exactly once — commit moves it between terms, and exposed occupies the per-hour cap alongside committed",
+  "spec": ["SPEC §7", "SPEC §3.4", "ADR-025", "ADR-026"],
+  "description": "The double-count P1 fix. Reservation A is exposed then committed: commit(exposed) decrements exposedTotal as it increments cumulativeCommitted, so cumulativeConsumed stays 6, not 12 — the amount moves terms, it is not counted twice. Then reservation B fills the rest of the hourly cap and is exposed; a third reserve C is refused, proving the exposed B occupies the cap exactly once next to the committed A (committed 6 + exposed 4 + 1 > 10). The invariant cumulativeConsumed = cumulativeCommitted + exposedTotal + reservedOnly holds at every snapshot.",
+  "input": {
+    "operations": [
+      {
+        "action": "reserve",
+        "reservationId": "00000000-0000-7000-8000-000000000711",
+        "requestId": "ndc-A",
+        "policyScope": "merchant-ndc.example",
+        "requestFingerprint": "sha256:c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1",
+        "assetId": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "amountAtomic": "6",
+        "maxPerHourAtomic": "10",
+        "nowEpochMs": 1785715200000
+      },
+      {
+        "action": "expose",
+        "reservationId": "00000000-0000-7000-8000-000000000711",
+        "nowEpochMs": 1785715200000
+      },
+      {
+        "action": "snapshot",
+        "policyScope": "merchant-ndc.example",
+        "assetId": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "exposure": true,
+        "nowEpochMs": 1785715200000
+      },
+      {
+        "action": "commit",
+        "reservationId": "00000000-0000-7000-8000-000000000711",
+        "committedAtEpochMs": 1785715200100,
+        "settlementId": "settlement-ndc-A"
+      },
+      {
+        "action": "snapshot",
+        "policyScope": "merchant-ndc.example",
+        "assetId": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "exposure": true,
+        "nowEpochMs": 1785715200100
+      },
+      {
+        "action": "reserve",
+        "reservationId": "00000000-0000-7000-8000-000000000712",
+        "requestId": "ndc-B",
+        "policyScope": "merchant-ndc.example",
+        "requestFingerprint": "sha256:c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2",
+        "assetId": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "amountAtomic": "4",
+        "maxPerHourAtomic": "10",
+        "nowEpochMs": 1785715200200
+      },
+      {
+        "action": "expose",
+        "reservationId": "00000000-0000-7000-8000-000000000712",
+        "nowEpochMs": 1785715200200
+      },
+      {
+        "action": "reserve",
+        "reservationId": "00000000-0000-7000-8000-000000000713",
+        "requestId": "ndc-C",
+        "policyScope": "merchant-ndc.example",
+        "requestFingerprint": "sha256:c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3",
+        "assetId": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "amountAtomic": "1",
+        "maxPerHourAtomic": "10",
+        "nowEpochMs": 1785715200300
+      },
+      {
+        "action": "snapshot",
+        "policyScope": "merchant-ndc.example",
+        "assetId": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "exposure": true,
+        "nowEpochMs": 1785715200300
+      }
+    ]
+  },
+  "expected": {
+    "outcomes": [
+      { "outcome": "reserved", "state": "reserved" },
+      { "outcome": "exposed", "state": "exposed" },
+      {
+        "outcome": "snapshot",
+        "committedAtomic": "0",
+        "reservedAtomic": "0",
+        "exposedAtomic": "6",
+        "cumulativeCommittedAtomic": "0",
+        "cumulativeConsumedAtomic": "6",
+        "reservationStates": ["exposed"],
+        "entryCount": 0
+      },
+      { "outcome": "committed" },
+      {
+        "outcome": "snapshot",
+        "committedAtomic": "6",
+        "reservedAtomic": "0",
+        "exposedAtomic": "0",
+        "cumulativeCommittedAtomic": "6",
+        "cumulativeConsumedAtomic": "6",
+        "reservationStates": ["committed"],
+        "entryCount": 1
+      },
+      { "outcome": "reserved", "state": "reserved" },
+      { "outcome": "exposed", "state": "exposed" },
+      { "outcome": "error", "errorCode": "TX402_POLICY_BUDGET", "capKind": "per-hour" },
+      {
+        "outcome": "snapshot",
+        "committedAtomic": "6",
+        "reservedAtomic": "0",
+        "exposedAtomic": "4",
+        "cumulativeCommittedAtomic": "6",
+        "cumulativeConsumedAtomic": "10",
+        "reservationStates": ["committed", "exposed"],
+        "entryCount": 1
+      }
+    ]
+  }
+}

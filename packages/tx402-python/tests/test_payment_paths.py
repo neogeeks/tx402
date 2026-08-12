@@ -473,7 +473,7 @@ class TestRechallengeLoop:
             sdk.get(URL)
         assert merchant.paid == 1
         state = budget(store, f"{BASE}/erc20:{BASE_ASSET}")
-        assert [item.state for item in state.reservations] == ["reserved"]
+        assert [item.state for item in state.reservations] == ["exposed"]
 
     def test_t012_a_cross_origin_redirect_raises_paid_redirect_blocked(self) -> None:
         """SPEC §6.1: "Cross-origin redirect raises ``PaidRedirectBlockedError``."
@@ -506,7 +506,7 @@ class TestRechallengeLoop:
         assert raised.value.__cause__ is not None
         assert merchant.paid == 1
         state = budget(store, f"{BASE}/erc20:{BASE_ASSET}")
-        assert [item.state for item in state.reservations] == ["reserved"]
+        assert [item.state for item in state.reservations] == ["exposed"]
 
     def test_a_same_origin_redirect_is_not_followed_and_is_not_a_refusal(self) -> None:
         merchant = Merchant(paid_statuses=[307], paid_headers={"location": "/delivered"})

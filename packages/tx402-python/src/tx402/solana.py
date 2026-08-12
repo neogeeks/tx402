@@ -396,7 +396,7 @@ def _safe_host(url: str) -> str:
 class SvmRpcPool:
     """At most two manifest RPCs; the cluster is proved before every account read.
 
-    The pool holds no circuit state of its own (PLAN.md O22). It asks the client's shared
+    The pool holds no circuit state of its own. It asks the client's shared
     :class:`~tx402.health.HealthIndex` whether an endpoint may be used and reports what
     happened, so one provider cannot be simultaneously open here and closed elsewhere.
     """
@@ -987,7 +987,7 @@ def create_svm_authorization(
     Returns the upstream-shaped payload and the epoch millisecond at which the signed
     authorization stops being valid. The clock is read only *after* the transaction exists,
     which is what makes the expiry a statement about the thing signed rather than about the
-    moment planning happened (the S5 clock-boundary rule).
+    moment planning happened (the clock-boundary rule).
     """
     memo_bytes = _memo_bytes(plan, context)
     try:

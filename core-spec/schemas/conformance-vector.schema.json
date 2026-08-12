@@ -28,6 +28,8 @@
         "protocol.decode-payment-required",
         "request.fingerprint",
         "spend-ledger.behavior",
+        "spend-freeze.behavior",
+        "recipient-pin.behavior",
         "evm.authorization-plan",
         "svm.authorization-plan",
         "routing.candidate-order",
@@ -158,6 +160,32 @@
     },
     {
       "if": {
+        "properties": { "kind": { "const": "spend-freeze.behavior" } },
+        "required": ["kind"]
+      },
+      "then": {
+        "required": ["input"],
+        "properties": {
+          "input": { "$ref": "#/$defs/inputSpendFreeze" },
+          "expected": { "$ref": "#/$defs/expectedSpendFreeze" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "kind": { "const": "recipient-pin.behavior" } },
+        "required": ["kind"]
+      },
+      "then": {
+        "required": ["input"],
+        "properties": {
+          "input": { "$ref": "#/$defs/inputRecipientPin" },
+          "expected": { "$ref": "#/$defs/expectedRecipientPin" }
+        }
+      }
+    },
+    {
+      "if": {
         "properties": { "kind": { "const": "evm.authorization-plan" } },
         "required": ["kind"]
       },
@@ -245,8 +273,8 @@
       "properties": {
         "entries": {
           "type": "array",
-          "minItems": 15,
-          "maxItems": 15,
+          "minItems": 17,
+          "maxItems": 17,
           "items": { "$ref": "#/$defs/taxonomyEntry" }
         }
       }
@@ -495,7 +523,13 @@
             "type": "object",
             "required": ["action"],
             "properties": {
-              "action": { "enum": ["reserve", "commit", "release", "snapshot"] },
+              "action": {
+                "enum": ["reserve", "commit", "release", "expose", "snapshot"]
+              },
+              "exposure": {
+                "type": "boolean",
+                "description": "On a `snapshot` op, opt in to the exposure/cumulative counters (SPEC §7): `exposedAtomic`, `cumulativeCommittedAtomic`, `cumulativeConsumedAtomic`. Absent ⇒ the original four-field snapshot, so pre-0.2.0 vectors are unchanged."
+              },
               "reservationId": {
                 "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/uuidV7"
               },
@@ -511,6 +545,10 @@
                 "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/positiveAtomicAmount"
               },
               "maxPerHourAtomic": {
+                "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/positiveAtomicAmount"
+              },
+              "maxTotalAtomic": {
+                "description": "The caller cumulative cap (SPEC §4.1) for a `reserve` op. Absent ⇒ no caller cumulative cap. A single caller input, so it keeps the 78-digit `positiveAtomicAmount` bound; the cumulative *accumulator* it feeds (`cumulativeConsumedAtomic`) is unbounded.",
                 "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/positiveAtomicAmount"
               },
               "nowEpochMs": {
@@ -896,11 +934,24 @@
             "required": ["outcome"],
             "properties": {
               "outcome": {
-                "enum": ["reserved", "committed", "released", "snapshot", "error"]
+                "enum": [
+                  "reserved",
+                  "exposed",
+                  "committed",
+                  "released",
+                  "snapshot",
+                  "error"
+                ]
               },
-              "state": { "enum": ["reserved", "committed", "released", "expired"] },
+              "state": {
+                "enum": ["reserved", "exposed", "committed", "released", "expired"]
+              },
               "errorCode": {
                 "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/errorCode"
+              },
+              "capKind": {
+                "description": "On an `error` outcome from a `BudgetExceededError`, which cap dimension bound (SPEC §4, ADR-025). Distinguishes a cumulative refusal from a per-hour one — both carry `errorCode` TX402_BUDGET_EXCEEDED, so the code alone cannot tell them apart. A value of `details.capKind`, not a new error code (the taxonomy stays at 17).",
+                "enum": ["per-request", "per-hour", "cumulative"]
               },
               "committedAtomic": {
                 "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/atomicAmount"
@@ -908,11 +959,267 @@
               "reservedAtomic": {
                 "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/atomicAmount"
               },
+              "exposedAtomic": {
+                "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/atomicAccumulator"
+              },
+              "cumulativeCommittedAtomic": {
+                "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/atomicAccumulator"
+              },
+              "cumulativeConsumedAtomic": {
+                "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/atomicAccumulator"
+              },
               "reservationStates": {
                 "type": "array",
-                "items": { "enum": ["reserved", "committed", "released", "expired"] }
+                "items": {
+                  "enum": ["reserved", "exposed", "committed", "released", "expired"]
+                }
               },
               "entryCount": { "type": "integer", "minimum": 0 }
+            },
+            "additionalProperties": false
+          }
+        }
+      }
+    },
+
+    "inputSpendFreeze": {
+      "description": "A `spend-ledger` operation sequence extended with the kill-switch admin verbs (SPEC §5). `freeze`/`unfreeze` carry a `scope` — a normalized merchant host, or the sentinel `\"*\"` for the whole store.",
+      "type": "object",
+      "required": ["operations"],
+      "additionalProperties": false,
+      "properties": {
+        "operations": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 64,
+          "items": {
+            "type": "object",
+            "required": ["action"],
+            "properties": {
+              "action": {
+                "enum": [
+                  "reserve",
+                  "commit",
+                  "release",
+                  "expose",
+                  "snapshot",
+                  "freeze",
+                  "unfreeze"
+                ]
+              },
+              "scope": {
+                "description": "The freeze scope: a normalized host, or `\"*\"` (whole store). Required for `freeze`/`unfreeze`.",
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "exposure": {
+                "type": "boolean",
+                "description": "On a `snapshot` op, opt in to the exposure/cumulative counters (SPEC §7), exactly as in `spend-ledger.behavior`."
+              },
+              "reservationId": {
+                "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/uuidV7"
+              },
+              "requestId": { "type": "string", "minLength": 1 },
+              "policyScope": { "type": "string", "minLength": 1, "maxLength": 128 },
+              "requestFingerprint": {
+                "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/sha256Digest"
+              },
+              "assetId": {
+                "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/caip19"
+              },
+              "amountAtomic": {
+                "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/positiveAtomicAmount"
+              },
+              "maxPerHourAtomic": {
+                "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/positiveAtomicAmount"
+              },
+              "nowEpochMs": {
+                "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/epochMs"
+              },
+              "committedAtEpochMs": {
+                "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/epochMs"
+              },
+              "settlementId": { "type": "string", "minLength": 1, "maxLength": 256 }
+            },
+            "additionalProperties": false
+          }
+        }
+      }
+    },
+
+    "expectedSpendFreeze": {
+      "description": "The per-operation outcomes. `outcomes` is the arm a store with `capabilities.atomicGlobalFreeze: true` produces; `incapableOutcomes`, when present, is the arm an `atomicGlobalFreeze: false` store produces (its `freeze(\"*\")` fails closed with `global-freeze-unsupported` instead of freezing). The harness selects the arm from the adapter's declared capability (SPEC §5.2, §13), so every adapter has a passing path. A per-scope vector omits `incapableOutcomes`; both arms then use `outcomes`.",
+      "type": "object",
+      "required": ["outcomes"],
+      "additionalProperties": false,
+      "properties": {
+        "outcomes": { "$ref": "#/$defs/spendFreezeOutcomes" },
+        "incapableOutcomes": { "$ref": "#/$defs/spendFreezeOutcomes" }
+      }
+    },
+
+    "spendFreezeOutcomes": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 64,
+      "items": {
+        "type": "object",
+        "required": ["outcome"],
+        "properties": {
+          "outcome": {
+            "enum": [
+              "reserved",
+              "exposed",
+              "committed",
+              "released",
+              "snapshot",
+              "frozen",
+              "unfrozen",
+              "error"
+            ]
+          },
+          "state": {
+            "enum": ["reserved", "exposed", "committed", "released", "expired"]
+          },
+          "errorCode": {
+            "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/errorCode"
+          },
+          "committedAtomic": {
+            "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/atomicAmount"
+          },
+          "reservedAtomic": {
+            "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/atomicAmount"
+          },
+          "exposedAtomic": {
+            "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/atomicAccumulator"
+          },
+          "cumulativeCommittedAtomic": {
+            "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/atomicAccumulator"
+          },
+          "cumulativeConsumedAtomic": {
+            "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/atomicAccumulator"
+          },
+          "frozen": { "type": "boolean" },
+          "reservationStates": {
+            "type": "array",
+            "items": {
+              "enum": ["reserved", "exposed", "committed", "released", "expired"]
+            }
+          },
+          "entryCount": { "type": "integer", "minimum": 0 }
+        },
+        "additionalProperties": false
+      }
+    },
+
+    "inputRecipientPin": {
+      "description": "A recipient-pinning operation sequence over one store (SPEC §6, ADR-028). The admin verbs (`set-recipient-pins` writes source=admin-allowlist, `set-tofu-enabled`, `set-recipient-assertion-required`) administer the authoritative recipient state; `reserve` asserts the caller's `recipientCanonical`/`recipientNetwork` against it in the same atom, branched on `recipientEnforcement`; `snapshot-pins` reads the pinned set back.",
+      "type": "object",
+      "required": ["operations"],
+      "additionalProperties": false,
+      "properties": {
+        "operations": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 64,
+          "items": {
+            "type": "object",
+            "required": ["action"],
+            "properties": {
+              "action": {
+                "enum": [
+                  "reserve",
+                  "snapshot-pins",
+                  "set-recipient-pins",
+                  "set-tofu-enabled",
+                  "set-recipient-assertion-required"
+                ]
+              },
+              "scope": { "type": "string", "minLength": 1, "maxLength": 128 },
+              "network": { "type": "string", "minLength": 3, "maxLength": 64 },
+              "recipients": {
+                "type": "array",
+                "items": { "type": "string", "minLength": 1, "maxLength": 128 }
+              },
+              "enabled": { "type": "boolean" },
+              "required": { "type": "boolean" },
+              "reservationId": {
+                "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/uuidV7"
+              },
+              "requestId": { "type": "string", "minLength": 1 },
+              "policyScope": { "type": "string", "minLength": 1, "maxLength": 128 },
+              "requestFingerprint": {
+                "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/sha256Digest"
+              },
+              "assetId": {
+                "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/caip19"
+              },
+              "amountAtomic": {
+                "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/positiveAtomicAmount"
+              },
+              "maxPerHourAtomic": {
+                "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/positiveAtomicAmount"
+              },
+              "recipientNetwork": { "type": "string", "minLength": 3, "maxLength": 64 },
+              "recipientCanonical": { "type": "string", "minLength": 1, "maxLength": 128 },
+              "recipientEnforcement": { "enum": ["off", "allowlist", "tofu"] },
+              "nowEpochMs": {
+                "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/epochMs"
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      }
+    },
+
+    "expectedRecipientPin": {
+      "type": "object",
+      "required": ["outcomes"],
+      "additionalProperties": false,
+      "properties": {
+        "outcomes": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 64,
+          "items": {
+            "type": "object",
+            "required": ["outcome"],
+            "properties": {
+              "outcome": {
+                "enum": [
+                  "reserved",
+                  "error",
+                  "pins-set",
+                  "tofu-set",
+                  "assertion-set",
+                  "pins"
+                ]
+              },
+              "pinEstablished": {
+                "description": "On a `reserved` outcome, the response-only `recipientPinEstablished` flag (SPEC §3.2, ADR-028): true iff this atom claimed a first-use TOFU pin.",
+                "type": "boolean"
+              },
+              "errorCode": {
+                "$ref": "https://tx402.dev/schemas/v1/common.schema.json#/$defs/errorCode"
+              },
+              "reason": {
+                "description": "On an `error` outcome, `details.reason`. For TX402_RECIPIENT_UNPINNED one of not-allowlisted/pin-mismatch/assertion-required (SPEC §6.5); for the fail-closed TX402_CONFIG_INVALID, recipient-tofu-not-provisioned.",
+                "type": "string"
+              },
+              "network": { "type": "string" },
+              "presentedRecipient": { "type": "string" },
+              "expectedRecipients": {
+                "description": "The RP-8 conditional detail: the canonical administered/pinned set, present only for not-allowlisted/pin-mismatch and ABSENT for assertion-required (SPEC §6.5, §8).",
+                "type": "array",
+                "items": { "type": "string" }
+              },
+              "recipients": {
+                "description": "On a `pins` outcome, the pinned recipient set read back for a (scope, network).",
+                "type": "array",
+                "items": { "type": "string" }
+              }
             },
             "additionalProperties": false
           }

@@ -40,7 +40,7 @@
   "expected": {
     "outcomes": [
       { "outcome": "reserved", "state": "reserved" },
-      { "outcome": "error", "errorCode": "TX402_POLICY_BUDGET" },
+      { "outcome": "error", "errorCode": "TX402_POLICY_BUDGET", "capKind": "per-hour" },
       {
         "outcome": "snapshot",
         "committedAtomic": "0",

@@ -1,0 +1,145 @@
+---
+title: Deploying a capability gateway
+description: The service that holds the raw store credential and hands clients a scoped token — the durable data/admin boundary, and the only way Python or the CLI reaches a Durable Object.
+sidebar:
+  order: 8
+---
+
+A gateway is a small stateless service that sits in front of a Redis or Durable Object store, holds
+the **raw** store credential itself, and exposes only *capabilities* to callers — authenticated by
+a bearer token whose scope (`data` or `admin`) it checks on every method. It is the durable form of
+the [data/admin boundary](../../security/#a-fleet-shares-one-budget-and-its-controls-resist-a-drifted-worker):
+a data token cannot invoke `freeze` / `setRecipientPins` / `setBudgetLimits`, and the agents never
+hold the real credential. It is also the **only way a Python or CLI process reaches a Durable
+Object**, which has no network address of its own.
+
+Because one wire protocol is defined, the TypeScript and Python clients are byte-compatible against
+any conformant gateway, and a gateway-backed store passes the *same* conformance suites as a direct
+one — the same typed errors, the same taxonomy.
+
+## The wire protocol, in one paragraph
+
+`POST {baseUrl}/v1/{method}`, `Content-Type: application/json`, a JSON **object** body with the
+method's parameters as named keys, and `Authorization: Bearer <token>`. The gateway maps the token
+to `data` or `admin`: data methods accept either, an admin method with a data token is refused
+**403 before the backend is touched**. A `TX402-Gateway-Version: 1` header negotiates the version;
+an unknown major is `426`. A domain refusal (frozen, over cap, unpinned) round-trips as its exact
+typed error at HTTP `200`, so `5xx` stays reserved for genuine unavailability → a retryable
+`TransportError`. You do not implement any of this; the reference gateways below do.
+
+## Option A — a Node gateway in front of Redis
+
+`tx402/gateway` ships a reference `http.Server`. You give it a **data** store and an **admin** store
+(the same `RedisSpendStore`, constructed twice — `admin: false` and `admin: true`) and a token→scope
+resolver, and it serves the protocol.
+
+```ts title="gateway.ts"
+import { Redis } from "ioredis";
+import { RedisSpendStore } from "tx402/redis";
+import { createGatewayServer, bearerTokenScope } from "tx402/gateway";
+
+const client = new Redis(process.env.REDIS_URL!);
+
+const server = createGatewayServer({
+  dataStore: new RedisSpendStore({ client, admin: false }),
+  adminStore: new RedisSpendStore({ client, admin: true }),
+  resolveScope: bearerTokenScope({
+    dataToken: process.env.TX402_GATEWAY_DATA_TOKEN!,
+    adminToken: process.env.TX402_GATEWAY_ADMIN_TOKEN!,
+  }),
+});
+
+server.listen(8787);
+```
+
+`serveGateway(backend, { host, port })` is the same thing as a promise returning `{ url, close }`,
+which is what the test suite and a quick local run use. Put real TLS in front of it in production —
+a bearer token belongs only on an HTTPS connection.
+
+## Option B — a Worker gateway in front of a Durable Object
+
+`tx402/gateway/worker`'s default export **is** a Worker. Bind your `Tx402SpendStoreDO` namespace as
+`SPEND_DO`, set the two gateway tokens and the DO admin secret, and deploy:
+
+```ts title="src/index.ts"
+export { Tx402SpendStoreDO } from "tx402/durable-object";
+export { default } from "tx402/gateway/worker";
+```
+
+```jsonc title="wrangler.jsonc"
+{
+  "durable_objects": {
+    "bindings": [{ "name": "SPEND_DO", "class_name": "Tx402SpendStoreDO" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Tx402SpendStoreDO"] }],
+  "vars": { "TX402_GATEWAY_TOPOLOGY": "id-per-scope" }
+}
+```
+
+```bash
+wrangler secret put TX402_GATEWAY_DATA_TOKEN
+wrangler secret put TX402_GATEWAY_ADMIN_TOKEN
+wrangler secret put TX402_DO_ADMIN_SECRET   # the DO verifies admin calls against this
+wrangler deploy
+```
+
+`TX402_GATEWAY_TOPOLOGY` is `single-coordinator` for atomic fleet-wide freeze, or anything else for
+the default id-per-scope sharding — the [DO topology runbook](../durable-object/) explains the
+trade-off. The DO admin secret lives only in this Worker's environment, never in a client, which is
+exactly what makes the admin boundary real on Durable Objects.
+
+This Worker imports only the store and the gateway — **not** `createTx402Client` — so it pulls in no
+chain adapter and **bundles with no chain peer packages** (`@x402/evm`, `@x402/svm`, `@solana/kit`,
+and friends). That is exactly the boundary this page recommends: a Worker that imports the client
+must instead install both chains' peers to bundle — see
+[bundling a Worker that imports the client](../durable-object/#bundling-a-worker-that-imports-the-client).
+
+## Point clients at it
+
+A client holds **one** token — the gateway decides what it can do. Give the agents the data token
+and operators the admin token.
+
+```ts title="an agent process (data token)"
+import { httpGatewaySpendStore } from "tx402/gateway";
+import { createTx402Client } from "tx402";
+
+const store = await httpGatewaySpendStore({
+  baseUrl: "https://gateway.example",
+  token: process.env.TX402_SPEND_STORE_TOKEN!, // the data token
+});
+
+const tx402 = createTx402Client({ signers: { evm }, spendStore: store });
+```
+
+```python title="Python"
+from tx402.stores.gateway import http_gateway_spend_store  # or async_http_gateway_spend_store
+store = http_gateway_spend_store(base_url="https://gateway.example", token=DATA_TOKEN)
+```
+
+The client fetches the gateway's `capabilities` once at construction, so a gateway-backed store
+knows whether global freeze is atomic without you telling it.
+
+## Point the CLI at it
+
+The [operator verbs](../../guides/cli/#operator-verbs) target a gateway
+through the environment — an admin verb sends the admin token:
+
+```bash
+export TX402_SPEND_STORE="https://gateway.example"
+export TX402_SPEND_STORE_TOKEN="$DATA_TOKEN"      # for budget, pins
+export TX402_SPEND_STORE_ADMIN="$ADMIN_TOKEN"     # for freeze, unfreeze, rotate-recipient
+
+tx402 freeze api.merchant.example
+tx402 budget api.merchant.example --network eip155:8453
+```
+
+An admin verb with only `TX402_SPEND_STORE_TOKEN` set is refused with
+`reason: "admin-credential-required"`, exit `2` — the same identity the gateway returns for a data
+token on an admin method, so the boundary reads the same from the shell as it does over the wire.
+
+## What it does and does not close
+
+The gateway closes the admin-state boundary durably: a data-plane client cannot tamper with freeze
+state, pins, or limits, on either backend, portably. It does **not** close the compromised-application
+*spending* path — a fully compromised app still holds the signer and can pay directly — which is
+0.3.0, as [the security model](../../security/) states plainly.

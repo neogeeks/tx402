@@ -1,0 +1,10 @@
+{
+  "//": "Emits dist/durable-object/* with the Workers runtime types. Separate from tsconfig.build.json because @cloudflare/workers-types redefines globals that conflict with @types/node on the core import path (e.g. TextDecoder); skipLibCheck (from the base) covers the cross-.d.ts conflicts, and the DO subtree only reaches core/ledger + core/errors, neither of which uses a conflicting global. Types never change the emitted JS, so the core files this also re-emits are byte-identical to the main build's.",
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    "types": ["node", "@cloudflare/workers-types"]
+  },
+  "include": ["src/durable-object/**/*.ts", "src/gateway/worker.ts"]
+}

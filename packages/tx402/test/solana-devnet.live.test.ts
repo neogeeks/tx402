@@ -20,6 +20,17 @@ import type { SolanaSigner } from "../src/core/signers.js";
 const KEYPAIR = process.env.TX402_SOLANA_DEVNET_KEYPAIR;
 const live = KEYPAIR === undefined ? describe.skip : describe;
 const NETWORK_ID = "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1";
+
+/**
+ * The RPC override the runbook (`operations/solana-devnet.mdx`) documents for this suite: public
+ * Devnet is heavily rate-limited, so an operator points this at a private endpoint. Wired exactly
+ * as `volume.live.test.ts` does (O49) — before this, the suite built its client with no `routing`
+ * key, so `TX402_SOLANA_DEVNET_RPC_URL` was silently inert on the very path it documents.
+ */
+function rpcOverrideFor(networkId: string, variable: string) {
+  const url = process.env[variable];
+  return url === undefined ? {} : { routing: { rpcOverrides: { [networkId]: [url] } } };
+}
 const NETWORK = BUNDLED_MANIFEST.networks[NETWORK_ID] as SvmManifestNetwork;
 const USDC = NETWORK.assets[0] as SvmManifestAsset;
 const PAY_TO = "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM";
@@ -71,6 +82,7 @@ live("Solana Devnet live smoke", () => {
         maxPerHour: "0.01 USDC",
         allowedNetworks: ["solana:devnet"],
       },
+      ...rpcOverrideFor(NETWORK_ID, "TX402_SOLANA_DEVNET_RPC_URL"),
     });
     await expect(client.fetch(`${merchant.url}/resource`)).resolves.toHaveProperty(
       "status",

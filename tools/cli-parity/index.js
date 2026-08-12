@@ -34,12 +34,20 @@ import { createEvmRpcStub } from "../evm-rpc-stub/index.js";
 import { run } from "../../packages/tx402/dist/cli/run.js";
 import { privateKeyToEvmSigner } from "../../packages/tx402/dist/signers/index.js";
 import { BUNDLED_MANIFEST } from "../../packages/tx402/dist/core/bundled-manifest.js";
+import { MemorySpendStore } from "../../packages/tx402/dist/index.js";
+import { bearerTokenScope, serveGateway } from "../../packages/tx402/dist/gateway/index.js";
+import { applySeed } from "../store-gateway/seeds.js";
 
 import { normalize } from "./normalize.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, "../..");
 const goldenPath = path.join(repoRoot, "core-spec/cli-json/expected.json");
+
+/** The operator-verb scenarios (SPEC §10), shared with the Python pin so the two cannot drift. */
+const VERB_SCENARIOS = JSON.parse(
+  readFileSync(path.join(here, "../store-gateway/scenarios.json"), "utf8"),
+);
 
 /** A fixed development key; the merchant is deterministic and never settles for real. */
 const DEV_KEY = "0xa11ce00000000000000000000000000000000000000000000000000000000001";
@@ -110,12 +118,51 @@ async function runScenario(scenario) {
   return { exitCode, json: normalize(JSON.parse(out.join(""))) };
 }
 
+/**
+ * Runs the TS CLI for one operator-verb scenario (SPEC §10) against a reference gateway fronting
+ * a deterministically-seeded `MemorySpendStore`, and returns its normalized `--json`. The store
+ * credential comes from the environment (SPEC §9.1), never a flag; `provideAdmin` withholds the
+ * admin token to exercise the `admin-credential-required` gate.
+ */
+async function runVerbScenario(scenario) {
+  const store = new MemorySpendStore();
+  await applySeed(store, scenario.seed, Date.now());
+  const gateway = await serveGateway({
+    dataStore: store,
+    adminStore: store,
+    resolveScope: bearerTokenScope({ dataToken: "data-token", adminToken: "admin-token" }),
+  });
+  const env = { TX402_SPEND_STORE: gateway.url, TX402_SPEND_STORE_TOKEN: "data-token" };
+  if (scenario.provideAdmin) env.TX402_SPEND_STORE_ADMIN = "admin-token";
+  const out = [];
+  const io = {
+    argv: scenario.args,
+    env,
+    stdout: (text) => out.push(text),
+    stderr: () => {},
+    readFile: () => {
+      throw new Error("no filesystem in this harness");
+    },
+  };
+  let exitCode;
+  try {
+    exitCode = await run(io);
+  } finally {
+    await gateway.close();
+  }
+  return { exitCode, json: normalize(JSON.parse(out.join(""))) };
+}
+
 /** @returns {Promise<Record<string, {exitCode: number, json: unknown}>>} */
 export async function generateParity() {
   /** @type {Record<string, {exitCode: number, json: unknown}>} */
   const results = {};
   for (const scenario of Object.keys(SCENARIOS)) {
     results[scenario] = await runScenario(scenario);
+  }
+  // The operator verbs (SPEC §10) join the same golden, keyed `verb:*`.
+  for (const scenario of VERB_SCENARIOS) {
+    results[scenario.key] = await runVerbScenario(scenario);
   }
   return results;
 }

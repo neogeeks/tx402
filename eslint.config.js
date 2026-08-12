@@ -50,6 +50,29 @@ export default tseslint.config(
     },
   },
   {
+    // The Durable Object subtree needs the Workers runtime types, which conflict with node's on the
+    // core path, so it is NOT a member of the default `tsconfig.json` the project service discovers.
+    // Point the type-aware linter at its own tsconfig instead (classic `project` mode).
+    files: [
+      "packages/tx402/src/durable-object/**/*.ts",
+      // The Worker capability gateway + its test worker/suite reach the Workers globals too.
+      "packages/tx402/src/gateway/worker.ts",
+      "packages/tx402/test/gateway/**/*.ts",
+      "packages/tx402/test/gateway-durable-object.test.ts",
+      "packages/tx402/test/durable-object.test.ts",
+      "packages/tx402/test/durable-object/**/*.ts",
+      "packages/tx402/vitest.durable-object.config.ts",
+      "packages/tx402/vitest.gateway-durable-object.config.ts",
+    ],
+    languageOptions: {
+      parserOptions: {
+        projectService: false,
+        project: ["packages/tx402/tsconfig.durable-object.json"],
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
+  },
+  {
     // The CLI is the one place in the *SDK* allowed to write to stdout/stderr (SPEC §11).
     files: ["packages/tx402/src/cli/**/*.ts"],
     rules: { "no-console": "off" },
@@ -70,8 +93,8 @@ export default tseslint.config(
     },
   },
   {
-    // Repo tooling runs on Node directly and is not part of the TypeScript project.
-    files: ["**/*.js"],
+    // Repo tooling + gateway launchers run on Node directly and are not part of any TS project.
+    files: ["**/*.js", "**/*.mjs"],
     ...tseslint.configs.disableTypeChecked,
     languageOptions: {
       globals: {

@@ -28,6 +28,7 @@ import { PACKAGE_NAME, PROJECT_URLS } from "../meta.js";
 import { PACKAGE_VERSION } from "../version.js";
 import { parseArgs, type CallOptions } from "./args.js";
 import { EXIT_CODES, UsageError, exitCodeFor, type ExitCode } from "./exit-codes.js";
+import { runVerb } from "./verbs.js";
 
 /** Schema version of the `--json` document. Bumped only on a breaking shape change. */
 export const JSON_SCHEMA_VERSION = 1;
@@ -58,6 +59,7 @@ const USAGE = `${PACKAGE_NAME} — resilient x402 buyer client
 
 Usage:
   tx402 call <URL> [options]
+  tx402 <operator verb> [options]
 
 Options:
   --method <METHOD>     HTTP method (default: GET)
@@ -71,6 +73,21 @@ Options:
   --timeout <MS>        Paid-retry timeout in whole milliseconds
   -h, --help            Show this message
   -v, --version         Show version
+
+Operator verbs act on the shared store in TX402_SPEND_STORE:
+  freeze <host | "*">                              admin — stop new spend on a scope
+  unfreeze <host | "*">                            admin — resume it
+  budget <url|host> --network <CAIP2> [--asset A]  data  — read a scope's budget
+         [--max-per-hour ATOMIC] [--max-total ATOMIC]
+  pins <url|host> --network <CAIP2>                data  — read a scope's pinned recipients
+  rotate-recipient <url|host> --network <CAIP2>    admin — replace them
+                   --to <addr…>
+
+Store config (a raw credential is never a flag):
+  TX402_SPEND_STORE          https://<gateway>/… or redis://… / rediss://…
+  TX402_SPEND_STORE_TOKEN    data-plane credential (gateway bearer token)
+  TX402_SPEND_STORE_ADMIN    admin credential (admin bearer token / admin-user DSN)
+  TX402_SPEND_STORE_NAMESPACE  isolation prefix (raw Redis; default "tx402")
 
 Exit codes:
   0 success   2 usage/config   3 policy    4 liquidity   5 protocol
@@ -459,6 +476,10 @@ export async function run(io: CliIo): Promise<ExitCode> {
       io.stdout(`${PACKAGE_NAME} ${PACKAGE_VERSION}\n`);
       return EXIT_CODES.success;
     }
+    // The operator verbs (SPEC §10) own their whole lifecycle — store resolution, the
+    // admin/data credential gate, their own `--json` shapes, and their own error rendering —
+    // so they return before the `call` machinery (signers, settlement reconciliation) below.
+    if (parsed.kind !== "call") return runVerb(io, parsed);
     options = parsed.options;
 
     // One policy object, built once. Spreading `{ policy: … }` per flag would make the last

@@ -37,6 +37,25 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          # Full history so the tag's containment in protected `main` can be proven below.
+          fetch-depth: 0
+
+      # A tag may point at ANY commit. Publishing is gated on the same suites CI runs, but those
+      # only prove the tagged TREE — not that it is the tested protected-main history. This binds
+      # the tag to `main`: the tagged commit must be reachable from `origin/main`, so a release can
+      # never be cut from untested or force-pushed history (O30).
+      - name: The tagged commit is contained in protected main
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --quiet origin main
+          tag_sha="$(git rev-parse HEAD)"
+          if ! git merge-base --is-ancestor "$tag_sha" origin/main; then
+            echo "::error::The tagged commit ${tag_sha} is not contained in origin/main." \
+                 "A release may only be tagged on the tested protected-main history."
+            exit 1
+          fi
+          echo "tag ${tag_sha} is on protected main"
 
       - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
         with:
@@ -86,6 +105,7 @@ jobs:
       - name: Release gates
         run: |
           pnpm fuzz
+          pnpm adversarial
           pnpm perf
           pnpm supply-chain
           pnpm reproducible
@@ -118,6 +138,130 @@ jobs:
             exit 1
           fi
 
+  # The durable-store, Durable Object, and gateway gates CI runs are re-run here ON THE TAGGED
+  # COMMIT and are `needs:` of both publish jobs (O30). `pnpm check` does not include them, and the
+  # tag workflow provisioned no Redis/DO before — so a tag could publish without ever proving the
+  # durable adapters or the gateway on the exact commit being shipped. These mirror ci.yml.
+  durable-store:
+    name: Durable store (Redis 7)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: ${{ env.NODE_VERSION_DEFAULT }}
+      - name: Install (pnpm)
+        run: pnpm install --frozen-lockfile
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          enable-cache: true
+      - name: Sync (uv)
+        run: uv sync --all-extras
+        working-directory: packages/tx402-python
+      - name: Install and launch Redis (standalone AOF + 3-master Cluster)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y redis-server redis-tools
+          sudo systemctl disable --now redis-server 2>/dev/null || true
+          sudo service redis-server stop 2>/dev/null || true
+          sudo pkill -x redis-server 2>/dev/null || true
+          sleep 1
+          redis-server --daemonize yes --appendonly yes --port 6379 \
+            --dir "$RUNNER_TEMP" --pidfile "$RUNNER_TEMP/redis-standalone.pid" \
+            --logfile "$RUNNER_TEMP/redis-standalone.log"
+          for p in 7001 7002 7003; do
+            mkdir -p "$RUNNER_TEMP/cluster-$p"
+            redis-server --daemonize yes --port "$p" --cluster-enabled yes \
+              --cluster-config-file "$RUNNER_TEMP/cluster-$p/nodes.conf" \
+              --cluster-node-timeout 5000 --appendonly yes --dir "$RUNNER_TEMP/cluster-$p" \
+              --pidfile "$RUNNER_TEMP/cluster-$p/redis.pid" \
+              --logfile "$RUNNER_TEMP/cluster-$p/redis.log"
+          done
+          for port in 6379 7001 7002 7003; do
+            for _ in $(seq 1 40); do
+              redis-cli -p "$port" ping 2>/dev/null | grep -q PONG && break
+              sleep 0.5
+            done
+          done
+          test "$(redis-cli -p 6379 config get appendonly | tail -1)" = "yes"
+          yes yes | redis-cli --cluster create 127.0.0.1:7001 127.0.0.1:7002 127.0.0.1:7003 --cluster-yes
+          redis-cli -p 7001 cluster info | grep cluster_state
+      - name: Redis reachable + durable suite (TS + Python)
+        run: pnpm durable:check redis
+        env:
+          TX402_TEST_REDIS_URL: redis://localhost:6379
+          TX402_TEST_REDIS_CLUSTER: 127.0.0.1:7001,127.0.0.1:7002,127.0.0.1:7003
+          TX402_TEST_REDIS_RESTART: "1"
+
+  durable-object:
+    name: Durable Object (local Workers runtime)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: "22"
+      - name: Install (pnpm)
+        run: pnpm install --frozen-lockfile
+      - name: DO harness (checkDurableSpendStore, both topologies)
+        run: pnpm durable:check do
+
+  gateway-golden:
+    name: Gateway golden
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: "22"
+      - name: Install (pnpm)
+        run: pnpm install --frozen-lockfile
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          enable-cache: true
+      - name: Sync (uv)
+        run: uv sync --all-extras
+        working-directory: packages/tx402-python
+      - name: Install and launch Redis (standalone AOF)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y redis-server redis-tools
+          sudo systemctl disable --now redis-server 2>/dev/null || true
+          sudo service redis-server stop 2>/dev/null || true
+          sudo pkill -x redis-server 2>/dev/null || true
+          sleep 1
+          redis-server --daemonize yes --appendonly yes --port 6379 \
+            --dir "$RUNNER_TEMP" --pidfile "$RUNNER_TEMP/redis-gateway.pid" \
+            --logfile "$RUNNER_TEMP/redis-gateway.log"
+          for _ in $(seq 1 40); do
+            redis-cli -p 6379 ping 2>/dev/null | grep -q PONG && break
+            sleep 0.5
+          done
+          test "$(redis-cli -p 6379 config get appendonly | tail -1)" = "yes"
+      - name: Build distributions
+        run: pnpm build
+      - name: Gateway wire golden (drift check)
+        run: pnpm gateway:golden
+      - name: Gateway conformance — TS client over Redis
+        run: pnpm -C packages/tx402 exec vitest run test/gateway-store.test.ts test/gateway-golden.test.ts
+        env:
+          TX402_TEST_REDIS_URL: redis://localhost:6379
+      - name: Gateway conformance — Python client over Redis + DO
+        run: uv run pytest tests/test_gateway_store.py tests/test_gateway_durable.py --no-cov -q
+        working-directory: packages/tx402-python
+        env:
+          TX402_TEST_GATEWAY: "1"
+          TX402_TEST_REDIS_URL: redis://localhost:6379
+
   # SPEC §12.4 requires published documentation before release, and O49 found nothing
   # enforcing it: the docs workflow was allowed to skip its own deploy and this workflow
   # neither depended on it nor looked at the site. Its own job, so the log says plainly
@@ -142,7 +286,7 @@ jobs:
 
   npm:
     name: Publish to npm
-    needs: [verify, docs-published]
+    needs: [verify, docs-published, durable-store, durable-object, gateway-golden]
     runs-on: ubuntu-latest
     environment: release
     permissions:
@@ -194,7 +338,7 @@ jobs:
 
   pypi:
     name: Publish to PyPI
-    needs: [verify, docs-published]
+    needs: [verify, docs-published, durable-store, durable-object, gateway-golden]
     runs-on: ubuntu-latest
     environment: release
     permissions:

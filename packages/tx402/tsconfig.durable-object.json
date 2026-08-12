@@ -1,0 +1,19 @@
+{
+  "//": "Typechecks the Durable Object subtree + its test with the Workers runtime types. Kept separate from tsconfig.json because @cloudflare/workers-types redefines globals that conflict with @types/node; skipLibCheck (from the base) suppresses the cross-.d.ts conflicts here, and the node-typed program (tsconfig.json) excludes this subtree so the rest of the package stays clean.",
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "noEmit": true,
+    "types": ["node", "@cloudflare/workers-types", "@cloudflare/vitest-pool-workers"]
+  },
+  "include": [
+    "src/durable-object/**/*.ts",
+    "src/gateway/worker.ts",
+    "test/durable-object.test.ts",
+    "test/durable-object/**/*.ts",
+    "test/gateway-durable-object.test.ts",
+    "test/gateway/**/*.ts",
+    "vitest.durable-object.config.ts",
+    "vitest.gateway-durable-object.config.ts"
+  ]
+}

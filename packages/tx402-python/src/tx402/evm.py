@@ -259,7 +259,7 @@ def _safe_host(url: str) -> str:
 class EvmRpcPool:
     """At most two manifest RPCs; chain identity is checked before every balance read.
 
-    The pool holds no circuit state of its own (PLAN.md O19). It asks the client's shared
+    The pool holds no circuit state of its own. It asks the client's shared
     :class:`~tx402.health.HealthIndex` whether an endpoint may be used and reports what
     happened, so one provider cannot be simultaneously open here and closed elsewhere.
     """

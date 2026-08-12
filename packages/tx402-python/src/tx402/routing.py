@@ -62,7 +62,7 @@ RouteRejectionReason = Literal[
 #: joining on it makes the key unambiguous — the same reason :mod:`tx402.policy` uses it for
 #: its network/asset index. It is written as the ``\\u0000`` escape rather than as a literal
 #: control character: a raw NUL byte in a source file makes git classify the file as binary
-#: and stop diffing it (PLAN.md open item O25).
+#: and stop diffing it.
 BALANCE_KEY_SEPARATOR: Final = "\u0000"
 
 T = TypeVar("T")

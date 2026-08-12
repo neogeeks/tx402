@@ -5,3 +5,6 @@ packages:
   - "tools/*"
 onlyBuiltDependencies:
   - esbuild
+  # workerd is the local Workers runtime the Durable Object suite runs in (@cloudflare/vitest-pool-workers,
+  # S8/O8). Allow its install script so the platform binary is set up on CI exactly as it is locally.
+  - workerd

@@ -83,7 +83,7 @@ describe("O92 — the releasing runbook describes the pipeline that exists", () 
 
   it("does not understate the job count", () => {
     const page = read(RELEASING);
-    const counts = ["one", "two", "three", "four", "five", "six", "seven"];
+    const counts = ["one", "two", "three", "four", "five", "six", "seven", "eight", "nine"];
     const expected = counts[releaseJobs().length - 1] as string;
     const claimed = /has (\w+) jobs/u.exec(page)?.[1];
     expect(claimed, "the page states a job count").toBeDefined();

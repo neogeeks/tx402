@@ -27,7 +27,7 @@ export default defineConfig({
     starlight({
       title: "tx402",
       description:
-        "The spend-governance layer for x402 buyers — spend caps and budgets enforced before any key is signed, deterministic multi-chain routing (Base + Solana), RPC-endpoint failover, and typed errors. TypeScript and Python.",
+        "The spend-governance layer for x402 buyers — per-request caps, hourly and lifetime budgets, and allowlists enforced before any key is signed, and, across a fleet, an operator kill switch and recipient pinning; plus deterministic multi-chain routing (Base + Solana), RPC-endpoint failover, and typed errors. TypeScript and Python.",
       // Site-wide JSON-LD so the docs expose machine-readable entity data (Organization,
       // WebSite, SoftwareApplication) on every page. ld+json is data, not executable script.
       head: [
@@ -60,9 +60,9 @@ export default defineConfig({
                 applicationCategory: "DeveloperApplication",
                 operatingSystem: "Cross-platform",
                 description:
-                  "The spend-governance layer for x402 buyers: per-request caps, hourly budgets, and allowlists enforced before any key is signed, plus deterministic multi-chain routing across Base and Solana, RPC-endpoint failover, and typed errors.",
+                  "The spend-governance layer for x402 buyers: per-request caps, hourly and lifetime budgets, and allowlists enforced before any key is signed — with a shared fleet budget, an operator kill switch, and recipient pinning for many agents on one wallet — plus deterministic multi-chain routing across Base and Solana, RPC-endpoint failover, and typed errors.",
                 url: "https://tx402.io/",
-                softwareVersion: "0.1.0",
+                softwareVersion: "0.2.0",
                 programmingLanguage: ["TypeScript", "Python"],
                 license: "https://www.apache.org/licenses/LICENSE-2.0",
                 codeRepository: "https://github.com/neogeeks/tx402",

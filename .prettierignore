@@ -4,8 +4,13 @@ coverage/
 pnpm-lock.yaml
 .venv/
 packages/tx402-python/
+# Internal planning docs (never shipped). Ignored like PRD.md/SPEC.md; SPEC-0.2.0.md is
+# FROZEN — reformatting it would change the blob hash the resume guard pins (PLAN-0.2.0 §12).
 PRD.md
 SPEC.md
+PLAN-0.2.0.md
+SPEC-0.2.0.md
+PRD-phase1.md
 
 # Tool-owned formatting. `tx402-manifest sign` rewrites the manifest, and the generated
 # SDK copies are emitted by `tx402-manifest embed`. Letting prettier reformat them would
@@ -15,6 +20,12 @@ core-spec/manifests/bundled.manifest.json
 core-spec/manifests/keys/
 packages/tx402/src/core/bundled-manifest.ts
 packages/tx402-python/src/tx402/bundled_manifest.py
+
+# The gateway wire golden is emitted by `node tools/gateway-golden/index.js build`
+# (`JSON.stringify(_, null, 2)`), and that tool's `check` diffs the committed bytes. Prettier
+# collapses its short arrays onto one line, which would drift from the generator on every run —
+# the same tool-vs-formatter loop the manifests avoid above.
+core-spec/gateway/golden.json
 
 # Prettier does not format the documentation content, and this is not a style preference.
 # Its MDX printer is lossy on exactly the constructs these pages use: it reindents JSX

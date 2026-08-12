@@ -4,12 +4,21 @@ Four runnable programs, two per language, each written to be read top to bottom.
 "runnable versions" the [quickstart](https://docs.tx402.io/start/quickstart/) links to, and they
 do the same two things the quickstart does from the CLI.
 
-| File                       | What it does                                                 |
-| :------------------------- | :----------------------------------------------------------- |
-| `typescript/quickstart.ts` | Pays for one resource and prints the response                |
-| `typescript/dry-run.ts`    | Inspects a merchant's terms without a key and without paying |
-| `python/quickstart.py`     | The same paid call, in Python                                |
-| `python/dry_run.py`        | The same inspection, in Python                               |
+| File                       | What it does                                                                                                                             |
+| :------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------- |
+| `typescript/quickstart.ts` | Pays for one resource and prints the response                                                                                            |
+| `typescript/dry-run.ts`    | Inspects a merchant's terms without a key and without paying                                                                             |
+| `python/quickstart.py`     | The same paid call, in Python                                                                                                            |
+| `python/dry_run.py`        | The same inspection, in Python                                                                                                           |
+| `python/fleet.py`          | **0.2.0** — a fleet against one shared Redis budget: administered caps, the data/admin boundary, the kill switch, and a pinned recipient |
+
+`fleet.py` is the 0.2.0 story — the shared store, cumulative cap, freeze, and recipient pinning in
+one runnable walkthrough. It talks to the store directly, so it needs a Redis but no merchant. The
+TypeScript equivalents of each control live in the operations runbooks
+([shared store](https://docs.tx402.io/operations/shared-store/),
+[kill switch](https://docs.tx402.io/operations/kill-switch/),
+[recipient rotation](https://docs.tx402.io/operations/recipient-rotation/)), whose snippets are held
+to the shipped API.
 
 ## Environment
 
@@ -70,9 +79,15 @@ CLI, which has no such requirement.
 ```bash
 python examples/python/quickstart.py
 python examples/python/dry_run.py
+
+# fleet.py needs the redis extra and a Redis (any 7.0+, or an Upstash rediss:// endpoint):
+pip install "tx402[redis]"
+export TX402_SPEND_STORE=redis://localhost:6379/15
+python examples/python/fleet.py
 ```
 
-Python 3.10 or newer. The quickstart example needs the EVM extra — `pip install "tx402[evm]"`.
+Python 3.10 or newer. The quickstart example needs the EVM extra — `pip install "tx402[evm]"` — and
+`fleet.py` needs the redis extra, `pip install "tx402[redis]"`.
 
 ## Testnets have to be asked for by name
 

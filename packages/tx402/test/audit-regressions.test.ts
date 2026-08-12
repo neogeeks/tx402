@@ -127,7 +127,13 @@ async function totals(store: SpendStore, policyScope: string) {
     assetId: ASSET_ID,
     nowEpochMs: Date.now(),
   });
-  return { committed: state.committedAtomic, reserved: state.reservedAtomic };
+  // `exposed` joins the disposition post-0.2.0: the pre-transmission fence (SPEC §7, ADR-026)
+  // means a transmitted-but-unresolved payment is held here, not in `reserved`.
+  return {
+    committed: state.committedAtomic,
+    reserved: state.reservedAtomic,
+    exposed: state.exposedAtomic,
+  };
 }
 
 /* ------------------------------------------------------------------------------------- */
@@ -152,7 +158,11 @@ describe("O44 settlement precedence", () => {
     });
 
     const scope = normalizePolicyHost(`${server.url}/resource`);
-    expect(await totals(store, scope)).toEqual({ committed: AMOUNT, reserved: "0" });
+    expect(await totals(store, scope)).toEqual({
+      committed: AMOUNT,
+      reserved: "0",
+      exposed: "0",
+    });
   });
 
   it("does not re-challenge into a second payment when a 402 reports a settlement", async () => {
@@ -190,7 +200,11 @@ describe("O44 settlement precedence", () => {
     });
 
     const scope = normalizePolicyHost(`${server.url}/resource`);
-    expect(await totals(store, scope)).toEqual({ committed: "0", reserved: "0" });
+    expect(await totals(store, scope)).toEqual({
+      committed: "0",
+      reserved: "0",
+      exposed: "0",
+    });
   });
 
   it("consumes the hourly cap it charged, so the next call is refused by budget", async () => {
@@ -256,7 +270,12 @@ describe("O45 policy scope", () => {
         maxPerHourAtomic: AMOUNT,
         nowEpochMs: now,
       });
-      await store.commit({ reservationId: `r${index}`, committedAtEpochMs: now });
+      await store.commit({
+        reservationId: `r${index}`,
+        policyScope: host,
+        assetId: ASSET_ID,
+        committedAtEpochMs: now,
+      });
     }
     expect((await totals(store, "a.example")).committed).toBe(AMOUNT);
     expect((await totals(store, "b.example")).committed).toBe(AMOUNT);
@@ -297,7 +316,12 @@ describe("O45 policy scope", () => {
       nowEpochMs: Date.now(),
       reservationId: "external-1",
     });
-    await store.commit({ reservationId: "external-1", committedAtEpochMs: Date.now() });
+    await store.commit({
+      reservationId: "external-1",
+      policyScope: "elsewhere.example",
+      assetId: ASSET_ID,
+      committedAtEpochMs: Date.now(),
+    });
 
     const state = await client({ spendStore: store }).queryBudgetState({
       policyScope: "elsewhere.example",
@@ -317,13 +341,17 @@ function commitFails(): SpendStore & { commitCalls: number } {
   const store: SpendStore & { commitCalls: number } = {
     kind: "failing-commit",
     commitCalls: 0,
+    capabilities: inner.capabilities,
     reserve: (input) => inner.reserve(input),
     commit: (): Promise<SpendEntry> => {
       store.commitCalls += 1;
       return Promise.reject(new Error("ledger backend unreachable"));
     },
-    release: (id, now) => inner.release(id, now),
+    release: (ref, now) => inner.release(ref, now),
+    expose: (ref, now) => inner.expose(ref, now),
     getBudgetState: (query) => inner.getBudgetState(query),
+    listExposed: (query) => inner.listExposed(query),
+    isFrozen: (scope) => inner.isFrozen(scope),
   };
   return store;
 }
@@ -353,7 +381,11 @@ describe("O46 spend-store failure semantics", () => {
       .catch(() => undefined);
 
     const scope = normalizePolicyHost(server.url);
-    expect(await totals(store, scope)).toEqual({ committed: "0", reserved: AMOUNT });
+    expect(await totals(store, scope)).toEqual({
+      committed: "0",
+      reserved: "0",
+      exposed: AMOUNT,
+    });
   });
 
   it("classifies a reserve outage the other way, and never reaches the signer", async () => {
@@ -362,10 +394,14 @@ describe("O46 spend-store failure semantics", () => {
     const server = await merchantFor("pay-once");
     const broken: SpendStore = {
       kind: "failing-reserve",
+      capabilities: { atomicGlobalFreeze: true },
       reserve: () => Promise.reject(new Error("ledger backend unreachable")),
       commit: () => Promise.reject(new Error("unused")),
       release: () => Promise.reject(new Error("unused")),
+      expose: () => Promise.reject(new Error("unused")),
       getBudgetState: (query) => new MemorySpendStore().getBudgetState(query),
+      listExposed: () => Promise.reject(new Error("unused")),
+      isFrozen: () => Promise.resolve(false),
     };
 
     await expect(
@@ -384,10 +420,14 @@ describe("O46 spend-store failure semantics", () => {
     const inner = new MemorySpendStore();
     const store: SpendStore = {
       kind: "release-explodes",
+      capabilities: inner.capabilities,
       reserve: (input) => inner.reserve(input),
       commit: (input) => inner.commit(input),
       release: () => Promise.reject(new Error("cleanup path is not the error path")),
+      expose: (ref, now) => inner.expose(ref, now),
       getBudgetState: (query) => inner.getBudgetState(query),
+      listExposed: (query) => inner.listExposed(query),
+      isFrozen: (scope) => inner.isFrozen(scope),
     };
 
     await expect(
@@ -426,7 +466,11 @@ describe("O52 cross-origin redirect identity", () => {
     });
 
     const scope = normalizePolicyHost(server.url);
-    expect(await totals(store, scope)).toEqual({ committed: "0", reserved: AMOUNT });
+    expect(await totals(store, scope)).toEqual({
+      committed: "0",
+      reserved: "0",
+      exposed: AMOUNT,
+    });
   });
 });
 
@@ -447,7 +491,11 @@ describe("O53 malformed settlement metadata", () => {
     });
 
     const scope = normalizePolicyHost(server.url);
-    expect(await totals(store, scope)).toEqual({ committed: "0", reserved: AMOUNT });
+    expect(await totals(store, scope)).toEqual({
+      committed: "0",
+      reserved: "0",
+      exposed: AMOUNT,
+    });
   });
 
   it("still delivers when the header is absent altogether", async () => {

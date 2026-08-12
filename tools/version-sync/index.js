@@ -81,7 +81,7 @@ function tsModule(version) {
  * GENERATED FILE — DO NOT EDIT.
  *
  * Emitted by \`node tools/version-sync/index.js build\` from \`packages/tx402/package.json\`,
- * which is the single source of truth for the released version (PLAN.md O51). Editing this
+ * which is the single source of truth for the released version. Editing this
  * by hand reintroduces exactly the defect it exists to prevent; \`pnpm version:check\` fails
  * if it is stale.
  */
@@ -100,7 +100,7 @@ function pyModule(version) {
 
 Emitted by \`\`node tools/version-sync/index.js build\`\` from
 \`\`packages/tx402/package.json\`\`, which is the single source of truth for the released
-version (PLAN.md O51). Editing this by hand reintroduces exactly the defect it exists to
+version. Editing this by hand reintroduces exactly the defect it exists to
 prevent; \`\`pnpm version:check\`\` fails if it is stale.
 ${quotes}
 

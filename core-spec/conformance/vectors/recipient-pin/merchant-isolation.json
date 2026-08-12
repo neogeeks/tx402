@@ -1,0 +1,98 @@
+{
+  "$schema": "https://tx402.dev/schemas/v1/conformance-vector.schema.json",
+  "id": "recipient-pin.behavior.merchant-isolation",
+  "kind": "recipient-pin.behavior",
+  "milestone": "M6",
+  "title": "An administered allowlist binds strictly to its (scope, network); other merchants and other networks are unaffected",
+  "spec": ["SPEC §6", "SPEC §6.2", "SPEC §3.4", "ADR-018", "ADR-028"],
+  "description": "The pin identity is (normalized merchant host, network), the same scope the budget uses (ADR-018). An allowlist administered for (merchant-a, eip155:8453) admits its recipient (A1) and refuses a different one on that exact pair (A2, not-allowlisted). The SAME refused recipient is admitted on (merchant-a, eip155:84532) — a different network with no record (A3) — and on (merchant-b, eip155:8453) — a different merchant with no record (B1) — both under recipientEnforcement off. merchant-b's pin readback is empty: the merchant-a administration did not bleed across the scope boundary.",
+  "input": {
+    "operations": [
+      {
+        "action": "set-recipient-pins",
+        "scope": "merchant-a.example",
+        "network": "eip155:8453",
+        "recipients": ["0xaaaa000000000000000000000000000000000001"],
+        "nowEpochMs": 1785715200000
+      },
+      {
+        "action": "reserve",
+        "reservationId": "00000000-0000-7000-8000-000000000931",
+        "requestId": "iso-A1",
+        "policyScope": "merchant-a.example",
+        "requestFingerprint": "sha256:f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1",
+        "assetId": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "amountAtomic": "1",
+        "maxPerHourAtomic": "10",
+        "recipientNetwork": "eip155:8453",
+        "recipientCanonical": "0xaaaa000000000000000000000000000000000001",
+        "recipientEnforcement": "allowlist",
+        "nowEpochMs": 1785715200000
+      },
+      {
+        "action": "reserve",
+        "reservationId": "00000000-0000-7000-8000-000000000932",
+        "requestId": "iso-A2",
+        "policyScope": "merchant-a.example",
+        "requestFingerprint": "sha256:f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2",
+        "assetId": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "amountAtomic": "1",
+        "maxPerHourAtomic": "10",
+        "recipientNetwork": "eip155:8453",
+        "recipientCanonical": "0xbbbb000000000000000000000000000000000002",
+        "recipientEnforcement": "allowlist",
+        "nowEpochMs": 1785715200000
+      },
+      {
+        "action": "reserve",
+        "reservationId": "00000000-0000-7000-8000-000000000933",
+        "requestId": "iso-A3",
+        "policyScope": "merchant-a.example",
+        "requestFingerprint": "sha256:f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3",
+        "assetId": "eip155:84532/erc20:0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+        "amountAtomic": "1",
+        "maxPerHourAtomic": "10",
+        "recipientNetwork": "eip155:84532",
+        "recipientCanonical": "0xbbbb000000000000000000000000000000000002",
+        "recipientEnforcement": "off",
+        "nowEpochMs": 1785715200000
+      },
+      {
+        "action": "reserve",
+        "reservationId": "00000000-0000-7000-8000-000000000934",
+        "requestId": "iso-B1",
+        "policyScope": "merchant-b.example",
+        "requestFingerprint": "sha256:f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4",
+        "assetId": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "amountAtomic": "1",
+        "maxPerHourAtomic": "10",
+        "recipientNetwork": "eip155:8453",
+        "recipientCanonical": "0xbbbb000000000000000000000000000000000002",
+        "recipientEnforcement": "off",
+        "nowEpochMs": 1785715200000
+      },
+      {
+        "action": "snapshot-pins",
+        "scope": "merchant-b.example",
+        "network": "eip155:8453"
+      }
+    ]
+  },
+  "expected": {
+    "outcomes": [
+      { "outcome": "pins-set" },
+      { "outcome": "reserved", "pinEstablished": false },
+      {
+        "outcome": "error",
+        "errorCode": "TX402_RECIPIENT_UNPINNED",
+        "reason": "not-allowlisted",
+        "network": "eip155:8453",
+        "presentedRecipient": "0xbbbb000000000000000000000000000000000002",
+        "expectedRecipients": ["0xaaaa000000000000000000000000000000000001"]
+      },
+      { "outcome": "reserved", "pinEstablished": false },
+      { "outcome": "reserved", "pinEstablished": false },
+      { "outcome": "pins", "recipients": [] }
+    ]
+  }
+}

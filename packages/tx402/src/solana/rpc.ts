@@ -78,7 +78,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 /**
  * Races the RPC in tx402's own control flow. The abort signal is only socket cleanup; it is
- * not trusted to enforce the deadline (S5's Request/WeakRef failure).
+ * not trusted to enforce the deadline (an earlier Request/WeakRef failure).
  */
 async function raceRpcDeadline<T>(
   work: Promise<T>,

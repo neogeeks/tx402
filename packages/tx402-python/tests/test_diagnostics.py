@@ -262,6 +262,12 @@ class TestSpecSection10EventContract:
             "sign.started": {"requestId", "signerKind"},
             "sign.completed": {"requestId", "signerKind", "durationMs"},
             "request.retried": {"requestId", "attempt", "selectedNetwork"},
+            "payment.exposed": {
+                "requestId",
+                "reservationId",
+                "assetId",
+                "amountAtomic",
+            },
             "payment.completed": {"requestId", "paid", "totalSdkOverheadMs"},
         }
         for name, fields in required.items():
@@ -279,6 +285,7 @@ class TestSpecSection10EventContract:
             "sign.started",
             "sign.completed",
             "request.retried",
+            "payment.exposed",
             "payment.completed",
         ]
 

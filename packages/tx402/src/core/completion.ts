@@ -6,7 +6,7 @@
  * module states it once, as data-in / data-out, for three reasons:
  *
  *  1. **It is the rule Python must reproduce exactly.** `completion.paid-attempt`
- *     conformance vectors drive this function directly, so S10 inherits the table rather
+ *     conformance vectors drive this function directly, so the CLI inherits the table rather
  *     than re-deriving it from prose.
  *  2. **The ordering of the branches is normative.** A 402 is checked before a 5xx check
  *     could ever see it, and the `maxPaidAttempts` boundary is checked *inside* the 402
@@ -23,9 +23,9 @@
  * Releasing on anything ambiguous would let the same money be spent twice against the
  * hourly cap.
  *
- * **S15b (ADR-016) made that asymmetry actually hold.** Until then the status line was
- * consulted first, so a 403 carrying a successful `PAYMENT-RESPONSE` released the
- * reservation and reported the call unpaid — the audit's O44. Settlement evidence is now
+ * **Settlement evidence is what makes that asymmetry actually hold (ADR-016).** If the status
+ * line were consulted first, a 403 carrying a successful `PAYMENT-RESPONSE` would release the
+ * reservation and report the call unpaid. Settlement evidence is now
  * read on every status and outranks the status line, and a present-but-undecodable header
  * is its own fourth evidence value rather than being folded into "absent".
  */
@@ -38,8 +38,8 @@ export const MAX_PAID_ATTEMPTS_REASON = "max-paid-attempts-exhausted";
 /**
  * What the merchant's PAYMENT-RESPONSE proves about settlement.
  *
- * Four values, not three. Until S15b `"unknown"` covered both an absent header and one
- * that does not decode, and the audit's O53 showed why that conflation is wrong: SPEC §6.7
+ * Four values, not three. Previously `"unknown"` covered both an absent header and one
+ * that does not decode, and review showed why that conflation is wrong: SPEC §6.7
  * accepts *missing* metadata because the pinned upstream protocol marks the header
  * optional, and says a 2xx is paid-success "only when any required upstream
  * PAYMENT-RESPONSE parses successfully". A header the merchant chose not to send and a
@@ -80,7 +80,7 @@ export interface PaidAttemptInput {
  *
  * `errorCode` is not always `TX402_PAYMENT_AMBIGUOUS`. The *kind* is the money
  * disposition; the *code* is the public error identity, and SPEC §6.1 names a specific one
- * for a cross-origin redirect. Keeping them as two fields is what let S15b fix O52 without
+ * for a cross-origin redirect. Keeping them as two fields lets the redirect error be reported without
  * touching what happens to the money.
  */
 export interface AmbiguousDisposition {

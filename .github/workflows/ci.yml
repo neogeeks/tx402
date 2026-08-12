@@ -81,6 +81,18 @@ jobs:
       - name: Release manifest signature (SEC-007)
         run: pnpm manifest:verify
 
+      # These falsifiability self-tests prove each supply-chain / adversarial / durable-store /
+      # toolchain guard can actually FAIL on a seeded regression. Before S13d they ran only in
+      # release.yml's `pnpm check` (tag time), so per-commit CI never exercised them (O41h). All are
+      # pure-logic (no Redis/DO/network), so they belong on every push — the guards protect release
+      # gates, and a broken guard should be caught the commit it breaks, not at the tag.
+      - name: Falsifiability self-tests (O28/O29/O31/O32)
+        run: |
+          pnpm supply-chain:selftest
+          pnpm adversarial:selftest
+          pnpm durable:selftest
+          pnpm toolchain:selftest
+
       # Diagnostic: an intermittent failure in this suite could not be reproduced locally,
       # and job logs are not readable without admin rights on the repository. Emitting the
       # failing lines as workflow annotations surfaces them through the checks API, which is
@@ -311,6 +323,204 @@ jobs:
           uv sync --all-extras
           uv run pytest -q
 
+      # 0.2.0 SpendStore contract twins, invocable in both languages (SPEC-0.2.0 §3.6, O9).
+      # Runs `python -m tx402.spend_store_contract` (the real entry point that replaced the
+      # zero-check no-op) and the TS `checkSpendStore` twin against MemorySpendStore v2, so the
+      # single-plane contract has a stable root script, not a prose-only job name (§14). The
+      # durable harness runs from the durable-store job at S7/S8.
+      - name: SpendStore contract suites (both languages)
+        run: pnpm contract:check
+
+  # 0.2.0 durable-store gate (SPEC-0.2.0 §12.2, §16). REAL as of S7a; grew the S7b governance arms.
+  # `pnpm durable:check redis` PINGs the backends and runs `checkDurableSpendStore` /
+  # `check_durable_spend_store` across all four adapter arms (TS ioredis + node-redis, Python sync
+  # + async) — backend-clock skew, cross-connection locator, cumulative cap, exposure, true-parallel
+  # atomicity, plane separation, PLUS S7b's governance (freeze with the capability-parameterized
+  # global arm, pins, administered limits), the persistence-disabled warning, and the raw Redis ACL
+  # data/admin split — on a STANDALONE AOF instance, a real 3-master CLUSTER
+  # (`atomicGlobalFreeze:false`), and a dedicated AOF instance the tests RESTART (`_check_restart`).
+  # Instead of the service container (no AOF, no Cluster) the job installs Redis from apt and
+  # launches all of it; ubuntu-24.04 ships Redis 7.0.x — the SPEC §12.2 floor (EVAL/TIME-in-atom,
+  # ACL DRYRUN; no 7.4-only HEXPIRE). S8 adds the Durable Object.
+  durable-store:
+    name: Durable store (Redis 7)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION_DEFAULT }}
+
+      # ioredis + node-redis (optional peers) and vitest come from the workspace install; the redis
+      # suite runs from source, so no `pnpm build` is needed for it.
+      - name: Install (pnpm)
+        run: pnpm install --frozen-lockfile
+
+      - uses: astral-sh/setup-uv@v9.0.0
+        with:
+          enable-cache: true
+
+      # redis-py (sync + asyncio) is in the dev group, so the default sync covers the Python arm.
+      - name: Sync (uv)
+        run: uv sync --all-extras
+        working-directory: packages/tx402-python
+
+      # Standalone (AOF, for the persistence arm + the durable suite) + a 3-master Cluster
+      # (atomicGlobalFreeze:false). The restart arm spawns its own dedicated AOF instance and needs
+      # `redis-server` on PATH, which apt provides.
+      - name: Install and launch Redis (standalone AOF + 3-master Cluster)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y redis-server redis-tools
+          redis-server --version
+          # apt auto-starts a systemd Redis on :6379 WITHOUT AOF; stop it so our AOF instance owns
+          # the port (else our launch fails to bind and the tests hit the non-AOF systemd server).
+          sudo systemctl disable --now redis-server 2>/dev/null || true
+          sudo service redis-server stop 2>/dev/null || true
+          sudo pkill -x redis-server 2>/dev/null || true
+          sleep 1
+          redis-server --daemonize yes --appendonly yes --port 6379 \
+            --dir "$RUNNER_TEMP" --pidfile "$RUNNER_TEMP/redis-standalone.pid" \
+            --logfile "$RUNNER_TEMP/redis-standalone.log"
+          for p in 7001 7002 7003; do
+            mkdir -p "$RUNNER_TEMP/cluster-$p"
+            redis-server --daemonize yes --port "$p" --cluster-enabled yes \
+              --cluster-config-file "$RUNNER_TEMP/cluster-$p/nodes.conf" \
+              --cluster-node-timeout 5000 --appendonly yes --dir "$RUNNER_TEMP/cluster-$p" \
+              --pidfile "$RUNNER_TEMP/cluster-$p/redis.pid" \
+              --logfile "$RUNNER_TEMP/cluster-$p/redis.log"
+          done
+          for port in 6379 7001 7002 7003; do
+            for _ in $(seq 1 40); do
+              redis-cli -p "$port" ping 2>/dev/null | grep -q PONG && break
+              sleep 0.5
+            done
+          done
+          # Fail loudly if the standalone did not come up with AOF on (e.g. the port was still held).
+          test "$(redis-cli -p 6379 config get appendonly | tail -1)" = "yes"
+          yes yes | redis-cli --cluster create 127.0.0.1:7001 127.0.0.1:7002 127.0.0.1:7003 --cluster-yes
+          redis-cli -p 7001 cluster info | grep cluster_state
+
+      # One stable script runs both languages against every arm (§14): TS ioredis + node-redis via
+      # vitest, then Python sync + async via pytest — standalone, Cluster, and AOF restart.
+      - name: Redis reachable + durable suite (TS + Python)
+        run: pnpm durable:check redis
+        env:
+          TX402_TEST_REDIS_URL: redis://localhost:6379
+          TX402_TEST_REDIS_CLUSTER: 127.0.0.1:7001,127.0.0.1:7002,127.0.0.1:7003
+          TX402_TEST_REDIS_RESTART: "1"
+
+  # 0.2.0 Durable Object gate (SPEC-0.2.0 §12.3, §16). REAL as of S8. Runs in a LOCAL Workers
+  # runtime (workerd via @cloudflare/vitest-pool-workers ~0.12, compatible with the repo's Vitest
+  # ^2.1 — O8) — no Cloudflare account, no network (O2). `pnpm durable:check do` runs the whole
+  # checkDurableSpendStore on BOTH topologies (id-per-scope → the incapable global-freeze arm;
+  # single-coordinator → the capable arm), plus the single-plane checkSpendStore twin, admin-token
+  # denial, fail-closed overload, and a local throughput baseline. The pool's workerd platform
+  # binary comes from the optional dep + its install script (onlyBuiltDependencies).
+  durable-object:
+    name: Durable Object (local Workers runtime)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v7
+        with:
+          # The Workers test pool prefers a current Node; the DO suite runs the runtime on Node 22.
+          node-version: "22"
+
+      # Installs @cloudflare/vitest-pool-workers + wrangler/miniflare + the workerd platform binary
+      # (no build needed — Vite transforms the DO source in the pool).
+      - name: Install (pnpm)
+        run: pnpm install --frozen-lockfile
+
+      - name: DO harness (checkDurableSpendStore, both topologies)
+        run: pnpm durable:check do
+
+  # 0.2.0 capability-gateway golden (SPEC-0.2.0 §12.5, §16). REAL as of S9. It (1) drift-checks the
+  # committed wire golden (`pnpm gateway:golden`, importing the built client), and (2) runs the whole
+  # `checkDurableSpendStore` BEHIND the reference gateways over BOTH backends from BOTH clients — TS
+  # + Python over Redis (the Node gateway, `serve-redis.mjs`) and over the Durable Object (the Worker
+  # gateway served by a local Workers runtime via miniflare, `serve-do.mjs`, no Cloudflare account).
+  # The TS-over-DO arm runs in the `durable-object` job (its vitest config includes the gateway DO
+  # suite); this job covers the golden, TS-over-Redis, and Python-over-both.
+  gateway-golden:
+    name: Gateway golden
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v7
+        with:
+          # miniflare/workerd (the served DO gateway) + the DO pool run on Node 22.
+          node-version: "22"
+
+      # miniflare + esbuild (the served DO gateway) come from the workspace install; the built
+      # client/adapters back the golden tool and the Node Redis gateway launcher.
+      - name: Install (pnpm)
+        run: pnpm install --frozen-lockfile
+
+      - uses: astral-sh/setup-uv@v9.0.0
+        with:
+          enable-cache: true
+
+      - name: Sync (uv)
+        run: uv sync --all-extras
+        working-directory: packages/tx402-python
+
+      # A standalone AOF Redis 7 on :6379 for the Redis-backed gateway arms (the gateway fronts it;
+      # ubuntu-24.04 ships 7.0.x, the SPEC §12.2 floor). Stop the apt-autostarted non-AOF instance so
+      # ours owns the port, mirroring the durable-store job.
+      - name: Install and launch Redis (standalone AOF)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y redis-server redis-tools
+          sudo systemctl disable --now redis-server 2>/dev/null || true
+          sudo service redis-server stop 2>/dev/null || true
+          sudo pkill -x redis-server 2>/dev/null || true
+          sleep 1
+          redis-server --daemonize yes --appendonly yes --port 6379 \
+            --dir "$RUNNER_TEMP" --pidfile "$RUNNER_TEMP/redis-gateway.pid" \
+            --logfile "$RUNNER_TEMP/redis-gateway.log"
+          for _ in $(seq 1 40); do
+            redis-cli -p 6379 ping 2>/dev/null | grep -q PONG && break
+            sleep 0.5
+          done
+          test "$(redis-cli -p 6379 config get appendonly | tail -1)" = "yes"
+
+      # dist backs the golden tool + the Node Redis gateway launcher (serve-redis.mjs imports it).
+      - name: Build distributions
+        run: pnpm build
+
+      - name: Gateway wire golden (drift check)
+        run: pnpm gateway:golden
+
+      - name: Gateway conformance — TS client over Redis
+        run: pnpm -C packages/tx402 exec vitest run test/gateway-store.test.ts test/gateway-golden.test.ts
+        env:
+          TX402_TEST_REDIS_URL: redis://localhost:6379
+
+      - name: Gateway conformance — Python client over Redis + DO
+        run: uv run pytest tests/test_gateway_store.py tests/test_gateway_durable.py --no-cov -q
+        working-directory: packages/tx402-python
+        env:
+          # The behind-gateway arms are opt-in (they spawn a Node gateway + a miniflare-served DO on
+          # Node 22); this is the one job provisioned for them, so it turns them on.
+          TX402_TEST_GATEWAY: "1"
+          TX402_TEST_REDIS_URL: redis://localhost:6379
+
   # SPEC §12.4 release gates that are cheap enough to run on every push. Kept in one job
   # rather than folded into the TypeScript matrix leg: these are release evidence, and a
   # release gate that only ran as a side effect of a compatibility leg is hard to point at
@@ -348,6 +558,12 @@ jobs:
         run: pnpm fuzz
         env:
           TX402_FUZZ_N: "200000"
+
+      # PRD-phase1 §27's unified adversarial driver: concurrency, store failure, signer
+      # failure, budget exhaustion, freeze, recipient pinning and exposure composed in one
+      # deterministic, offline run (three localhost servers, no testnet, no funds).
+      - name: Adversarial driver
+        run: pnpm adversarial
 
       # SPEC §12.3. `--expose-gc` is what makes the memory gate a measurement rather than a
       # skip: retained heap can only be compared after a forced collection.

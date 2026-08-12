@@ -1,0 +1,108 @@
+{
+  "$schema": "https://tx402.dev/schemas/v1/conformance-vector.schema.json",
+  "id": "recipient-pin.behavior.rotation-vs-reserve",
+  "kind": "recipient-pin.behavior",
+  "milestone": "M6",
+  "title": "Rotating a pin is race-free against reserve on one combined backend: a reserve asserts the old set or the new, never a torn state",
+  "spec": ["SPEC §6", "SPEC §6.2", "SPEC §6.7", "SPEC §3.4", "ADR-028"],
+  "description": "When the pin store and the budget store are one backend (the reference store), the in-reserve assertion makes rotation race-free (SPEC §6.7): a reserve either asserts the old recipient (admitted before the rotation) or the new one (after), never a half-applied state. TOFU first claims OLD (source tofu). An operator rotates the scope with set-recipient-pins to NEW (source now admin-allowlist, overwriting). A subsequent reserve paying OLD is refused not-allowlisted — the rotation is fully visible — while a reserve paying NEW is admitted. The pin readback shows only NEW.",
+  "input": {
+    "operations": [
+      {
+        "action": "set-tofu-enabled",
+        "scope": "merchant-rot.example",
+        "enabled": true,
+        "nowEpochMs": 1785715200000
+      },
+      {
+        "action": "reserve",
+        "reservationId": "00000000-0000-7000-8000-000000000951",
+        "requestId": "rot-R1",
+        "policyScope": "merchant-rot.example",
+        "requestFingerprint": "sha256:d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d111",
+        "assetId": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "amountAtomic": "1",
+        "maxPerHourAtomic": "10",
+        "recipientNetwork": "eip155:8453",
+        "recipientCanonical": "0x0100000000000000000000000000000000000010",
+        "recipientEnforcement": "tofu",
+        "nowEpochMs": 1785715200000
+      },
+      {
+        "action": "reserve",
+        "reservationId": "00000000-0000-7000-8000-000000000952",
+        "requestId": "rot-R2",
+        "policyScope": "merchant-rot.example",
+        "requestFingerprint": "sha256:d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d222",
+        "assetId": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "amountAtomic": "1",
+        "maxPerHourAtomic": "10",
+        "recipientNetwork": "eip155:8453",
+        "recipientCanonical": "0x0100000000000000000000000000000000000010",
+        "recipientEnforcement": "tofu",
+        "nowEpochMs": 1785715200000
+      },
+      {
+        "action": "set-recipient-pins",
+        "scope": "merchant-rot.example",
+        "network": "eip155:8453",
+        "recipients": ["0x0200000000000000000000000000000000000020"],
+        "nowEpochMs": 1785715200000
+      },
+      {
+        "action": "reserve",
+        "reservationId": "00000000-0000-7000-8000-000000000953",
+        "requestId": "rot-R3-old",
+        "policyScope": "merchant-rot.example",
+        "requestFingerprint": "sha256:d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d333",
+        "assetId": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "amountAtomic": "1",
+        "maxPerHourAtomic": "10",
+        "recipientNetwork": "eip155:8453",
+        "recipientCanonical": "0x0100000000000000000000000000000000000010",
+        "recipientEnforcement": "allowlist",
+        "nowEpochMs": 1785715200000
+      },
+      {
+        "action": "reserve",
+        "reservationId": "00000000-0000-7000-8000-000000000954",
+        "requestId": "rot-R4-new",
+        "policyScope": "merchant-rot.example",
+        "requestFingerprint": "sha256:d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d444",
+        "assetId": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "amountAtomic": "1",
+        "maxPerHourAtomic": "10",
+        "recipientNetwork": "eip155:8453",
+        "recipientCanonical": "0x0200000000000000000000000000000000000020",
+        "recipientEnforcement": "allowlist",
+        "nowEpochMs": 1785715200000
+      },
+      {
+        "action": "snapshot-pins",
+        "scope": "merchant-rot.example",
+        "network": "eip155:8453"
+      }
+    ]
+  },
+  "expected": {
+    "outcomes": [
+      { "outcome": "tofu-set" },
+      { "outcome": "reserved", "pinEstablished": true },
+      { "outcome": "reserved", "pinEstablished": false },
+      { "outcome": "pins-set" },
+      {
+        "outcome": "error",
+        "errorCode": "TX402_RECIPIENT_UNPINNED",
+        "reason": "not-allowlisted",
+        "network": "eip155:8453",
+        "presentedRecipient": "0x0100000000000000000000000000000000000010",
+        "expectedRecipients": ["0x0200000000000000000000000000000000000020"]
+      },
+      { "outcome": "reserved", "pinEstablished": false },
+      {
+        "outcome": "pins",
+        "recipients": ["0x0200000000000000000000000000000000000020"]
+      }
+    ]
+  }
+}

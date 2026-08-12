@@ -62,7 +62,7 @@ export interface EvmSigningRecord {
 const EXPECTED_PRIMARY_TYPE = "TransferWithAuthorization";
 const NONCE_PATTERN = /^0x[0-9a-fA-F]{64}$/u;
 
-/** Address resolution is cached per signer object, not per client (ADR-010, amended S5). */
+/** Address resolution is cached per signer object, not per client (ADR-010). */
 const addressCache = new WeakMap<EvmSigner, Promise<`0x${string}`>>();
 
 function signerFailure(

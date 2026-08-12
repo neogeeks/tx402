@@ -1,0 +1,91 @@
+---
+title: Migrating to 0.2.0
+description: What 0.2.0 changes, what it does not, and the path from a single process to a fleet sharing one budget.
+sidebar:
+  order: 5
+---
+
+0.2.0 is a minor release that, under [the versioning policy](https://github.com/neogeeks/tx402/blob/main/VERSIONING.md),
+is allowed to break you — and names every break. Most integrations are unaffected; a few that
+implement a custom store or call the ledger directly need small, mechanical changes. This page is
+both halves: what stays the same, and what to change.
+
+## If you keep the defaults, nothing changes
+
+A single-process integration that uses the default `MemorySpendStore` and sets neither `maxTotal`
+nor `recipientPolicy` behaves exactly as it did in v0.1. The new features are opt-in, the default
+policy is unchanged, and no configuration you already have means something different. You can upgrade
+and move on.
+
+The rest of this page matters if you **implement a custom `SpendStore`**, **call the ledger
+directly**, use the **async Python client**, or want to turn the per-process guardrails into a
+**fleet** control plane.
+
+## Breaking changes, and what each asks of you
+
+The full list is in the [changelog](https://github.com/neogeeks/tx402/blob/main/CHANGELOG.md#unreleased);
+here is what to actually do about each.
+
+- **The `SpendStore` contract is now v2.** A custom store must add `expose`, `listExposed`,
+  `isFrozen`, and a `capabilities` property (`{ atomicGlobalFreeze }`), and `reserve` must return a
+  `ReserveSpendResult` (`{ reservation, recipientPinEstablished }`) rather than a bare reservation.
+  Run the published conformance suite — `check_spend_store` / `checkSpendStore` — against your store;
+  it enforces every new member and the atomicity the whole design rests on. **Most people should not
+  implement a store at all in 0.2.0** — the [Redis, Durable Object, and gateway reference
+  stores](../../operations/shared-store/) exist so you don't have to.
+- **Lifecycle operations take a `ReservationRef`.** `release`, `expose`, and admin `resolveExposed`
+  accept `{ reservationId, policyScope, assetId }`, and `CommitSpendInput` gains `policyScope` /
+  `assetId`. An in-process caller passes the `SpendReservation` it already holds; a custom store
+  addresses records by the full triple, not a bare id.
+- **`commit` on an expired reservation is now refused** (`expired-cannot-commit`) where v0.1
+  permitted it. If you relied on the old permissive behaviour, commit before the reservation expires,
+  or reconcile through the exposure path instead.
+- **Durable stores window on their own clock.** `BudgetQuery.nowEpochMs` is advisory for a durable
+  store — it computes the window from backend time, so a query for a past instant works only on
+  `MemorySpendStore`. If a test advanced time by passing a `nowEpochMs`, drive the store's own clock
+  instead.
+- **`AsyncTx402Client.get_budget_state(...)` is now `async def`.** Add an `await`. The sync client is
+  unchanged.
+- **Recipient checking adds a fixed policy step.** Observable only when `recipientPolicy.mode` is not
+  `"off"`, so it does nothing until you opt in.
+- **Python `payTo` is now bounded at ≤ 128 characters**, matching TypeScript. A conformant address
+  is well under that; only a malformed one is now rejected earlier.
+- **Two new error codes**, `TX402_SPEND_FROZEN` and `TX402_RECIPIENT_UNPINNED` (both exit `3`). If you
+  match the taxonomy exhaustively, add the two arms; both are new refusals your code could not have
+  produced before.
+
+## Single process → a fleet on one budget
+
+This is the reason to upgrade. The path, in the order to do it:
+
+1. **Stand up a shared store.** Construct a reference store and pass it as `spendStore` /
+   `spend_store`, keeping the normalized-host scope you already use. The
+   [shared-store runbook](../../operations/shared-store/) does this on Redis; a Cloudflare deployment
+   uses the [Durable Object](../../operations/durable-object/), and the recommended production
+   boundary is a [gateway](../../operations/gateway/) in front of either.
+2. **Add a cumulative ceiling.** Set `policy.maxTotal` for a lifetime bound, not just an hourly rate.
+3. **Administer the caps in the store**, through the admin plane, so a drifted worker cannot widen
+   them — this is what turns "trusted identically-configured clients" into an enforced guarantee
+   (see [administered caps](../policy/#administered-caps)).
+4. **Provision two credentials.** A data-plane credential for the agents and an admin credential for
+   operators; the agents must not hold the admin one. On a gateway these are two bearer tokens; on
+   raw Redis, two ACL users.
+5. **Enable the kill switch** and learn the [`tx402 freeze` runbook](../../operations/kill-switch/).
+6. **Pin recipients** per merchant — allowlist first, or TOFU with a pin store — and document that a
+   legitimate recipient change now needs [`tx402 rotate-recipient`](../../operations/recipient-rotation/).
+7. **Adopt the exposed-reconciliation loop.** A shared cumulative cap means a maybe-settled payment
+   holds budget until you [reconcile it](../../operations/exposed-reconciliation/); this is the one
+   new manual day-2 task, and it is what keeps a fleet from ever spending past its ceiling.
+
+[`examples/python/fleet.py`](https://github.com/neogeeks/tx402/blob/main/examples/python/fleet.py)
+is steps 1–5 in one runnable file.
+
+:::caution[State the promise honestly]
+The fleet guarantee holds only with **all** of it: a shared durable store, administered caps, freeze,
+and a recipient policy. It is a guarantee for **cooperating** clients holding data-plane credentials
+— the fleet shares one budget, spending can be frozen, and no merchant can silently redirect a
+payment. It is **not** protection of the spending path against a *compromised* application, which
+still holds the signer; that needs signer mediation and arrives in 0.3.0. Say so in your own
+production-readiness notes rather than implying more — the [security model](../../security/) is the
+reference.
+:::

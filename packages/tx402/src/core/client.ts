@@ -4,18 +4,21 @@
  * The ordering in {@link executePayment} is the security-critical part of this file and is
  * not an implementation detail:
  *
- *   parse → policy → plan → **reserve** → sign → retry → commit
+ *   parse → policy → plan → **reserve** → sign → **expose (fence)** → transmit → commit
  *
  * SEC-002 requires every policy check and the budget reservation to complete before a signer
  * is invoked, and SPEC §6.6 requires the reservation to exist before signing. Both are
  * enforced structurally here — the adapter that can sign is not reachable until the
  * reservation has been written — rather than by a comment asking future edits to be careful.
  *
- * The other rule that shapes the code is SPEC §6.7's asymmetry after a signature is
- * transmitted. Before transmission, a failure releases the reservation. After transmission,
- * the outcome may be a settled payment tx402 never saw, so the reservation is **retained**
- * until its TTL and the caller gets `AmbiguousPaymentError`. Releasing there would let the
- * same money be spent twice against the hourly cap.
+ * The other rule that shapes the code is SPEC §6.7/§7's asymmetry around transmission. The
+ * signed retry is preceded by a durable **pre-transmission exposure fence** (`store.expose`,
+ * ADR-026): it moves the reservation `reserved → exposed`, removes its 120 s expiry, and the
+ * transmit proceeds only if that write recorded. Before the fence, a failure releases the
+ * reservation; after it, the outcome may be a settled payment tx402 never saw, so the
+ * reservation stays **exposed** — durable, non-expiring, counting against both caps — until it
+ * commits (settlement), releases (definitive refusal/re-challenge), or an operator reconciles
+ * it. Releasing an ambiguous outcome would let the same money be spent twice against the cap.
  */
 
 import { createHash, randomBytes } from "node:crypto";
@@ -43,8 +46,10 @@ import {
   InvalidPaymentRequiredError,
   NonReplayableRequestError,
   PaidRedirectBlockedError,
+  RecipientUnpinnedError,
   ReservedHeaderError,
   ResourceDeliveryError,
+  SpendScopeFrozenError,
   TransportError,
   TX402_ERROR_CODES,
   UnsupportedSchemeError,
@@ -57,8 +62,12 @@ import { fingerprintRequest } from "./fingerprint.js";
 import { HealthIndex } from "./health.js";
 import {
   MemorySpendStore,
+  canonicalizeRecipient,
   type BudgetState,
+  type RecipientPinStore,
+  type ReservationRef,
   type ReserveSpendInput,
+  type ReserveSpendResult,
   type SpendEntry,
   type SpendReservation,
   type SpendStore,
@@ -69,6 +78,7 @@ import {
   normalizePolicyHost,
   type PolicyConfig,
   type PolicyRequirement,
+  type RecipientPolicyConfig,
   type RoutingPolicyConfig,
 } from "./policy.js";
 import { decodePaymentRequired, type NormalizedPaymentRequired } from "./protocol.js";
@@ -89,6 +99,33 @@ export interface Tx402Logger {
   error(event: Readonly<Record<string, unknown>>): void;
 }
 
+/**
+ * Every event name the request path emits, in roughly the order a successful paid call produces
+ * them (SPEC §10). Exported — mirroring Python's `tx402.EVENT_NAMES`, so the set ships in both
+ * languages — so a caller can exhaustively switch without string literals and one log pipeline
+ * can parse either SDK's stream. `as const`, so {@link Tx402EventName} is the exact literal
+ * union; the emitting call sites below use these same names (asserted in the tests).
+ */
+export const EVENT_NAMES = [
+  "request.started",
+  "payment.required",
+  "policy.checked",
+  "route.planned",
+  "budget.reserved",
+  "recipient.pinned",
+  "recipient.rejected",
+  "spend.frozen",
+  "sign.started",
+  "sign.completed",
+  "request.retried",
+  "payment.exposed",
+  "payment.completed",
+  "request.failed",
+] as const;
+
+/** The union of every {@link EVENT_NAMES} value — a request-path event's `event` field. */
+export type Tx402EventName = (typeof EVENT_NAMES)[number];
+
 export interface Tx402Clock {
   now(): number;
   monotonic(): number;
@@ -106,6 +143,8 @@ export interface Tx402ClientConfig {
   readonly policy?: PolicyConfig;
   readonly timeouts?: Tx402Timeouts;
   readonly routing?: RoutingPolicyConfig;
+  /** Recipient pinning (SPEC §6.1, ADR-028). `mode` default `"off"` — opt-in, v0.1-compatible. */
+  readonly recipientPolicy?: RecipientPolicyConfig;
   readonly spendStore?: SpendStore;
   readonly manifest?: ReleaseManifest;
   readonly logger?: Tx402Logger;
@@ -208,6 +247,13 @@ export const SPEND_STORE_COMMIT_FAILED_REASON = "spend-store-commit-failed";
 
 /** `details.causeCategory` when the spend store failed before anything was signed. */
 export const SPEND_STORE_UNAVAILABLE_CAUSE = "spend-store-unavailable";
+
+/**
+ * `details.causeCategory` when the pre-transmission exposure fence (SPEC §7, ADR-026) could not
+ * be recorded. The signature exists but never reached the wire (SEC-002), so the reservation is
+ * released and the failure is a retryable `TransportError` — never a silent skip.
+ */
+export const EXPOSURE_FENCE_FAILED_CAUSE = "exposure-fence-failed";
 
 /**
  * What to run when a chain family's optional peers are missing (O47).
@@ -384,7 +430,7 @@ interface PreparedRequest {
    * The ledger scope for this request: the normalized merchant host (SPEC §5.3, ADR-018).
    *
    * Computed here, once, from the request that is actually going out — not held on the
-   * client. A client is not a tenant; a merchant host is. Before S15b this was a per-client
+   * client. A client is not a tenant; a merchant host is. Previously this was a per-client
    * UUID, so two clients sharing one `SpendStore` saw two ledgers for one host and one
    * client saw one ledger across every host it called (O45).
    */
@@ -576,7 +622,7 @@ async function adapterFor(
     return await pending;
   } catch (error) {
     // A missing optional peer dependency arrives here as a module resolution failure. The
-    // message names the exact packages rather than saying "dependencies": the audit's O47
+    // message names the exact packages rather than saying "dependencies": a review
     // showed a caller can follow every documented step and still land here, and being told
     // *which* install to run is the difference between a one-line fix and a bug report.
     runtime.adapters.delete(family);
@@ -727,7 +773,7 @@ const SETTLEMENT_UNPARSEABLE_REASON = "payment-response-unparseable";
  *  - Absent and undecodable are **different** evidence values. Upstream marks the header
  *    optional, so absent is forgiven; a header that is present and does not decode is a
  *    protocol violation and is evidence of nothing (O53).
- *  - **It emits nothing.** Evidence is not an outcome. Until S15d the absent branch logged
+ *  - **It emits nothing.** Evidence is not an outcome. Previously the absent branch logged
  *    `payment.completed` with `paid: true` from here, which is only true when that evidence
  *    later reaches the table's commit row — a headerless 403 refusal and a headerless 402
  *    re-challenge both produced a paid-success event for a call that paid nothing (O57).
@@ -868,12 +914,22 @@ async function attemptPayment(
   selection: { assetId?: string },
 ): Promise<AttemptOutcome> {
   /* Policy — entirely local, before any balance read or signer call (SEC-002). */
-  const decision = await runtime.policyEngine.evaluate(challenge, {
-    requestId,
-    policyScope: prepared.policyScope,
-    nowEpochMs: runtime.clock.now(),
-    spendStore: runtime.spendStore,
-  });
+  let decision;
+  try {
+    decision = await runtime.policyEngine.evaluate(challenge, {
+      requestId,
+      policyScope: prepared.policyScope,
+      nowEpochMs: runtime.clock.now(),
+      spendStore: runtime.spendStore,
+    });
+  } catch (error) {
+    // The advisory recipient pre-filter dropped every route (SPEC §6.2). Emit `recipient.rejected`
+    // once for this attempt, then propagate the non-retryable refusal.
+    if (error instanceof RecipientUnpinnedError) {
+      emitRecipientRejected(runtime, requestId, error);
+    }
+    throw error;
+  }
   emit(runtime.logger, "info", {
     event: "policy.checked",
     requestId,
@@ -908,13 +964,29 @@ async function attemptPayment(
     body: prepared.bodyBytes,
     challengeHash: challenge.headerHash,
   });
-  const reservation: SpendReservation = await reserveOrFail(runtime, {
+  // `reserve` returns a result (SPEC §3.2); the client already holds the reservation. The
+  // client ALWAYS sends the recipient it is about to pay (canonicalized, §6.4) so an
+  // administered `recipientAssertionRequired` rejects a caller that omits it (§3.4 step 3), and
+  // sends its configured `recipientEnforcement` so the atom can fail closed when TOFU is
+  // expected but unprovisioned. `recipientPinEstablished` is response-only (ADR-028).
+  const recipientNetwork = selected.requirement.network;
+  const recipientCanonical = canonicalizeRecipient(
+    recipientNetwork,
+    selected.requirement.payTo,
+  );
+  const { reservation, recipientPinEstablished } = await reserveOrFail(runtime, {
     requestId,
     policyScope: prepared.policyScope,
     requestFingerprint: requestHash,
     assetId: selected.requirement.assetId,
     amountAtomic: selected.requirement.amountAtomic,
     maxPerHourAtomic: selected.requirement.maxPerHourAtomic,
+    ...(selected.requirement.maxTotalAtomic === undefined
+      ? {}
+      : { maxTotalAtomic: selected.requirement.maxTotalAtomic }),
+    recipientNetwork,
+    recipientCanonical,
+    recipientEnforcement: runtime.policyEngine.recipientMode,
     nowEpochMs: runtime.clock.now(),
   });
   emit(runtime.logger, "info", {
@@ -924,6 +996,18 @@ async function attemptPayment(
     assetId: reservation.assetId,
     amountAtomic: reservation.amountAtomic,
   });
+  // Exactly one worker logs a TOFU establishment: the flag is true only for the atom that
+  // claimed the pin, and an id-reuse replay returns it false (ADR-028, §6.2 replay-safety).
+  if (recipientPinEstablished) {
+    emit(runtime.logger, "info", {
+      event: "recipient.pinned",
+      requestId,
+      reservationId: reservation.reservationId,
+      assetId: reservation.assetId,
+      network: recipientNetwork,
+      recipient: recipientCanonical,
+    });
+  }
 
   const errorContext: Tx402ErrorContext = {
     requestId,
@@ -986,7 +1070,7 @@ async function attemptPayment(
       durationMs: Math.max(0, runtime.clock.monotonic() - signStartedAt),
     });
   } catch (error) {
-    await releaseQuietly(runtime, reservation.reservationId);
+    await releaseQuietly(runtime, reservation);
     throw error;
   }
 
@@ -995,7 +1079,7 @@ async function attemptPayment(
   try {
     paid = await buildPaidRequest(prepared, signatureHeader, requestId, runtime);
   } catch (error) {
-    await releaseQuietly(runtime, reservation.reservationId);
+    await releaseQuietly(runtime, reservation);
     throw error;
   }
 
@@ -1005,6 +1089,17 @@ async function attemptPayment(
     attempt,
     selectedNetwork: selected.route.networkId,
   });
+
+  /*
+   * Pre-transmission exposure fence (SPEC §7, ADR-026, D-A2). The signature has been created and
+   * encoded but is NOT yet on the wire (SEC-002), so the reservation is exposed durably before it
+   * can be: `expose` moves `reserved → exposed`, removes the 120 s expiry, and increments the
+   * durable `exposedTotal`. This is the boundary the whole exposure-accounting change turns on —
+   * transmission proceeds only if the fence recorded, so a crash or an ambiguous outcome leaves a
+   * visible, non-expiring record rather than a reservation that expires and drops a
+   * possibly-settled payment out of the cap. A failed write aborts the transmit (see below).
+   */
+  await exposeOrFail(runtime, reservation, requestId, errorContext);
 
   /*
    * From here on the signature is on the wire, so no failure path may assume otherwise.
@@ -1095,7 +1190,7 @@ async function attemptPayment(
   // Both remaining non-commit dispositions release: the merchant either re-challenged or
   // refused, and each is evidence that no settlement occurred (SPEC §6.7).
   if (disposition.kind !== "commit") {
-    await releaseQuietly(runtime, reservation.reservationId);
+    await releaseQuietly(runtime, reservation);
   }
 
   if (disposition.kind === "rechallenge") {
@@ -1202,13 +1297,57 @@ async function attemptPayment(
  * `caller-policy` retryable code — is the honest classification. `BudgetExceededError` and
  * anything else already typed pass through untouched: a refused budget is not an outage.
  */
+/**
+ * `recipient.rejected` at `warn` (SPEC §11), one per attempt whose recipient was refused —
+ * whether advisorily in `evaluate` (§6.2) or authoritatively in `reserve` (§3.4 step 3). The
+ * `reason` is redaction-safe; `network`/`presentedRecipient` are carried when the refusal
+ * knows them (absent for `assertion-required`).
+ */
+function emitRecipientRejected(
+  runtime: ClientRuntime,
+  requestId: string,
+  error: RecipientUnpinnedError,
+): void {
+  emit(runtime.logger, "warn", {
+    event: "recipient.rejected",
+    requestId,
+    merchantScope: error.details["merchantScope"],
+    reason: error.details["reason"],
+    ...(error.details["network"] === undefined
+      ? {}
+      : { network: error.details["network"] }),
+    ...(error.details["presentedRecipient"] === undefined
+      ? {}
+      : { presentedRecipient: error.details["presentedRecipient"] }),
+  });
+}
+
 async function reserveOrFail(
   runtime: ClientRuntime,
   input: ReserveSpendInput,
-): Promise<SpendReservation> {
+): Promise<ReserveSpendResult> {
   try {
     return await runtime.spendStore.reserve(input);
   } catch (error) {
+    if (error instanceof SpendScopeFrozenError) {
+      // A frozen scope is an authoritative policy refusal, not an outage (SPEC §5.3). One
+      // `spend.frozen` per denied reserve, at `warn`, before the typed error propagates.
+      emit(runtime.logger, "warn", {
+        event: "spend.frozen",
+        requestId: input.requestId,
+        assetId: input.assetId,
+        scope: error.details["scope"],
+        frozenScope: error.details["frozenScope"],
+      });
+      throw error;
+    }
+    if (error instanceof RecipientUnpinnedError) {
+      // Authoritative recipient refusal (SPEC §6.2). `recipient.rejected` at `warn`, one per
+      // denied reserve, before the non-retryable typed error propagates (a store OUTAGE below
+      // is a different path — a retryable TransportError, never this event, SS-11).
+      emitRecipientRejected(runtime, input.requestId, error);
+      throw error;
+    }
     if (isTx402Error(error)) throw error;
     throw new TransportError("The spend store could not take a reservation", {
       context: {
@@ -1227,16 +1366,65 @@ async function reserveOrFail(
 }
 
 /** Releases a reservation without letting a store failure mask the original error. */
-async function releaseQuietly(
-  runtime: ClientRuntime,
-  reservationId: string,
-): Promise<void> {
+async function releaseQuietly(runtime: ClientRuntime, ref: ReservationRef): Promise<void> {
   try {
-    await runtime.spendStore.release(reservationId, runtime.clock.now());
+    await runtime.spendStore.release(ref, runtime.clock.now());
   } catch {
-    // The reservation expires on its own after 120 s; a store that cannot release is not a
+    // A release that cannot be recorded falls back to the store's own GC — a never-transmitted
+    // `reserved` record expires after 120 s, an `exposed` one never expires and waits for an
+    // operator's `resolveExposed` (ADR-026). Either way, a store that cannot release is not a
     // reason to replace a precise failure with a vaguer one.
   }
+}
+
+/**
+ * The durable PRE-transmission exposure fence (SPEC §7, ADR-026, D-A2), run once per attempt
+ * immediately before the signed retry is transmitted.
+ *
+ * On success the reservation is `exposed` — non-expiring, counting against both caps — and a
+ * `payment.exposed` event fires at `info`. On failure the signature has not left the process
+ * (SEC-002), so the reservation is released and the caller gets a retryable `TransportError`
+ * (`causeCategory: "exposure-fence-failed"`) plus a `payment.exposed` at `error`: a failed
+ * fence is a clean, honest, pre-transmission abort, never a silent skip. Every failure converts
+ * uniformly — a store outage and a typed store-invariant error alike — because at this point,
+ * with nothing on the wire, a retry is always safe.
+ */
+async function exposeOrFail(
+  runtime: ClientRuntime,
+  reservation: SpendReservation,
+  requestId: string,
+  errorContext: Tx402ErrorContext,
+): Promise<void> {
+  try {
+    await runtime.spendStore.expose(reservation, runtime.clock.now());
+  } catch (error) {
+    await releaseQuietly(runtime, reservation);
+    emit(runtime.logger, "error", {
+      event: "payment.exposed",
+      requestId,
+      reservationId: reservation.reservationId,
+      assetId: reservation.assetId,
+      reason: EXPOSURE_FENCE_FAILED_CAUSE,
+    });
+    throw new TransportError(
+      "The exposure fence could not be recorded before transmission",
+      {
+        context: errorContext,
+        details: {
+          causeCategory: EXPOSURE_FENCE_FAILED_CAUSE,
+          storeKind: runtime.spendStore.kind,
+        },
+        cause: error,
+      },
+    );
+  }
+  emit(runtime.logger, "info", {
+    event: "payment.exposed",
+    requestId,
+    reservationId: reservation.reservationId,
+    assetId: reservation.assetId,
+    amountAtomic: reservation.amountAtomic,
+  });
 }
 
 /**
@@ -1246,13 +1434,15 @@ async function releaseQuietly(
  * broken tx402's *accounting*, not the merchant's *settlement*, and the two must not be
  * conflated:
  *
- *  - It is **not** a transport failure. Before S15b this surfaced as `TX402_TRANSPORT`
+ *  - It is **not** a transport failure. Previously this surfaced as `TX402_TRANSPORT`
  *    with `retryable: true` at `phase: "policy"`, which invites the one action that can
  *    pay twice. `ResourceDeliveryError` is `app-dependent`, so `retryable` is false.
  *  - `paid` is **`true`**, not `"unknown"`. The merchant's own metadata reported a
  *    successful settlement; tx402 knows the money moved and says so.
- *  - The reservation is deliberately **not** released. It still counts against the hourly
- *    cap until its TTL, which is the conservative direction to be wrong in.
+ *  - The reservation is deliberately **not** released. The fence ran before transmission, so
+ *    it is `exposed` — non-expiring — and keeps counting against both the hourly and cumulative
+ *    caps until an operator reconciles it with `resolveExposed` (ADR-026), which is the
+ *    conservative direction to be wrong in.
  */
 async function commitOrFail(
   runtime: ClientRuntime,
@@ -1264,17 +1454,15 @@ async function commitOrFail(
   try {
     return await runtime.spendStore.commit({
       reservationId: reservation.reservationId,
+      policyScope: reservation.policyScope,
+      assetId: reservation.assetId,
       committedAtEpochMs: runtime.clock.now(),
       ...(settlementId === undefined ? {} : { settlementId }),
     });
   } catch (error) {
-    emit(runtime.logger, "error", {
-      event: "request.failed",
-      requestId: errorContext.requestId,
-      errorCode: TX402_ERROR_CODES.resourceDelivery,
-      phase: "complete",
-      paid: true,
-    });
+    // NO `request.failed` here — the thrown ResourceDeliveryError (context.paid true) reaches the
+    // single advertised emit point in `failure()`, which logs it exactly once at `error`. Emitting
+    // here as well double-counted the terminal event for one request (O18, contradicting §11).
     throw new ResourceDeliveryError(
       "The payment settled but the spend store could not record it",
       {
@@ -1296,7 +1484,7 @@ async function commitOrFail(
  *
  * Which class is raised comes from the disposition's `errorCode`, not from this function:
  * SPEC §6.1 requires a cross-origin redirect to raise `PaidRedirectBlockedError`, and
- * before S15b the high-level client swallowed it and reported `AmbiguousPaymentError`
+ * previously the high-level client swallowed it and reported `AmbiguousPaymentError`
  * instead (O52). The money disposition is identical either way — retained to TTL — so the
  * fix is an identity fix and nothing more.
  */
@@ -1394,7 +1582,7 @@ export function createTx402Client(config: Tx402ClientConfig = {}): Tx402Client {
   // here for the same reason `spendStore` is checked below: `emit` deliberately swallows
   // logger failures so that a broken logger can never fail a payment that already settled,
   // and that isolation turned a misconfigured hook into perfect silence — a function passed
-  // where an object belongs produced zero events and no error (PLAN.md O71). The
+  // where an object belongs produced zero events and no error. The
   // suppression is correct and stays; accepting a value that can never work is not.
   for (const level of ["debug", "info", "warn", "error"] as const) {
     // Optional chaining covers null and every non-object in one comparison, which matters
@@ -1417,14 +1605,46 @@ export function createTx402Client(config: Tx402ClientConfig = {}): Tx402Client {
     typeof spendStore.reserve !== "function" ||
     typeof spendStore.commit !== "function" ||
     typeof spendStore.release !== "function" ||
-    typeof spendStore.getBudgetState !== "function"
+    typeof spendStore.expose !== "function" ||
+    typeof spendStore.getBudgetState !== "function" ||
+    typeof spendStore.listExposed !== "function" ||
+    typeof spendStore.isFrozen !== "function" ||
+    // Only the DATA plane is validated — the admin methods are never on this path (ADR-029).
+    // `capabilities.atomicGlobalFreeze` must be present so the harness can read it (SPEC §3.1).
+    typeof spendStore.capabilities !== "object" ||
+    spendStore.capabilities === null ||
+    typeof spendStore.capabilities.atomicGlobalFreeze !== "boolean"
   ) {
     throw new ConfigurationError("spendStore must implement the SpendStore contract", {
       context: context("configuration", "initial"),
       details: { configPath: "spendStore", reason: "invalid-spend-store" },
     });
   }
-  const policyEngine = new PolicyEngine(manifest, config.policy, config.routing);
+  const policyEngine = new PolicyEngine(
+    manifest,
+    config.policy,
+    config.routing,
+    config.recipientPolicy,
+  );
+  // A `mode:"tofu"` client MUST fail closed unless the store implements RecipientPinStore
+  // (SPEC §6.1) — the advisory read and the CLI need it. The data-plane check above never
+  // requires these, so this is the one place they are asserted for tofu.
+  if (
+    policyEngine.recipientMode === "tofu" &&
+    (typeof (spendStore as Partial<RecipientPinStore>).getRecipientPins !== "function" ||
+      typeof (spendStore as Partial<RecipientPinStore>).getRecipientPolicy !== "function")
+  ) {
+    throw new ConfigurationError(
+      "recipientPolicy mode 'tofu' requires a RecipientPinStore",
+      {
+        context: context("configuration", "initial"),
+        details: {
+          configPath: "recipientPolicy",
+          reason: "recipient-tofu-needs-pin-store",
+        },
+      },
+    );
+  }
 
   const runtime: ClientRuntime = {
     manifest,
@@ -1445,7 +1665,7 @@ export function createTx402Client(config: Tx402ClientConfig = {}): Tx402Client {
    * paid request, for **that request's** scope and asset.
    *
    * It carries `policyScope` and `assetId` so it is self-describing rather than an
-   * unlabelled pair of numbers — the S15 audit's O45 found a caller could not tell which
+   * unlabelled pair of numbers — a review found a caller could not tell which
    * host and asset the figures belonged to, and in fact they belonged to nothing, because
    * the store was never read. `queryBudgetState` is the way to ask about a scope the
    * client has not just paid.

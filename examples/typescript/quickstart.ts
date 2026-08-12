@@ -39,8 +39,10 @@ const tx402 = createTx402Client({
   ...(isLocalhost ? { allowInsecureLocalhost: true } : {}),
 
   // These are the guardrails, and they run before the signer is reachable. `maxPerHour` is
-  // the one that bounds a compromise: if something induces this process to pay repeatedly,
-  // the ceiling is this number rather than the wallet balance.
+  // the one that bounds *induced* spend: if something drives this process to pay repeatedly
+  // through tx402, the ceiling is this number rather than the wallet balance. (A fully
+  // compromised process holds the signer and can bypass the store — that is the 0.3.0
+  // signer-mediation work, not a 0.2.0 guarantee.)
   policy: {
     maxPerRequest: "0.10 USDC",
     maxPerHour: "1.00 USDC",

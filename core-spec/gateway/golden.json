@@ -1,0 +1,1969 @@
+{
+  "protocolVersion": 1,
+  "versionHeader": "TX402-Gateway-Version",
+  "pathPrefix": "/v1",
+  "requests": [
+    {
+      "op": "reserve",
+      "scope": "data",
+      "method": "POST",
+      "path": "/v1/reserve",
+      "headers": {
+        "content-type": "application/json",
+        "TX402-Gateway-Version": "1",
+        "authorization": "Bearer golden-token"
+      },
+      "body": {
+        "reservationId": "res-1",
+        "requestId": "req-1",
+        "policyScope": "merchant.example",
+        "requestFingerprint": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+        "assetId": "eip155:8453/erc20:0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+        "amountAtomic": "1500",
+        "maxPerHourAtomic": "1000000",
+        "maxTotalAtomic": "5000000",
+        "recipientNetwork": "eip155:8453",
+        "recipientCanonical": "0x1111111111111111111111111111111111111111",
+        "recipientEnforcement": "tofu",
+        "nowEpochMs": 1800000000000
+      }
+    },
+    {
+      "op": "commit",
+      "scope": "data",
+      "method": "POST",
+      "path": "/v1/commit",
+      "headers": {
+        "content-type": "application/json",
+        "TX402-Gateway-Version": "1",
+        "authorization": "Bearer golden-token"
+      },
+      "body": {
+        "ref": {
+          "reservationId": "res-1",
+          "policyScope": "merchant.example",
+          "assetId": "eip155:8453/erc20:0x833589fcd6edb6e08f4c7c32d4f71b54bda02913"
+        },
+        "committedAtEpochMs": 1800000000010,
+        "settlementId": "0xsettlement"
+      }
+    },
+    {
+      "op": "release",
+      "scope": "data",
+      "method": "POST",
+      "path": "/v1/release",
+      "headers": {
+        "content-type": "application/json",
+        "TX402-Gateway-Version": "1",
+        "authorization": "Bearer golden-token"
+      },
+      "body": {
+        "ref": {
+          "reservationId": "res-1",
+          "policyScope": "merchant.example",
+          "assetId": "eip155:8453/erc20:0x833589fcd6edb6e08f4c7c32d4f71b54bda02913"
+        },
+        "nowEpochMs": 1800000000005
+      }
+    },
+    {
+      "op": "expose",
+      "scope": "data",
+      "method": "POST",
+      "path": "/v1/expose",
+      "headers": {
+        "content-type": "application/json",
+        "TX402-Gateway-Version": "1",
+        "authorization": "Bearer golden-token"
+      },
+      "body": {
+        "ref": {
+          "reservationId": "res-1",
+          "policyScope": "merchant.example",
+          "assetId": "eip155:8453/erc20:0x833589fcd6edb6e08f4c7c32d4f71b54bda02913"
+        },
+        "nowEpochMs": 1800000000005
+      }
+    },
+    {
+      "op": "getBudgetState",
+      "scope": "data",
+      "method": "POST",
+      "path": "/v1/getBudgetState",
+      "headers": {
+        "content-type": "application/json",
+        "TX402-Gateway-Version": "1",
+        "authorization": "Bearer golden-token"
+      },
+      "body": {
+        "policyScope": "merchant.example",
+        "assetId": "eip155:8453/erc20:0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+        "nowEpochMs": 1800000000000
+      }
+    },
+    {
+      "op": "listExposed",
+      "scope": "data",
+      "method": "POST",
+      "path": "/v1/listExposed",
+      "headers": {
+        "content-type": "application/json",
+        "TX402-Gateway-Version": "1",
+        "authorization": "Bearer golden-token"
+      },
+      "body": {
+        "policyScope": "merchant.example",
+        "assetId": "eip155:8453/erc20:0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+        "nowEpochMs": 1800000000000
+      }
+    },
+    {
+      "op": "isFrozen",
+      "scope": "data",
+      "method": "POST",
+      "path": "/v1/isFrozen",
+      "headers": {
+        "content-type": "application/json",
+        "TX402-Gateway-Version": "1",
+        "authorization": "Bearer golden-token"
+      },
+      "body": {
+        "scope": "merchant.example"
+      }
+    },
+    {
+      "op": "getRecipientPins",
+      "scope": "data",
+      "method": "POST",
+      "path": "/v1/getRecipientPins",
+      "headers": {
+        "content-type": "application/json",
+        "TX402-Gateway-Version": "1",
+        "authorization": "Bearer golden-token"
+      },
+      "body": {
+        "scope": "merchant.example",
+        "network": "eip155:8453"
+      }
+    },
+    {
+      "op": "getRecipientPolicy",
+      "scope": "data",
+      "method": "POST",
+      "path": "/v1/getRecipientPolicy",
+      "headers": {
+        "content-type": "application/json",
+        "TX402-Gateway-Version": "1",
+        "authorization": "Bearer golden-token"
+      },
+      "body": {
+        "scope": "merchant.example"
+      }
+    },
+    {
+      "op": "capabilities",
+      "scope": "data",
+      "method": "POST",
+      "path": "/v1/capabilities",
+      "headers": {
+        "content-type": "application/json",
+        "TX402-Gateway-Version": "1",
+        "authorization": "Bearer golden-token"
+      },
+      "body": {}
+    },
+    {
+      "op": "freeze",
+      "scope": "admin",
+      "method": "POST",
+      "path": "/v1/freeze",
+      "headers": {
+        "content-type": "application/json",
+        "TX402-Gateway-Version": "1",
+        "authorization": "Bearer golden-token"
+      },
+      "body": {
+        "scope": "merchant.example",
+        "nowEpochMs": 1800000000000
+      }
+    },
+    {
+      "op": "unfreeze",
+      "scope": "admin",
+      "method": "POST",
+      "path": "/v1/unfreeze",
+      "headers": {
+        "content-type": "application/json",
+        "TX402-Gateway-Version": "1",
+        "authorization": "Bearer golden-token"
+      },
+      "body": {
+        "scope": "merchant.example",
+        "nowEpochMs": 1800000000000
+      }
+    },
+    {
+      "op": "setRecipientPins",
+      "scope": "admin",
+      "method": "POST",
+      "path": "/v1/setRecipientPins",
+      "headers": {
+        "content-type": "application/json",
+        "TX402-Gateway-Version": "1",
+        "authorization": "Bearer golden-token"
+      },
+      "body": {
+        "scope": "merchant.example",
+        "network": "eip155:8453",
+        "recipients": [
+          "0x1111111111111111111111111111111111111111"
+        ],
+        "nowEpochMs": 1800000000000
+      }
+    },
+    {
+      "op": "setBudgetLimits",
+      "scope": "admin",
+      "method": "POST",
+      "path": "/v1/setBudgetLimits",
+      "headers": {
+        "content-type": "application/json",
+        "TX402-Gateway-Version": "1",
+        "authorization": "Bearer golden-token"
+      },
+      "body": {
+        "scope": "merchant.example",
+        "assetId": "eip155:8453/erc20:0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+        "limits": {
+          "maxPerHourAtomic": "100",
+          "maxTotalAtomic": "1000"
+        },
+        "nowEpochMs": 1800000000000
+      }
+    },
+    {
+      "op": "getBudgetLimits",
+      "scope": "admin",
+      "method": "POST",
+      "path": "/v1/getBudgetLimits",
+      "headers": {
+        "content-type": "application/json",
+        "TX402-Gateway-Version": "1",
+        "authorization": "Bearer golden-token"
+      },
+      "body": {
+        "scope": "merchant.example",
+        "assetId": "eip155:8453/erc20:0x833589fcd6edb6e08f4c7c32d4f71b54bda02913"
+      }
+    },
+    {
+      "op": "setRecipientAssertionRequired",
+      "scope": "admin",
+      "method": "POST",
+      "path": "/v1/setRecipientAssertionRequired",
+      "headers": {
+        "content-type": "application/json",
+        "TX402-Gateway-Version": "1",
+        "authorization": "Bearer golden-token"
+      },
+      "body": {
+        "scope": "merchant.example",
+        "required": true,
+        "nowEpochMs": 1800000000000
+      }
+    },
+    {
+      "op": "setTofuEnabled",
+      "scope": "admin",
+      "method": "POST",
+      "path": "/v1/setTofuEnabled",
+      "headers": {
+        "content-type": "application/json",
+        "TX402-Gateway-Version": "1",
+        "authorization": "Bearer golden-token"
+      },
+      "body": {
+        "scope": "merchant.example",
+        "enabled": true,
+        "nowEpochMs": 1800000000000
+      }
+    },
+    {
+      "op": "resolveExposed",
+      "scope": "admin",
+      "method": "POST",
+      "path": "/v1/resolveExposed",
+      "headers": {
+        "content-type": "application/json",
+        "TX402-Gateway-Version": "1",
+        "authorization": "Bearer golden-token"
+      },
+      "body": {
+        "ref": {
+          "reservationId": "res-1",
+          "policyScope": "merchant.example",
+          "assetId": "eip155:8453/erc20:0x833589fcd6edb6e08f4c7c32d4f71b54bda02913"
+        },
+        "outcome": "committed",
+        "nowEpochMs": 1800000000000
+      }
+    },
+    {
+      "op": "resetCumulative",
+      "scope": "admin",
+      "method": "POST",
+      "path": "/v1/resetCumulative",
+      "headers": {
+        "content-type": "application/json",
+        "TX402-Gateway-Version": "1",
+        "authorization": "Bearer golden-token"
+      },
+      "body": {
+        "scope": "merchant.example",
+        "assetId": "eip155:8453/erc20:0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+        "nowEpochMs": 1800000000000
+      }
+    }
+  ],
+  "responses": [
+    {
+      "condition": "reserve-success",
+      "status": 200,
+      "body": {
+        "result": {
+          "reservation": {
+            "reservationId": "res-1",
+            "policyScope": "merchant.example",
+            "requestFingerprint": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+            "assetId": "eip155:8453/erc20:0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+            "amountAtomic": "1500",
+            "createdAtEpochMs": 1800000000000,
+            "expiresAtEpochMs": 1800000120000,
+            "state": "reserved"
+          },
+          "recipientPinEstablished": false
+        }
+      },
+      "outcome": {
+        "kind": "result"
+      }
+    },
+    {
+      "condition": "commit-success",
+      "status": 200,
+      "body": {
+        "result": {
+          "reservationId": "res-1",
+          "requestFingerprint": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+          "assetId": "eip155:8453/erc20:0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+          "amountAtomic": "1500",
+          "committedAtEpochMs": 1800000000010,
+          "settlementId": "0xsettlement"
+        }
+      },
+      "outcome": {
+        "kind": "result"
+      }
+    },
+    {
+      "condition": "void-success",
+      "status": 200,
+      "body": {
+        "result": null
+      },
+      "outcome": {
+        "kind": "result"
+      }
+    },
+    {
+      "condition": "capabilities-success",
+      "status": 200,
+      "body": {
+        "result": {
+          "atomicGlobalFreeze": false
+        }
+      },
+      "outcome": {
+        "kind": "result"
+      }
+    },
+    {
+      "condition": "frozen",
+      "status": 200,
+      "body": {
+        "error": {
+          "name": "SpendScopeFrozenError",
+          "code": "TX402_SPEND_FROZEN",
+          "message": "Spending is frozen for this scope",
+          "retryable": false,
+          "retryability": "no",
+          "context": {
+            "requestId": "req-1",
+            "phase": "policy",
+            "assetId": "eip155:8453/erc20:0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+            "amountAtomic": "1"
+          },
+          "details": {
+            "scope": "merchant.example",
+            "frozenScope": "merchant.example"
+          }
+        }
+      },
+      "outcome": {
+        "kind": "raise",
+        "name": "SpendScopeFrozenError",
+        "code": "TX402_SPEND_FROZEN",
+        "retryable": false,
+        "details": {
+          "scope": "merchant.example",
+          "frozenScope": "merchant.example"
+        }
+      }
+    },
+    {
+      "condition": "over-cap",
+      "status": 200,
+      "body": {
+        "error": {
+          "name": "BudgetExceededError",
+          "code": "TX402_POLICY_BUDGET",
+          "message": "Hourly spend limit would be exceeded",
+          "retryable": false,
+          "retryability": "no",
+          "context": {
+            "requestId": "req-1",
+            "phase": "policy",
+            "assetId": "eip155:8453/erc20:0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+            "amountAtomic": "300"
+          },
+          "details": {
+            "requestedAtomic": "300",
+            "capAtomic": "1000",
+            "committedAtomic": "0",
+            "reservedAtomic": "800",
+            "capKind": "per-hour"
+          }
+        }
+      },
+      "outcome": {
+        "kind": "raise",
+        "name": "BudgetExceededError",
+        "code": "TX402_POLICY_BUDGET",
+        "retryable": false,
+        "details": {
+          "requestedAtomic": "300",
+          "capAtomic": "1000",
+          "committedAtomic": "0",
+          "reservedAtomic": "800",
+          "capKind": "per-hour"
+        }
+      }
+    },
+    {
+      "condition": "unpinned",
+      "status": 200,
+      "body": {
+        "error": {
+          "name": "RecipientUnpinnedError",
+          "code": "TX402_RECIPIENT_UNPINNED",
+          "message": "The recipient is not pinned for this scope",
+          "retryable": false,
+          "retryability": "no",
+          "context": {
+            "requestId": "req-1",
+            "phase": "policy",
+            "assetId": "eip155:8453/erc20:0x833589fcd6edb6e08f4c7c32d4f71b54bda02913"
+          },
+          "details": {
+            "merchantScope": "merchant.example",
+            "reason": "not-allowlisted",
+            "network": "eip155:8453",
+            "presentedRecipient": "0x1111111111111111111111111111111111111111",
+            "expectedRecipients": [
+              "0x2222222222222222222222222222222222222222"
+            ]
+          }
+        }
+      },
+      "outcome": {
+        "kind": "raise",
+        "name": "RecipientUnpinnedError",
+        "code": "TX402_RECIPIENT_UNPINNED",
+        "retryable": false,
+        "details": {
+          "merchantScope": "merchant.example",
+          "reason": "not-allowlisted",
+          "network": "eip155:8453",
+          "presentedRecipient": "0x1111111111111111111111111111111111111111",
+          "expectedRecipients": [
+            "0x2222222222222222222222222222222222222222"
+          ]
+        }
+      }
+    },
+    {
+      "condition": "reservation-not-found",
+      "status": 200,
+      "body": {
+        "error": {
+          "name": "ConfigurationError",
+          "code": "TX402_CONFIG_INVALID",
+          "message": "The reservation ref names no record",
+          "retryable": false,
+          "retryability": "no",
+          "context": {
+            "requestId": "spend-store",
+            "phase": "policy",
+            "reservationId": "res-1"
+          },
+          "details": {
+            "configPath": "reservationRef",
+            "reason": "reservation-not-found"
+          }
+        }
+      },
+      "outcome": {
+        "kind": "raise",
+        "name": "ConfigurationError",
+        "code": "TX402_CONFIG_INVALID",
+        "retryable": false,
+        "details": {
+          "configPath": "reservationRef",
+          "reason": "reservation-not-found"
+        }
+      }
+    },
+    {
+      "condition": "global-freeze-unsupported",
+      "status": 200,
+      "body": {
+        "error": {
+          "name": "ConfigurationError",
+          "code": "TX402_CONFIG_INVALID",
+          "message": "Atomic global freeze is not supported by this topology",
+          "retryable": false,
+          "retryability": "no",
+          "context": {
+            "requestId": "spend-store",
+            "phase": "policy"
+          },
+          "details": {
+            "configPath": "freeze.global",
+            "reason": "global-freeze-unsupported"
+          }
+        }
+      },
+      "outcome": {
+        "kind": "raise",
+        "name": "ConfigurationError",
+        "code": "TX402_CONFIG_INVALID",
+        "retryable": false,
+        "details": {
+          "configPath": "freeze.global",
+          "reason": "global-freeze-unsupported"
+        }
+      }
+    },
+    {
+      "condition": "bad-request",
+      "status": 400,
+      "body": {
+        "error": {
+          "code": "TX402_CONFIG_INVALID",
+          "details": {
+            "configPath": "gateway.request",
+            "reason": "gateway-bad-request"
+          }
+        }
+      },
+      "outcome": {
+        "kind": "raise",
+        "name": "ConfigurationError",
+        "code": "TX402_CONFIG_INVALID",
+        "retryable": false,
+        "details": {
+          "configPath": "gateway.request",
+          "reason": "gateway-bad-request"
+        }
+      }
+    },
+    {
+      "condition": "unauthorized",
+      "status": 401,
+      "body": {
+        "error": {
+          "code": "TX402_CONFIG_INVALID",
+          "details": {
+            "configPath": "gateway.auth",
+            "reason": "gateway-unauthorized"
+          }
+        }
+      },
+      "outcome": {
+        "kind": "raise",
+        "name": "ConfigurationError",
+        "code": "TX402_CONFIG_INVALID",
+        "retryable": false,
+        "details": {
+          "configPath": "gateway.auth",
+          "reason": "gateway-unauthorized"
+        }
+      }
+    },
+    {
+      "condition": "admin-required",
+      "status": 403,
+      "body": {
+        "error": {
+          "code": "TX402_CONFIG_INVALID",
+          "details": {
+            "configPath": "gateway.auth",
+            "reason": "admin-credential-required"
+          }
+        }
+      },
+      "outcome": {
+        "kind": "raise",
+        "name": "ConfigurationError",
+        "code": "TX402_CONFIG_INVALID",
+        "retryable": false,
+        "details": {
+          "configPath": "gateway.auth",
+          "reason": "admin-credential-required"
+        }
+      }
+    },
+    {
+      "condition": "version-unsupported",
+      "status": 426,
+      "body": {
+        "error": {
+          "code": "TX402_CONFIG_INVALID",
+          "details": {
+            "configPath": "gateway.version",
+            "reason": "gateway-version-unsupported"
+          }
+        }
+      },
+      "outcome": {
+        "kind": "raise",
+        "name": "ConfigurationError",
+        "code": "TX402_CONFIG_INVALID",
+        "retryable": false,
+        "details": {
+          "configPath": "gateway.version",
+          "reason": "gateway-version-unsupported"
+        }
+      }
+    },
+    {
+      "condition": "unavailable",
+      "status": 503,
+      "body": {
+        "error": {
+          "code": "TX402_TRANSPORT",
+          "details": {
+            "causeCategory": "gateway-unavailable"
+          }
+        }
+      },
+      "outcome": {
+        "kind": "raise",
+        "name": "TransportError",
+        "code": "TX402_TRANSPORT",
+        "retryable": true,
+        "details": {
+          "causeCategory": "gateway-unavailable"
+        }
+      }
+    }
+  ],
+  "schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://tx402.io/schemas/gateway/v1.json",
+    "title": "tx402 capability gateway wire protocol",
+    "version": 1,
+    "$defs": {
+      "atomicAmount": {
+        "type": "string",
+        "pattern": "^(0|[1-9][0-9]*)$",
+        "maxLength": 78
+      },
+      "atomicAccumulator": {
+        "type": "string",
+        "pattern": "^(0|[1-9][0-9]*)$"
+      },
+      "reservationState": {
+        "enum": [
+          "reserved",
+          "committed",
+          "released",
+          "expired",
+          "exposed"
+        ]
+      },
+      "reservationRef": {
+        "type": "object",
+        "properties": {
+          "reservationId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "policyScope": {
+            "type": "string",
+            "minLength": 1
+          },
+          "assetId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "reservationId",
+          "policyScope",
+          "assetId"
+        ],
+        "additionalProperties": false
+      },
+      "reservation": {
+        "type": "object",
+        "properties": {
+          "reservationId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "policyScope": {
+            "type": "string",
+            "minLength": 1
+          },
+          "requestFingerprint": {
+            "type": "string"
+          },
+          "assetId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "amountAtomic": {
+            "$ref": "#/$defs/atomicAmount"
+          },
+          "createdAtEpochMs": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "expiresAtEpochMs": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "state": {
+            "$ref": "#/$defs/reservationState"
+          }
+        },
+        "required": [
+          "reservationId",
+          "policyScope",
+          "requestFingerprint",
+          "assetId",
+          "amountAtomic",
+          "createdAtEpochMs",
+          "expiresAtEpochMs",
+          "state"
+        ],
+        "additionalProperties": false
+      },
+      "entry": {
+        "type": "object",
+        "properties": {
+          "reservationId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "requestFingerprint": {
+            "type": "string"
+          },
+          "assetId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "amountAtomic": {
+            "$ref": "#/$defs/atomicAmount"
+          },
+          "committedAtEpochMs": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "settlementId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "reservationId",
+          "requestFingerprint",
+          "assetId",
+          "amountAtomic",
+          "committedAtEpochMs"
+        ],
+        "additionalProperties": false
+      },
+      "budgetLimits": {
+        "type": "object",
+        "properties": {
+          "maxPerHourAtomic": {
+            "$ref": "#/$defs/atomicAmount"
+          },
+          "maxTotalAtomic": {
+            "$ref": "#/$defs/atomicAmount"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "budgetState": {
+        "type": "object",
+        "properties": {
+          "storeKind": {
+            "type": "string"
+          },
+          "policyScope": {
+            "type": "string"
+          },
+          "assetId": {
+            "type": "string"
+          },
+          "committedAtomic": {
+            "$ref": "#/$defs/atomicAmount"
+          },
+          "reservedAtomic": {
+            "$ref": "#/$defs/atomicAmount"
+          },
+          "exposedAtomic": {
+            "$ref": "#/$defs/atomicAccumulator"
+          },
+          "cumulativeCommittedAtomic": {
+            "$ref": "#/$defs/atomicAccumulator"
+          },
+          "cumulativeConsumedAtomic": {
+            "$ref": "#/$defs/atomicAccumulator"
+          },
+          "perHourLimitAtomic": {
+            "$ref": "#/$defs/atomicAmount"
+          },
+          "cumulativeLimitAtomic": {
+            "$ref": "#/$defs/atomicAmount"
+          },
+          "availablePerHourAtomic": {
+            "$ref": "#/$defs/atomicAmount"
+          },
+          "availableCumulativeAtomic": {
+            "$ref": "#/$defs/atomicAmount"
+          },
+          "frozen": {
+            "type": "boolean"
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/entry"
+            }
+          },
+          "reservations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/reservation"
+            }
+          }
+        },
+        "required": [
+          "storeKind",
+          "committedAtomic",
+          "reservedAtomic",
+          "entries",
+          "reservations"
+        ],
+        "additionalProperties": false
+      },
+      "capabilities": {
+        "type": "object",
+        "properties": {
+          "atomicGlobalFreeze": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "atomicGlobalFreeze"
+        ],
+        "additionalProperties": false
+      },
+      "recipientPolicy": {
+        "type": "object",
+        "properties": {
+          "tofuEnabled": {
+            "type": "boolean"
+          },
+          "recipientAssertionRequired": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "tofuEnabled",
+          "recipientAssertionRequired"
+        ],
+        "additionalProperties": false
+      },
+      "reserveResult": {
+        "type": "object",
+        "properties": {
+          "reservation": {
+            "$ref": "#/$defs/reservation"
+          },
+          "recipientPinEstablished": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "reservation",
+          "recipientPinEstablished"
+        ],
+        "additionalProperties": false
+      },
+      "wireError": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "code": {
+            "enum": [
+              "TX402_CONFIG_INVALID",
+              "TX402_RESERVED_HEADER",
+              "TX402_NON_REPLAYABLE",
+              "TX402_PROTOCOL_UNSUPPORTED",
+              "TX402_SCHEME_UNSUPPORTED",
+              "TX402_PAYMENT_REQUIRED_INVALID",
+              "TX402_POLICY_BUDGET",
+              "TX402_POLICY_DOMAIN",
+              "TX402_LIQUIDITY",
+              "TX402_SIGNER",
+              "TX402_CLOCK_SKEW",
+              "TX402_PAYMENT_AMBIGUOUS",
+              "TX402_RESOURCE_DELIVERY",
+              "TX402_REDIRECT_BLOCKED",
+              "TX402_TRANSPORT",
+              "TX402_SPEND_FROZEN",
+              "TX402_RECIPIENT_UNPINNED"
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "retryable": {
+            "type": "boolean"
+          },
+          "retryability": {
+            "type": "string"
+          },
+          "context": {
+            "type": "object"
+          },
+          "details": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "code"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "methods": {
+      "reserve": {
+        "request": {
+          "type": "object",
+          "properties": {
+            "reservationId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "requestId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "policyScope": {
+              "type": "string",
+              "minLength": 1
+            },
+            "requestFingerprint": {
+              "type": "string"
+            },
+            "assetId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "amountAtomic": {
+              "$ref": "#/$defs/atomicAmount"
+            },
+            "maxPerHourAtomic": {
+              "$ref": "#/$defs/atomicAmount"
+            },
+            "maxTotalAtomic": {
+              "$ref": "#/$defs/atomicAmount"
+            },
+            "recipientNetwork": {
+              "type": "string"
+            },
+            "recipientCanonical": {
+              "type": "string"
+            },
+            "recipientEnforcement": {
+              "enum": [
+                "off",
+                "allowlist",
+                "tofu"
+              ]
+            },
+            "nowEpochMs": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "requestId",
+            "policyScope",
+            "requestFingerprint",
+            "assetId",
+            "amountAtomic",
+            "maxPerHourAtomic",
+            "nowEpochMs"
+          ],
+          "additionalProperties": false
+        },
+        "response": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "result": {
+                  "$ref": "#/$defs/reserveResult"
+                }
+              },
+              "required": [
+                "result"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "error": {
+                  "$ref": "#/$defs/wireError"
+                }
+              },
+              "required": [
+                "error"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        }
+      },
+      "commit": {
+        "request": {
+          "type": "object",
+          "properties": {
+            "ref": {
+              "$ref": "#/$defs/reservationRef"
+            },
+            "committedAtEpochMs": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "settlementId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "ref",
+            "committedAtEpochMs"
+          ],
+          "additionalProperties": false
+        },
+        "response": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "result": {
+                  "$ref": "#/$defs/entry"
+                }
+              },
+              "required": [
+                "result"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "error": {
+                  "$ref": "#/$defs/wireError"
+                }
+              },
+              "required": [
+                "error"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        }
+      },
+      "release": {
+        "request": {
+          "type": "object",
+          "properties": {
+            "ref": {
+              "$ref": "#/$defs/reservationRef"
+            },
+            "nowEpochMs": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "ref",
+            "nowEpochMs"
+          ],
+          "additionalProperties": false
+        },
+        "response": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "result": {
+                  "$ref": "#/$defs/reservation"
+                }
+              },
+              "required": [
+                "result"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "error": {
+                  "$ref": "#/$defs/wireError"
+                }
+              },
+              "required": [
+                "error"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        }
+      },
+      "expose": {
+        "request": {
+          "type": "object",
+          "properties": {
+            "ref": {
+              "$ref": "#/$defs/reservationRef"
+            },
+            "nowEpochMs": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "ref",
+            "nowEpochMs"
+          ],
+          "additionalProperties": false
+        },
+        "response": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "result": {
+                  "$ref": "#/$defs/reservation"
+                }
+              },
+              "required": [
+                "result"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "error": {
+                  "$ref": "#/$defs/wireError"
+                }
+              },
+              "required": [
+                "error"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        }
+      },
+      "getBudgetState": {
+        "request": {
+          "type": "object",
+          "properties": {
+            "policyScope": {
+              "type": "string",
+              "minLength": 1
+            },
+            "assetId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "nowEpochMs": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "policyScope",
+            "assetId",
+            "nowEpochMs"
+          ],
+          "additionalProperties": false
+        },
+        "response": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "result": {
+                  "$ref": "#/$defs/budgetState"
+                }
+              },
+              "required": [
+                "result"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "error": {
+                  "$ref": "#/$defs/wireError"
+                }
+              },
+              "required": [
+                "error"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        }
+      },
+      "listExposed": {
+        "request": {
+          "type": "object",
+          "properties": {
+            "policyScope": {
+              "type": "string",
+              "minLength": 1
+            },
+            "assetId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "nowEpochMs": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "policyScope",
+            "assetId",
+            "nowEpochMs"
+          ],
+          "additionalProperties": false
+        },
+        "response": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "result": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/reservation"
+                  }
+                }
+              },
+              "required": [
+                "result"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "error": {
+                  "$ref": "#/$defs/wireError"
+                }
+              },
+              "required": [
+                "error"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        }
+      },
+      "isFrozen": {
+        "request": {
+          "type": "object",
+          "properties": {
+            "scope": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "scope"
+          ],
+          "additionalProperties": false
+        },
+        "response": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "result": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "result"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "error": {
+                  "$ref": "#/$defs/wireError"
+                }
+              },
+              "required": [
+                "error"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        }
+      },
+      "getRecipientPins": {
+        "request": {
+          "type": "object",
+          "properties": {
+            "scope": {
+              "type": "string",
+              "minLength": 1
+            },
+            "network": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "scope",
+            "network"
+          ],
+          "additionalProperties": false
+        },
+        "response": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "result": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "result"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "error": {
+                  "$ref": "#/$defs/wireError"
+                }
+              },
+              "required": [
+                "error"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        }
+      },
+      "getRecipientPolicy": {
+        "request": {
+          "type": "object",
+          "properties": {
+            "scope": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "scope"
+          ],
+          "additionalProperties": false
+        },
+        "response": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "result": {
+                  "$ref": "#/$defs/recipientPolicy"
+                }
+              },
+              "required": [
+                "result"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "error": {
+                  "$ref": "#/$defs/wireError"
+                }
+              },
+              "required": [
+                "error"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        }
+      },
+      "capabilities": {
+        "request": {
+          "type": "object",
+          "properties": {},
+          "required": [],
+          "additionalProperties": false
+        },
+        "response": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "result": {
+                  "$ref": "#/$defs/capabilities"
+                }
+              },
+              "required": [
+                "result"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "error": {
+                  "$ref": "#/$defs/wireError"
+                }
+              },
+              "required": [
+                "error"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        }
+      },
+      "freeze": {
+        "request": {
+          "type": "object",
+          "properties": {
+            "scope": {
+              "type": "string",
+              "minLength": 1
+            },
+            "nowEpochMs": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "scope",
+            "nowEpochMs"
+          ],
+          "additionalProperties": false
+        },
+        "response": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "result": {
+                  "type": "null"
+                }
+              },
+              "required": [
+                "result"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "error": {
+                  "$ref": "#/$defs/wireError"
+                }
+              },
+              "required": [
+                "error"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        }
+      },
+      "unfreeze": {
+        "request": {
+          "type": "object",
+          "properties": {
+            "scope": {
+              "type": "string",
+              "minLength": 1
+            },
+            "nowEpochMs": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "scope",
+            "nowEpochMs"
+          ],
+          "additionalProperties": false
+        },
+        "response": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "result": {
+                  "type": "null"
+                }
+              },
+              "required": [
+                "result"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "error": {
+                  "$ref": "#/$defs/wireError"
+                }
+              },
+              "required": [
+                "error"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        }
+      },
+      "setRecipientPins": {
+        "request": {
+          "type": "object",
+          "properties": {
+            "scope": {
+              "type": "string",
+              "minLength": 1
+            },
+            "network": {
+              "type": "string",
+              "minLength": 1
+            },
+            "recipients": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "nowEpochMs": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "scope",
+            "network",
+            "recipients",
+            "nowEpochMs"
+          ],
+          "additionalProperties": false
+        },
+        "response": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "result": {
+                  "type": "null"
+                }
+              },
+              "required": [
+                "result"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "error": {
+                  "$ref": "#/$defs/wireError"
+                }
+              },
+              "required": [
+                "error"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        }
+      },
+      "setBudgetLimits": {
+        "request": {
+          "type": "object",
+          "properties": {
+            "scope": {
+              "type": "string",
+              "minLength": 1
+            },
+            "assetId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "limits": {
+              "$ref": "#/$defs/budgetLimits"
+            },
+            "nowEpochMs": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "scope",
+            "assetId",
+            "limits",
+            "nowEpochMs"
+          ],
+          "additionalProperties": false
+        },
+        "response": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "result": {
+                  "type": "null"
+                }
+              },
+              "required": [
+                "result"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "error": {
+                  "$ref": "#/$defs/wireError"
+                }
+              },
+              "required": [
+                "error"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        }
+      },
+      "getBudgetLimits": {
+        "request": {
+          "type": "object",
+          "properties": {
+            "scope": {
+              "type": "string",
+              "minLength": 1
+            },
+            "assetId": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "scope",
+            "assetId"
+          ],
+          "additionalProperties": false
+        },
+        "response": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "result": {
+                  "$ref": "#/$defs/budgetLimits"
+                }
+              },
+              "required": [
+                "result"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "error": {
+                  "$ref": "#/$defs/wireError"
+                }
+              },
+              "required": [
+                "error"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        }
+      },
+      "setRecipientAssertionRequired": {
+        "request": {
+          "type": "object",
+          "properties": {
+            "scope": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": {
+              "type": "boolean"
+            },
+            "nowEpochMs": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "scope",
+            "required",
+            "nowEpochMs"
+          ],
+          "additionalProperties": false
+        },
+        "response": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "result": {
+                  "type": "null"
+                }
+              },
+              "required": [
+                "result"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "error": {
+                  "$ref": "#/$defs/wireError"
+                }
+              },
+              "required": [
+                "error"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        }
+      },
+      "setTofuEnabled": {
+        "request": {
+          "type": "object",
+          "properties": {
+            "scope": {
+              "type": "string",
+              "minLength": 1
+            },
+            "enabled": {
+              "type": "boolean"
+            },
+            "nowEpochMs": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "scope",
+            "enabled",
+            "nowEpochMs"
+          ],
+          "additionalProperties": false
+        },
+        "response": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "result": {
+                  "type": "null"
+                }
+              },
+              "required": [
+                "result"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "error": {
+                  "$ref": "#/$defs/wireError"
+                }
+              },
+              "required": [
+                "error"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        }
+      },
+      "resolveExposed": {
+        "request": {
+          "type": "object",
+          "properties": {
+            "ref": {
+              "$ref": "#/$defs/reservationRef"
+            },
+            "outcome": {
+              "enum": [
+                "committed",
+                "released"
+              ]
+            },
+            "nowEpochMs": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "ref",
+            "outcome",
+            "nowEpochMs"
+          ],
+          "additionalProperties": false
+        },
+        "response": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "result": {
+                  "type": "null"
+                }
+              },
+              "required": [
+                "result"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "error": {
+                  "$ref": "#/$defs/wireError"
+                }
+              },
+              "required": [
+                "error"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        }
+      },
+      "resetCumulative": {
+        "request": {
+          "type": "object",
+          "properties": {
+            "scope": {
+              "type": "string",
+              "minLength": 1
+            },
+            "assetId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "nowEpochMs": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "scope",
+            "assetId",
+            "nowEpochMs"
+          ],
+          "additionalProperties": false
+        },
+        "response": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "result": {
+                  "type": "null"
+                }
+              },
+              "required": [
+                "result"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "error": {
+                  "$ref": "#/$defs/wireError"
+                }
+              },
+              "required": [
+                "error"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        }
+      }
+    }
+  }
+}

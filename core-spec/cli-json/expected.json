@@ -45,7 +45,7 @@
       },
       "timings": {
         "elapsedMs": "<normalized>",
-        "events": 9
+        "events": 10
       },
       "error": null
     }
@@ -71,7 +71,7 @@
       "settlement": null,
       "timings": {
         "elapsedMs": "<normalized>",
-        "events": 16
+        "events": 18
       },
       "error": {
         "name": "ResourceDeliveryError",
@@ -125,7 +125,7 @@
       },
       "timings": {
         "elapsedMs": "<normalized>",
-        "events": 16
+        "events": 18
       },
       "error": null
     }
@@ -151,7 +151,7 @@
       "settlement": null,
       "timings": {
         "elapsedMs": "<normalized>",
-        "events": 9
+        "events": 10
       },
       "error": {
         "name": "ResourceDeliveryError",
@@ -235,7 +235,7 @@
       },
       "timings": {
         "elapsedMs": "<normalized>",
-        "events": 9
+        "events": 10
       },
       "error": null
     }
@@ -265,7 +265,7 @@
       },
       "timings": {
         "elapsedMs": "<normalized>",
-        "events": 10
+        "events": 11
       },
       "error": {
         "name": "AmbiguousPaymentError",
@@ -311,7 +311,7 @@
       "settlement": null,
       "timings": {
         "elapsedMs": "<normalized>",
-        "events": 9
+        "events": 10
       },
       "error": {
         "name": "ResourceDeliveryError",
@@ -363,7 +363,7 @@
       },
       "timings": {
         "elapsedMs": "<normalized>",
-        "events": 9
+        "events": 10
       },
       "error": {
         "name": "AmbiguousPaymentError",
@@ -409,7 +409,7 @@
       "settlement": null,
       "timings": {
         "elapsedMs": "<normalized>",
-        "events": 9
+        "events": 10
       },
       "error": {
         "name": "ResourceDeliveryError",
@@ -461,7 +461,7 @@
       },
       "timings": {
         "elapsedMs": "<normalized>",
-        "events": 10
+        "events": 11
       },
       "error": {
         "name": "ResourceDeliveryError",
@@ -513,7 +513,7 @@
       },
       "timings": {
         "elapsedMs": "<normalized>",
-        "events": 10
+        "events": 11
       },
       "error": {
         "name": "ResourceDeliveryError",
@@ -565,7 +565,7 @@
       },
       "timings": {
         "elapsedMs": "<normalized>",
-        "events": 9
+        "events": 10
       },
       "error": {
         "name": "AmbiguousPaymentError",
@@ -615,7 +615,7 @@
       },
       "timings": {
         "elapsedMs": "<normalized>",
-        "events": 9
+        "events": 10
       },
       "error": {
         "name": "PaidRedirectBlockedError",
@@ -667,7 +667,7 @@
       },
       "timings": {
         "elapsedMs": "<normalized>",
-        "events": 9
+        "events": 10
       },
       "error": {
         "name": "AmbiguousPaymentError",
@@ -709,6 +709,138 @@
         "events": 1
       },
       "error": null
+    }
+  },
+  "verb:freeze": {
+    "exitCode": 0,
+    "json": {
+      "schemaVersion": 1,
+      "ok": true,
+      "exitCode": 0,
+      "scope": "api.merchant.example",
+      "frozen": true
+    }
+  },
+  "verb:unfreeze": {
+    "exitCode": 0,
+    "json": {
+      "schemaVersion": 1,
+      "ok": true,
+      "exitCode": 0,
+      "scope": "api.merchant.example",
+      "frozen": false
+    }
+  },
+  "verb:budget-administered": {
+    "exitCode": 0,
+    "json": {
+      "schemaVersion": 1,
+      "ok": true,
+      "exitCode": 0,
+      "scope": "api.merchant.example",
+      "network": "eip155:8453",
+      "asset": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+      "committedAtomic": "300000",
+      "reservedAtomic": "0",
+      "exposedAtomic": "200000",
+      "cumulativeCommittedAtomic": "300000",
+      "cumulativeConsumedAtomic": "500000",
+      "limitSource": "administered",
+      "perHourLimitAtomic": "1000000",
+      "cumulativeLimitAtomic": "5000000",
+      "availablePerHourAtomic": "500000",
+      "availableCumulativeAtomic": "4500000",
+      "frozen": false
+    }
+  },
+  "verb:budget-value-flags": {
+    "exitCode": 0,
+    "json": {
+      "schemaVersion": 1,
+      "ok": true,
+      "exitCode": 0,
+      "scope": "api.merchant.example",
+      "network": "eip155:8453",
+      "asset": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+      "committedAtomic": "300000",
+      "reservedAtomic": "0",
+      "exposedAtomic": "200000",
+      "cumulativeCommittedAtomic": "300000",
+      "cumulativeConsumedAtomic": "500000",
+      "limitSource": "value-flags",
+      "perHourLimitAtomic": "2000000",
+      "cumulativeLimitAtomic": "8000000",
+      "availablePerHourAtomic": "1500000",
+      "availableCumulativeAtomic": "7500000",
+      "frozen": false
+    }
+  },
+  "verb:budget-unknown": {
+    "exitCode": 0,
+    "json": {
+      "schemaVersion": 1,
+      "ok": true,
+      "exitCode": 0,
+      "scope": "api.merchant.example",
+      "network": "eip155:8453",
+      "asset": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+      "committedAtomic": "300000",
+      "reservedAtomic": "0",
+      "exposedAtomic": "200000",
+      "cumulativeCommittedAtomic": "300000",
+      "cumulativeConsumedAtomic": "500000",
+      "limitSource": "unknown",
+      "perHourLimitAtomic": null,
+      "cumulativeLimitAtomic": null,
+      "availablePerHourAtomic": null,
+      "availableCumulativeAtomic": null,
+      "frozen": false
+    }
+  },
+  "verb:pins": {
+    "exitCode": 0,
+    "json": {
+      "schemaVersion": 1,
+      "ok": true,
+      "exitCode": 0,
+      "scope": "api.merchant.example",
+      "network": "eip155:8453",
+      "recipients": [
+        "0x1111111111111111111111111111111111111111",
+        "0x2222222222222222222222222222222222222222"
+      ],
+      "tofuEnabled": true,
+      "recipientAssertionRequired": true
+    }
+  },
+  "verb:rotate-recipient": {
+    "exitCode": 0,
+    "json": {
+      "schemaVersion": 1,
+      "ok": true,
+      "exitCode": 0,
+      "scope": "api.merchant.example",
+      "network": "eip155:8453",
+      "recipients": [
+        "0xabcdef0000000000000000000000000000000001",
+        "0x0000000000000000000000000000000000000002"
+      ]
+    }
+  },
+  "verb:freeze-admin-denied": {
+    "exitCode": 2,
+    "json": {
+      "schemaVersion": 1,
+      "ok": false,
+      "exitCode": 2,
+      "error": {
+        "code": "TX402_CONFIG_INVALID",
+        "message": "An admin credential is required for this operation. Set TX402_SPEND_STORE_ADMIN (a gateway admin bearer token, or a raw Redis admin-user DSN).",
+        "details": {
+          "configPath": "TX402_SPEND_STORE_ADMIN",
+          "reason": "admin-credential-required"
+        }
+      }
     }
   }
 }

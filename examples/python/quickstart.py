@@ -68,8 +68,10 @@ def main() -> int:
         # Needed only for the quickstart's local test merchant, which speaks plain HTTP.
         allow_insecure_localhost=is_localhost,
         # These are the guardrails, and they run before the signer is reachable.
-        # `max_per_hour` is the one that bounds a compromise: if something induces this
-        # process to pay repeatedly, the ceiling is this number, not the wallet balance.
+        # `max_per_hour` is the one that bounds *induced* spend: if something drives this
+        # process to pay repeatedly through tx402, the ceiling is this number, not the wallet
+        # balance. (A fully compromised process holds the signer and can bypass the store —
+        # that is the 0.3.0 signer-mediation work, not a 0.2.0 guarantee.)
         policy=Policy(
             max_per_request="0.10 USDC",
             max_per_hour="1.00 USDC",

@@ -4,6 +4,8 @@
     "rootDir": "src",
     "outDir": "dist"
   },
+  "//": "The Durable Object subtree is emitted by tsconfig.durable-object.build.json (it needs the Workers globals, which conflict with node's on the core path), so it is excluded here alongside tests.",
   "include": ["src/**/*.ts"],
-  "exclude": ["src/**/*.test.ts"]
+  "//gateway": "src/gateway/worker.ts needs the Workers globals; it is emitted by tsconfig.durable-object.build.json alongside the DO subtree.",
+  "exclude": ["src/**/*.test.ts", "src/durable-object/**", "src/gateway/worker.ts"]
 }

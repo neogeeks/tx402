@@ -1,14 +1,16 @@
 /**
- * Argument parsing for `tx402 call` (SPEC §11).
+ * Argument parsing for `tx402 call` (SPEC §11) and the five operator verbs (SPEC §10).
  *
  * Hand-rolled rather than pulled from a CLI framework. The whole dependency budget for this
- * package is spent on the protocol and chain libraries (ADR-008), and the surface here is
- * one command with eight flags — a parser for that is smaller than the code needed to
- * configure a framework, and it cannot grow a transitive dependency behind our back.
+ * package is spent on the protocol and chain libraries (ADR-008), and the surface here is a
+ * handful of commands with a small flag set — a parser for that is smaller than the code
+ * needed to configure a framework, and it cannot grow a transitive dependency behind our back.
  *
  * **No flag accepts a private key, and none ever will** (SPEC §11, SEC-001). Anything on a
  * command line lands in shell history, in `ps` output, and in CI logs. Development keys come
- * from documented environment variables only, and only after an explicit warning.
+ * from documented environment variables only, and only after an explicit warning. The
+ * operator verbs are the same: a store credential is never a flag — it comes from
+ * `TX402_SPEND_STORE_TOKEN` / `TX402_SPEND_STORE_ADMIN` (SPEC §9.1).
  */
 
 import { UsageError } from "./exit-codes.js";
@@ -26,19 +28,69 @@ export interface CallOptions {
   readonly timeoutMs?: number;
 }
 
+/** `freeze`/`unfreeze` (SPEC §10, admin plane): a single scope, `<host | "*">`. */
+export interface FreezeOptions {
+  /** The raw positional (`<host | "*">`); normalized to a policy scope by the verb handler. */
+  readonly target: string;
+  readonly json: boolean;
+}
+
+/** `budget` (SPEC §10, data plane): a scope + network, with optional asset and cap flags. */
+export interface BudgetOptions {
+  readonly target: string;
+  readonly network: string;
+  /** Token address/mint; absent ⇒ the network's canonical asset (SPEC §10). */
+  readonly asset?: string;
+  /** `--max-per-hour` / `--max-total` value-flags (SPEC §10 P1-8b). Atomic caps or human money. */
+  readonly maxPerHour?: string;
+  readonly maxTotal?: string;
+  readonly json: boolean;
+}
+
+/** `pins` (SPEC §10, data plane): a scope + network. */
+export interface PinsOptions {
+  readonly target: string;
+  readonly network: string;
+  readonly json: boolean;
+}
+
+/** `rotate-recipient` (SPEC §10, admin plane): a scope + network + the new recipient set. */
+export interface RotateRecipientOptions {
+  readonly target: string;
+  readonly network: string;
+  /** The `--to <addr…>` set (at least one), canonicalized by the verb handler (SPEC §6.4). */
+  readonly to: readonly string[];
+  readonly json: boolean;
+}
+
 export type ParsedCommand =
   | { readonly kind: "help" }
   | { readonly kind: "version" }
-  | { readonly kind: "call"; readonly options: CallOptions };
+  | { readonly kind: "call"; readonly options: CallOptions }
+  | { readonly kind: "freeze"; readonly options: FreezeOptions }
+  | { readonly kind: "unfreeze"; readonly options: FreezeOptions }
+  | { readonly kind: "budget"; readonly options: BudgetOptions }
+  | { readonly kind: "pins"; readonly options: PinsOptions }
+  | { readonly kind: "rotate-recipient"; readonly options: RotateRecipientOptions };
 
-/** Flags that take a value. Used to give a precise error when the value is missing. */
+/**
+ * Flags that take a value. Used to give a precise error when the value is missing. `--to` is
+ * NOT here: it is variadic (`--to <addr…>`) and parsed specially by {@link parseVerb}.
+ */
 const VALUE_FLAGS = new Set([
   "--method",
   "--body",
   "--max-spend",
   "--network",
   "--timeout",
+  // 0.2.0 operator verbs (SPEC §10).
+  "--asset",
+  "--max-per-hour",
+  "--max-total",
 ]);
+
+/** The five operator verbs (SPEC §10). Everything else that is not `call` is a usage error. */
+const VERBS = new Set(["freeze", "unfreeze", "budget", "pins", "rotate-recipient"]);
 
 const METHODS = new Set(["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"]);
 
@@ -60,9 +112,13 @@ export function parseArgs(
   if (argv.includes("-v") || argv.includes("--version")) return { kind: "version" };
 
   const [command, ...rest] = argv;
+  if (command !== undefined && VERBS.has(command)) {
+    return parseVerb(command, rest);
+  }
   if (command !== "call") {
     throw new UsageError(
-      `Unknown command ${JSON.stringify(command)}. The only command is "call".`,
+      `Unknown command ${JSON.stringify(command)}. Commands are "call" and the operator ` +
+        `verbs freeze, unfreeze, budget, pins, rotate-recipient.`,
     );
   }
 
@@ -184,4 +240,138 @@ export function parseArgs(
       ...(timeoutMs === undefined ? {} : { timeoutMs }),
     },
   };
+}
+
+/**
+ * Parses an operator verb (SPEC §10): `freeze`/`unfreeze`/`budget`/`pins`/`rotate-recipient`.
+ *
+ * Each verb takes one required positional (its target scope) and a small flag set. The store
+ * credential is NEVER a flag (SPEC §9.1) — the verb handler reads it from the environment. The
+ * shared value-flag handling below mirrors {@link parseArgs}; `--to` is the one variadic flag,
+ * collecting every following non-flag token as the new recipient set.
+ */
+function parseVerb(command: string, rest: readonly string[]): ParsedCommand {
+  let target: string | undefined;
+  let network: string | undefined;
+  let asset: string | undefined;
+  let maxPerHour: string | undefined;
+  let maxTotal: string | undefined;
+  const to: string[] = [];
+  let json = false;
+
+  for (let index = 0; index < rest.length; index += 1) {
+    const argument = rest[index] as string;
+
+    if (argument === "--to") {
+      // Variadic: everything up to the next `--flag` is a recipient (SPEC §10 `--to <addr…>`).
+      let cursor = index + 1;
+      while (cursor < rest.length && !(rest[cursor] as string).startsWith("--")) {
+        to.push(rest[cursor] as string);
+        cursor += 1;
+      }
+      if (to.length === 0)
+        throw new UsageError("--to requires at least one recipient address");
+      index = cursor - 1;
+      continue;
+    }
+
+    if (VALUE_FLAGS.has(argument)) {
+      const value = rest[index + 1];
+      if (value === undefined || value.startsWith("--")) {
+        throw new UsageError(`${argument} requires a value`);
+      }
+      index += 1;
+      switch (argument) {
+        case "--network":
+          network = value;
+          break;
+        case "--asset":
+          asset = value;
+          break;
+        case "--max-per-hour":
+          maxPerHour = value;
+          break;
+        case "--max-total":
+          maxTotal = value;
+          break;
+        default:
+          // A `call`-only value flag (`--method`/`--body`/`--max-spend`/`--timeout`) on a verb.
+          throw new UsageError(`${JSON.stringify(argument)} is not valid for ${command}`);
+      }
+      continue;
+    }
+
+    if (argument === "--json") {
+      json = true;
+      continue;
+    }
+    if (argument.startsWith("-")) {
+      throw new UsageError(`Unknown option ${JSON.stringify(argument)}`);
+    }
+    if (target !== undefined) {
+      throw new UsageError(`${command} takes a single target, not two`);
+    }
+    target = argument;
+  }
+
+  if (target === undefined) {
+    const shape =
+      command === "freeze" || command === "unfreeze" ? '<host | "*">' : "<url | host>";
+    throw new UsageError(`tx402 ${command} requires a target ${shape}`);
+  }
+
+  switch (command) {
+    case "freeze":
+    case "unfreeze":
+      // The network/asset/cap flags are meaningless for a whole-scope freeze.
+      rejectFlags(command, { network, asset, maxPerHour, maxTotal }, to);
+      return { kind: command, options: { target, json } };
+    case "budget": {
+      if (network === undefined) throw new UsageError("budget requires --network <caip2>");
+      if (to.length > 0) throw new UsageError("--to is not valid for budget");
+      return {
+        kind: "budget",
+        options: {
+          target,
+          network,
+          ...(asset === undefined ? {} : { asset }),
+          ...(maxPerHour === undefined ? {} : { maxPerHour }),
+          ...(maxTotal === undefined ? {} : { maxTotal }),
+          json,
+        },
+      };
+    }
+    case "pins": {
+      if (network === undefined) throw new UsageError("pins requires --network <caip2>");
+      rejectFlags("pins", { asset, maxPerHour, maxTotal }, to);
+      return { kind: "pins", options: { target, network, json } };
+    }
+    case "rotate-recipient": {
+      if (network === undefined) {
+        throw new UsageError("rotate-recipient requires --network <caip2>");
+      }
+      if (to.length === 0) throw new UsageError("rotate-recipient requires --to <addr…>");
+      rejectFlags("rotate-recipient", { asset, maxPerHour, maxTotal }, []);
+      return { kind: "rotate-recipient", options: { target, network, to, json } };
+    }
+    default:
+      // Unreachable: `command` is one of VERBS by construction.
+      throw new UsageError(`Unknown command ${JSON.stringify(command)}`);
+  }
+}
+
+/** Rejects flags a verb does not accept, so a mistyped invocation fails loudly not silently. */
+function rejectFlags(
+  command: string,
+  flags: Readonly<Record<string, string | undefined>>,
+  to: readonly string[],
+): void {
+  for (const [name, value] of Object.entries(flags)) {
+    if (value !== undefined) {
+      throw new UsageError(
+        `--${name.replace(/[A-Z]/gu, (c) => `-${c.toLowerCase()}`)} is not valid for ${command}`,
+      );
+    }
+  }
+  if (to.length > 0) throw new UsageError(`--to is not valid for ${command}`);
 }

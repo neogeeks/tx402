@@ -1,8 +1,17 @@
-import { defineConfig } from "vitest/config";
+import { configDefaults, defineConfig } from "vitest/config";
 
 export default defineConfig({
   test: {
     include: ["test/**/*.test.ts", "src/**/*.test.ts"],
+    // The Durable Object suites need the Workers runtime, not node — they run via
+    // vitest.durable-object.config.ts (@cloudflare/vitest-pool-workers). Excluded here so the
+    // default node run does not try to load `cloudflare:test` / `cloudflare:workers` (the DO
+    // adapter suite and the capability gateway over the DO both use it).
+    exclude: [
+      ...configDefaults.exclude,
+      "test/durable-object.test.ts",
+      "test/gateway-durable-object.test.ts",
+    ],
     coverage: {
       provider: "v8",
       // Chain adapters and the private-key convenience signer are production code carrying

@@ -8,7 +8,7 @@
  *
  * **Why not viem.** viem would supply both calls, but tx402 needs per-endpoint deadlines,
  * per-endpoint circuit state, and a failover order it controls, and it needs all three to
- * behave identically in Python at S9. Two JSON-RPC calls over `fetch` are less code than the
+ * behave identically in Python. Two JSON-RPC calls over `fetch` are less code than the
  * adapter that would wrap viem's client to get the same control, and they leave the chain
  * library used for exactly one thing — signing.
  *

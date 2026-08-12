@@ -74,7 +74,7 @@ export interface EvmTypedDataRequest {
  *
  * Address discovery is asynchronous because the realistic implementations — a KMS, a
  * hardware wallet, a remote signing service — cannot answer synchronously. tx402 resolves it
- * once per signer and caches it (ADR-010 decision 5, as amended at S5).
+ * once per signer and caches it (ADR-010 decision 5).
  */
 export interface EvmSigner {
   readonly kind: "evm";

@@ -51,7 +51,12 @@ from tx402.client import (
 )
 from tx402.errors import Tx402ErrorContext
 from tx402.evm import EvmTypedDataRequest
-from tx402.ledger import SpendEntry, SpendReservation
+from tx402.ledger import (
+    ReserveSpendResult,
+    SpendEntry,
+    SpendReservation,
+    canonicalize_asset,
+)
 from tx402.spend_store_contract import SpendStoreContractError
 
 URL = "https://merchant.test/pay"
@@ -333,7 +338,10 @@ class TestO45PolicyScope:
         state = sdk.get_budget_state(policy_scope=scope, asset_id=ASSET_ID)
         assert state.committed_atomic == AMOUNT
         assert state.policy_scope == scope
-        assert state.asset_id == ASSET_ID
+        # The store keys/echoes the CANONICAL asset (U16): a checksummed manifest asset and
+        # its lowercase form address one ledger, so the echoed asset_id is canonical,
+        # like a recipient pin is stored/returned canonically.
+        assert state.asset_id == canonicalize_asset(ASSET_ID)
 
 
 class _FailingCommitStore:
@@ -348,9 +356,10 @@ class _FailingCommitStore:
 
     def __init__(self) -> None:
         self._inner = MemorySpendStore()
+        self.capabilities = self._inner.capabilities
         self.commit_calls = 0
 
-    def reserve(self, **kwargs: Any) -> SpendReservation:
+    def reserve(self, **kwargs: Any) -> ReserveSpendResult:
         return self._inner.reserve(**kwargs)
 
     def commit(self, **kwargs: Any) -> SpendEntry:
@@ -360,8 +369,17 @@ class _FailingCommitStore:
     def release(self, **kwargs: Any) -> SpendReservation:
         return self._inner.release(**kwargs)
 
+    def expose(self, **kwargs: Any) -> SpendReservation:
+        return self._inner.expose(**kwargs)
+
     def get_budget_state(self, **kwargs: Any) -> Any:
         return self._inner.get_budget_state(**kwargs)
+
+    def list_exposed(self, **kwargs: Any) -> Any:
+        return self._inner.list_exposed(**kwargs)
+
+    def is_frozen(self, **kwargs: Any) -> bool:
+        return self._inner.is_frozen(**kwargs)
 
 
 class _FailingReserveStore:
@@ -369,8 +387,9 @@ class _FailingReserveStore:
 
     def __init__(self) -> None:
         self._inner = MemorySpendStore()
+        self.capabilities = self._inner.capabilities
 
-    def reserve(self, **kwargs: Any) -> SpendReservation:
+    def reserve(self, **kwargs: Any) -> ReserveSpendResult:
         raise RuntimeError("ledger backend unreachable")
 
     def commit(self, **kwargs: Any) -> SpendEntry:
@@ -379,8 +398,17 @@ class _FailingReserveStore:
     def release(self, **kwargs: Any) -> SpendReservation:
         return self._inner.release(**kwargs)
 
+    def expose(self, **kwargs: Any) -> SpendReservation:
+        return self._inner.expose(**kwargs)
+
     def get_budget_state(self, **kwargs: Any) -> Any:
         return self._inner.get_budget_state(**kwargs)
+
+    def list_exposed(self, **kwargs: Any) -> Any:
+        return self._inner.list_exposed(**kwargs)
+
+    def is_frozen(self, **kwargs: Any) -> bool:
+        return self._inner.is_frozen(**kwargs)
 
 
 class TestO46StoreFailureSemantics:
@@ -421,8 +449,11 @@ class TestO46StoreFailureSemantics:
         ):
             sdk.get(URL)
         state = budget(store)
-        assert state.reserved_atomic == AMOUNT
-        assert [item.state for item in state.reservations] == ["reserved"]
+        # The fence exposed the reservation before transmission, and a failed commit neither
+        # releases it nor moves it — so it stays exposed (durable), not reserved (SPEC §7).
+        assert state.reserved_atomic == "0"
+        assert state.exposed_atomic == AMOUNT
+        assert [item.state for item in state.reservations] == ["exposed"]
 
     def test_a_reserve_outage_is_typed_retryable_and_never_reaches_the_signer(
         self,
@@ -481,8 +512,11 @@ class TestO53MalformedSettlementEnvelope:
             sdk.get(URL)
         assert raised.value.details["causeCategory"] == "settlement-metadata-unparseable"
         assert raised.value.context.paid == "unknown"
-        assert budget(store).reserved_atomic == AMOUNT, (
-            "a corrupt header is not evidence that nothing settled, so it cannot release"
+        held = budget(store)
+        assert held.reserved_atomic == "0"
+        assert held.exposed_atomic == AMOUNT, (
+            "a corrupt header is not evidence that nothing settled, so the fenced "
+            "reservation is held as exposed, not released"
         )
 
     def test_an_absent_header_on_a_2xx_still_delivers(self) -> None:
@@ -544,7 +578,16 @@ class TestO54SpendStoreContract:
         with pytest.raises(ConfigurationError) as raised:
             Tx402Client(spend_store=NotAStore())  # type: ignore[arg-type]
         assert raised.value.details["reason"] == "invalid-spend-store"
-        assert raised.value.details["missing"] == ["commit", "get_budget_state"]
+        # v0.2 expanded the data-plane surface (SPEC §3.1): expose/list_exposed/is_frozen
+        # the capabilities flag are now part of the contract validated at construction.
+        assert raised.value.details["missing"] == [
+            "capabilities.atomic_global_freeze",
+            "commit",
+            "expose",
+            "get_budget_state",
+            "is_frozen",
+            "list_exposed",
+        ]
 
     def test_the_shipped_contract_suite_passes_for_the_built_in_store(self) -> None:
         check_spend_store(MemorySpendStore)
@@ -559,7 +602,7 @@ class TestO54SpendStoreContract:
         class RaceySpendStore(MemorySpendStore):
             kind = "racey"
 
-            def reserve(self, **kwargs: Any) -> SpendReservation:
+            def reserve(self, **kwargs: Any) -> ReserveSpendResult:
                 cap = int(kwargs["max_per_hour_atomic"])
                 state = self.get_budget_state(
                     policy_scope=kwargs["policy_scope"],

@@ -1,0 +1,86 @@
+---
+title: Reconciling exposed payments
+description: The one manual day-2 task a shared cumulative cap creates — enumerating maybe-settled payments with listExposed and resolving each with resolveExposed.
+sidebar:
+  order: 12
+---
+
+An **exposed** reservation is a payment whose signature was transmitted and whose outcome tx402
+could not determine — a timeout, a 5xx, a reset, a redirect it declined to follow. tx402 records the
+exposure as a durable fence *before* the signature goes on the wire, and once a payment is exposed it
+**never expires**: it keeps consuming both the per-hour window and the cumulative ceiling until an
+operator resolves it. That is deliberate — the conservative direction is to hold budget for a payment
+that may have settled rather than let a possibly-settled one escape the cap and be spent again. The
+price of that safety is one manual task: reconciliation.
+
+Automatic reconciliation is 0.3.0. In 0.2.0 it is an operator procedure, and this is it.
+
+## See what is unresolved
+
+An exposed amount shows up in `tx402 budget` as `exposedAtomic`, so a non-zero figure there is your
+signal that reconciliation is due:
+
+```bash
+tx402 budget api.merchant.example --network eip155:8453
+# … "exposedAtomic": "200000", …    ← $0.20 is held by a maybe-settled payment
+```
+
+To act on it you enumerate the actual reservations. `listExposed` is a **data-plane** read (you do
+not need to know any reservation ids in advance) that returns every unresolved exposure for a scope
+and asset:
+
+```ts
+import { normalizePolicyHost } from "tx402";
+
+const exposed = await store.listExposed({
+  policyScope: normalizePolicyHost("https://api.merchant.example/…"), // → "api.merchant.example"
+  assetId: "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+  nowEpochMs: Date.now(),
+});
+// each carries the { reservationId, policyScope, assetId } ref you resolve by
+```
+
+Python is the same call, `store.list_exposed(...)`.
+
+## Verify, then resolve each one
+
+For each exposed reservation, check the chain — the payer address and the merchant's settlement
+identifier if you captured one — to establish whether the money actually moved. Then call the
+**admin-plane** `resolveExposed` with your finding:
+
+```ts
+// it settled — you confirmed the transfer on-chain
+await admin.resolveExposed(ref, "committed", Date.now());
+
+// it did not settle — you confirmed no transfer
+await admin.resolveExposed(ref, "released", Date.now());
+```
+
+- **`committed`** moves the amount from the exposed counter to cumulative-committed. The *net*
+  cumulative figure does not change — an exposed amount was already counted — so this is simply the
+  honest record that it did settle, and the per-hour window can now age it out normally.
+- **`released`** frees the budget: you are asserting it did not settle, so the reservation should
+  never have held the cap. Use it only when you have confirmed no transfer.
+
+`resolveExposed` is the one admin method that takes a **`ReservationRef`** — the
+`{ reservationId, policyScope, assetId }` triple `listExposed` handed you — rather than a scope,
+because it acts on one specific reservation. Resolving an **already-terminal** reservation is not a
+silent no-op — every store **refuses** it with `reservation-already-terminal`. A retried
+reconciliation script must therefore catch that refusal and treat it as "already handled", rather
+than assuming the second call quietly did nothing.
+
+## Why there is no `tx402 resolve-exposed` verb
+
+The five operator verbs deliberately do not include reconciliation, because resolving an exposure is
+a *judgement* — you are asserting, per reservation, whether money moved — and that belongs in a
+reviewed script or an operator console with the chain data in front of it, not a one-line shell
+command. `listExposed` → verify → `resolveExposed` is the loop; a small program that runs it against
+your gateway or Redis admin store is the tool. `tx402 budget` is how you know the loop needs running.
+
+## The invariant this protects
+
+Because an exposed amount counts against the cumulative cap the entire time it is unresolved, a fleet
+can never spend past its ceiling by getting an ambiguous result — the worst case is that budget is
+held slightly too long, which you clear by reconciling. A store that dropped exposed reservations on
+a TTL, as v0.1 did, would let a maybe-settled payment escape the ceiling; the non-expiring fence is
+what closes that, and reconciliation is what releases the budget once you know the truth.

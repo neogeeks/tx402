@@ -3,31 +3,36 @@
 The ordering in :meth:`_Core.attempt` is the security-critical part of this module and is
 not an implementation detail::
 
-    parse → policy → plan → **reserve** → sign → retry → commit
+    parse → policy → plan → **reserve** → sign → **expose (fence)** → transmit → commit
 
 SEC-002 requires every policy check and the budget reservation to complete before a signer
 is invoked, and SPEC §6.6 requires the reservation to exist before signing. Both hold on
 *every* attempt, not only the first: a second pass re-reserves before it re-signs exactly
 as the first did.
 
-The other rule that shapes the code is SPEC §6.7's asymmetry after a signature is
-transmitted. Before transmission, a failure releases the reservation. After transmission,
-the outcome may be a settled payment tx402 never saw, so the reservation is **retained**
-until its TTL and the caller gets ``AmbiguousPaymentError``. Releasing there would let the
-same money be spent twice against the hourly cap. That rule is not branched on here — it
-lives in :func:`tx402.completion.classify_paid_attempt`, and this module looks the
-disposition up and obeys it.
+The other rule that shapes the code is SPEC §6.7/§7's asymmetry around transmission. The
+signed retry is preceded by a durable **pre-transmission exposure fence** (``store.expose``,
+ADR-026): it moves the reservation ``reserved → exposed``, removes its 120 s expiry, and the
+transmit proceeds only if that write recorded. Before the fence, a failure releases the
+reservation; after it, the outcome may be a settled payment tx402 never saw, so the
+reservation stays **exposed** — durable, non-expiring, counting against both caps — until it
+commits (settlement), releases (definitive refusal/re-challenge), or an operator reconciles
+it. Releasing an ambiguous outcome would let the same money be spent twice against the cap.
+That disposition is not branched on here — it lives in
+:func:`tx402.completion.classify_paid_attempt`, and this module looks it up and obeys it.
 """
 
 from __future__ import annotations
 
+import asyncio
 import dataclasses
+import inspect
 import secrets
 import time
 from collections.abc import Callable, Mapping, Sequence
 from contextlib import suppress
 from dataclasses import dataclass
-from typing import Any, Final, Literal, TypeVar
+from typing import Any, Final, Literal, TypeVar, cast
 from urllib.parse import urlsplit
 
 import httpx
@@ -71,8 +76,10 @@ from tx402.errors import (
     NonReplayableRequestError,
     PaidRedirectBlockedError,
     Phase,
+    RecipientUnpinnedError,
     ReservedHeaderError,
     ResourceDeliveryError,
+    SpendScopeFrozenError,
     TransportError,
     Tx402Error,
     Tx402ErrorContext,
@@ -81,11 +88,15 @@ from tx402.errors import (
 from tx402.fingerprint import fingerprint_request
 from tx402.health import HealthIndex
 from tx402.ledger import (
+    AsyncSpendStore,
     BudgetState,
     MemorySpendStore,
+    ReservationRef,
+    ReserveSpendResult,
     SpendReservation,
     SpendStore,
     assert_spend_store,
+    canonicalize_recipient,
 )
 from tx402.manifest import assert_valid_release_manifest
 from tx402.meta import PROTOCOL_HEADERS, REQUEST_ID_HEADER, RESERVED_REQUEST_HEADERS
@@ -94,6 +105,7 @@ from tx402.policy import (
     PolicyDecision,
     PolicyEngine,
     PolicyRequirement,
+    RecipientPolicy,
     RoutingPolicy,
     normalize_policy_host,
 )
@@ -121,6 +133,12 @@ SPEND_STORE_COMMIT_FAILED_REASON: Final = "spend-store-commit-failed"
 
 #: ``details["causeCategory"]`` when the store failed before anything was signed.
 SPEND_STORE_UNAVAILABLE_CAUSE: Final = "spend-store-unavailable"
+
+#: ``details["causeCategory"]`` when the pre-transmission exposure fence (SPEC §7,
+#: ADR-026) could not be recorded. The signature exists but never reached the wire
+#: (SEC-002), so the reservation is released and the failure is a retryable
+#: ``TransportError`` — never a silent skip.
+EXPOSURE_FENCE_FAILED_CAUSE: Final = "exposure-fence-failed"
 
 ClientT = TypeVar("ClientT", bound="Tx402Client")
 AsyncClientT = TypeVar("AsyncClientT", bound="AsyncTx402Client")
@@ -354,7 +372,7 @@ def _read_payment_response(
     - Absent and undecodable are **different** evidence values. Upstream marks the header
       optional, so absent is forgiven; a header that is present and does not decode is a
       protocol violation and is evidence of nothing (O53).
-    - **It emits nothing.** Evidence is not an outcome. Until S15d the absent branch logged
+    - **It emits nothing.** Evidence is not an outcome. Previously the absent branch logged
       ``payment.completed`` with ``paid=True`` from here, which is only true when that
       evidence later reaches the table's commit row — a headerless 403 refusal and a
       headerless 402 re-challenge both produced a paid-success event for a call that paid
@@ -408,6 +426,13 @@ class _Rechallenged:
     challenge: Mapping[str, Any]
 
 
+def _ref(reservation: SpendReservation) -> ReservationRef:
+    """The durable locator for a reservation (SPEC §3.1): its full scope+asset+id triple."""
+    return ReservationRef(
+        reservation.reservation_id, reservation.policy_scope, reservation.asset_id
+    )
+
+
 class _Core:
     """Everything both transports share. Holds no per-request state."""
 
@@ -433,6 +458,11 @@ class _Core:
         self.solana_signer = solana_signer
         self.policy = policy
         self.spend_store = spend_store
+        # An AsyncSpendStore is awaited directly; a sync SpendStore is offloaded to a worker
+        # thread so it never blocks the event loop on the async client (SPEC §3.3, ADR-031).
+        self.store_is_async = inspect.iscoroutinefunction(
+            getattr(spend_store, "reserve", None)
+        )
         self.manifest = manifest
         self.clock = clock
         self.allow_insecure_localhost = allow_insecure_localhost
@@ -602,13 +632,74 @@ class _Core:
     def decide(
         self, payment_required: Mapping[str, Any], request_id: str, host: str
     ) -> PolicyDecision:
-        decision = self.policy.evaluate(
-            payment_required,
-            request_id=request_id,
-            policy_scope=host,
-            now_epoch_ms=self.clock(),
-            spend_store=self.spend_store,
+        try:
+            decision = self.policy.evaluate(
+                payment_required,
+                request_id=request_id,
+                policy_scope=host,
+                now_epoch_ms=self.clock(),
+                spend_store=self.spend_store,
+            )
+        except RecipientUnpinnedError as error:
+            # The advisory recipient pre-filter dropped every route (SPEC §6.2). One
+            # recipient.rejected for this attempt, then the non-retryable refusal raises.
+            self._emit_recipient_rejected(request_id, error)
+            raise
+        self._emit_policy_checked(request_id)
+        return decision
+
+    async def decide_async(
+        self, payment_required: Mapping[str, Any], request_id: str, host: str
+    ) -> PolicyDecision:
+        """Async :meth:`decide` — budget/recipient reads awaited/offloaded (SPEC §3.3)."""
+
+        async def read_budget(
+            *, policy_scope: str, asset_id: str, now_epoch_ms: int
+        ) -> BudgetState:
+            return await self.budget_state_async(
+                policy_scope=policy_scope, asset_id=asset_id, now_epoch_ms=now_epoch_ms
+            )
+
+        async def read_pins(*, scope: str, network: str) -> Sequence[str]:
+            pins: Sequence[str] = await self._dispatch(
+                lambda: self.spend_store.get_recipient_pins(scope, network)  # type: ignore[attr-defined]
+            )
+            return pins
+
+        async def read_policy(*, scope: str) -> Mapping[str, Any]:
+            policy: Mapping[str, Any] = await self._dispatch(
+                lambda: self.spend_store.get_recipient_policy(scope)  # type: ignore[attr-defined]
+            )
+            return policy
+
+        try:
+            decision = await self.policy.evaluate_async(
+                payment_required,
+                request_id=request_id,
+                policy_scope=host,
+                now_epoch_ms=self.clock(),
+                read_budget_state=read_budget,
+                read_recipient_pins=read_pins,
+                read_recipient_policy=read_policy,
+            )
+        except RecipientUnpinnedError as error:
+            self._emit_recipient_rejected(request_id, error)
+            raise
+        self._emit_policy_checked(request_id)
+        return decision
+
+    async def budget_state_async(
+        self, *, policy_scope: str, asset_id: str, now_epoch_ms: int
+    ) -> BudgetState:
+        """The public budget snapshot, awaited/offloaded for the async client (§3.3)."""
+        state: BudgetState = await self._dispatch(
+            lambda: self.spend_store.get_budget_state(
+                policy_scope=policy_scope, asset_id=asset_id, now_epoch_ms=now_epoch_ms
+            )
         )
+        return state
+
+    def _emit_policy_checked(self, request_id: str) -> None:
         # Only the allowed outcome is emitted here because a rejection raises rather than
         # returning: the refusal is already reported by `request.failed` carrying the
         # specific policy error code, and emitting both would double-count it.
@@ -622,7 +713,6 @@ class _Core:
                 "policyCode": "allowed",
             },
         )
-        return decision
 
     # -- route planning ------------------------------------------------------------------
 
@@ -769,6 +859,108 @@ class _Core:
 
     # -- reservation and signing ---------------------------------------------------------
 
+    async def _dispatch(self, call: Callable[[], Any]) -> Any:
+        """Runs one store call off the event loop (SPEC §3.3, ADR-031).
+
+        An :class:`~tx402.ledger.AsyncSpendStore` is awaited directly; a synchronous
+        :class:`~tx402.ledger.SpendStore` is offloaded to a thread so a network-backed
+        adapter never blocks the loop. Used only by the async client's ``*_async`` paths.
+        """
+        if self.store_is_async:
+            return await call()
+        return await asyncio.to_thread(call)
+
+    def _emit_reserved(self, request_id: str, reservation: SpendReservation) -> None:
+        emit(
+            self.logger,
+            "info",
+            {
+                "event": "budget.reserved",
+                "requestId": request_id,
+                "reservationId": reservation.reservation_id,
+                "assetId": reservation.asset_id,
+                "amountAtomic": reservation.amount_atomic,
+            },
+        )
+
+    def _emit_frozen(self, request_id: str, error: SpendScopeFrozenError) -> None:
+        """``spend.frozen`` at ``warn`` — reserve denied because the scope is frozen.
+
+        One per denied reserve (SPEC §11). A frozen scope is an authoritative policy
+        refusal, not an outage (SPEC §5.3), so it is emitted here rather than converted to a
+        transport failure.
+        """
+        emit(
+            self.logger,
+            "warn",
+            {
+                "event": "spend.frozen",
+                "requestId": request_id,
+                "assetId": error.context.asset_id,
+                "scope": error.details.get("scope"),
+                "frozenScope": error.details.get("frozenScope"),
+            },
+        )
+
+    def _emit_exposed(self, request_id: str, reservation: SpendReservation) -> None:
+        """``payment.exposed`` at ``info`` — the fence recorded before the wire."""
+        emit(
+            self.logger,
+            "info",
+            {
+                "event": "payment.exposed",
+                "requestId": request_id,
+                "reservationId": reservation.reservation_id,
+                "assetId": reservation.asset_id,
+                "amountAtomic": reservation.amount_atomic,
+            },
+        )
+
+    def _emit_recipient_pinned(
+        self,
+        request_id: str,
+        reservation: SpendReservation,
+        network: str,
+        recipient: str,
+    ) -> None:
+        """``recipient.pinned`` at ``info`` — a TOFU pin established in reserve (SPEC §11).
+
+        Emitted only when ``recipient_pin_established`` is True, so exactly one worker logs
+        the establishment and an id-reuse replay logs nothing (ADR-028 replay-safety).
+        """
+        emit(
+            self.logger,
+            "info",
+            {
+                "event": "recipient.pinned",
+                "requestId": request_id,
+                "reservationId": reservation.reservation_id,
+                "assetId": reservation.asset_id,
+                "network": network,
+                "recipient": recipient,
+            },
+        )
+
+    def _emit_recipient_rejected(
+        self, request_id: str, error: RecipientUnpinnedError
+    ) -> None:
+        """``recipient.rejected`` at ``warn`` (SPEC §11), one per attempt whose recipient
+        was refused — advisorily in ``evaluate`` (§6.2) or authoritatively in ``reserve``
+        (§3.4). ``network``/``presentedRecipient`` are carried when known (absent for
+        ``assertion-required``); a store OUTAGE is a TransportError, not this.
+        """
+        event: dict[str, Any] = {
+            "event": "recipient.rejected",
+            "requestId": request_id,
+            "merchantScope": error.details.get("merchantScope"),
+            "reason": error.details.get("reason"),
+        }
+        if error.details.get("network") is not None:
+            event["network"] = error.details["network"]
+        if error.details.get("presentedRecipient") is not None:
+            event["presentedRecipient"] = error.details["presentedRecipient"]
+        emit(self.logger, "warn", event)
+
     def reserve(
         self,
         *,
@@ -786,7 +978,9 @@ class _Core:
             body=prepared.body,
             challenge_hash=challenge_hash,
         )
-        reservation = self.spend_store.reserve(
+        network = item.requirement["network"]
+        recipient = canonicalize_recipient(network, item.requirement["payTo"])
+        result = self.spend_store.reserve(
             reservation_id=_request_id(now),
             request_id=request_id,
             policy_scope=prepared.host,
@@ -794,20 +988,56 @@ class _Core:
             asset_id=item.asset_id,
             amount_atomic=item.requirement["amountAtomic"],
             max_per_hour_atomic=item.max_per_hour_atomic,
+            max_total_atomic=item.max_total_atomic,
+            recipient_network=network,
+            recipient_canonical=recipient,
+            recipient_enforcement=self.policy.recipient_mode,
             now_epoch_ms=now,
         )
-        emit(
-            self.logger,
-            "info",
-            {
-                "event": "budget.reserved",
-                "requestId": request_id,
-                "reservationId": reservation.reservation_id,
-                "assetId": reservation.asset_id,
-                "amountAtomic": reservation.amount_atomic,
-            },
+        self._emit_reserved(request_id, result.reservation)
+        if result.recipient_pin_established:
+            self._emit_recipient_pinned(request_id, result.reservation, network, recipient)
+        return result.reservation, request_hash
+
+    async def reserve_async(
+        self,
+        *,
+        selection: _Selection,
+        prepared: _Prepared,
+        request_id: str,
+        challenge_hash: str,
+    ) -> tuple[SpendReservation, str]:
+        """Async :meth:`reserve` — the store call is awaited or offloaded (SPEC §3.3)."""
+        item = selection.requirement
+        now = self.clock()
+        request_hash = fingerprint_request(
+            method=prepared.request.method,
+            url=str(prepared.request.url),
+            body=prepared.body,
+            challenge_hash=challenge_hash,
         )
-        return reservation, request_hash
+        network = item.requirement["network"]
+        recipient = canonicalize_recipient(network, item.requirement["payTo"])
+        result: ReserveSpendResult = await self._dispatch(
+            lambda: self.spend_store.reserve(
+                reservation_id=_request_id(now),
+                request_id=request_id,
+                policy_scope=prepared.host,
+                request_fingerprint=request_hash,
+                asset_id=item.asset_id,
+                amount_atomic=item.requirement["amountAtomic"],
+                max_per_hour_atomic=item.max_per_hour_atomic,
+                max_total_atomic=item.max_total_atomic,
+                recipient_network=network,
+                recipient_canonical=recipient,
+                recipient_enforcement=self.policy.recipient_mode,
+                now_epoch_ms=now,
+            )
+        )
+        self._emit_reserved(request_id, result.reservation)
+        if result.recipient_pin_established:
+            self._emit_recipient_pinned(request_id, result.reservation, network, recipient)
+        return result.reservation, request_hash
 
     def _authorization_request(
         self,
@@ -921,22 +1151,113 @@ class _Core:
 
     # -- disposition ---------------------------------------------------------------------
 
-    def release_quietly(self, reservation_id: str) -> None:
+    def release_quietly(self, reservation: SpendReservation) -> None:
         """Releases without letting a store failure mask the original error.
 
-        A reservation expires on its own after 120 s, so a store that cannot release is not
-        a reason to replace a precise failure with a vaguer one.
+        A release that cannot be recorded falls back to the store's own GC — a
+        never-transmitted ``reserved`` record expires after 120 s, an ``exposed`` one never
+        expires and waits for an operator's ``resolve_exposed`` (ADR-026) — so a store that
+        cannot release is not a reason to replace a precise failure with a vaguer one.
 
-        ``Exception`` rather than ``Tx402Error``: before S15b only tx402's own errors were
+        ``Exception`` rather than ``Tx402Error``: previously only tx402's own errors were
         suppressed, so an adapter raising an ordinary ``KeyError`` or a driver error from
         its own transport replaced a precise pre-transmission failure with a stack trace
         from the cleanup path (O46). ``BaseException`` is deliberately *not* caught —
         cancellation and ``KeyboardInterrupt`` must still propagate.
         """
         with suppress(Exception):
-            self.spend_store.release(
-                reservation_id=reservation_id, now_epoch_ms=self.clock()
+            self.spend_store.release(ref=_ref(reservation), now_epoch_ms=self.clock())
+
+    async def release_quietly_async(self, reservation: SpendReservation) -> None:
+        """Async :meth:`release_quietly` — the store call is awaited or thread-offloaded."""
+        with suppress(Exception):
+            await self._dispatch(
+                lambda: self.spend_store.release(
+                    ref=_ref(reservation), now_epoch_ms=self.clock()
+                )
             )
+
+    def expose_or_fail(
+        self,
+        *,
+        selection: _Selection,
+        request_id: str,
+        reservation: SpendReservation,
+    ) -> None:
+        """The durable PRE-transmission exposure fence (SPEC §7, ADR-026, D-A2).
+
+        Run once per attempt immediately before the signed retry is transmitted. On
+        success the reservation is ``exposed`` — non-expiring, counting against both caps —
+        and a ``payment.exposed`` event fires at ``info``. On failure the signature has not
+        left the process (SEC-002), so the reservation is released and the caller gets a
+        retryable ``TransportError`` (``causeCategory: "exposure-fence-failed"``) plus a
+        ``payment.exposed`` at ``error``: a failed fence is a clean pre-transmission abort,
+        never a silent skip. Every failure converts uniformly — a store outage and a typed
+        store-invariant error alike — because with nothing on the wire a retry is safe.
+        """
+        try:
+            self.spend_store.expose(ref=_ref(reservation), now_epoch_ms=self.clock())
+        except Exception as error:
+            self.release_quietly(reservation)
+            raise self._exposure_fence_failed(
+                selection, request_id, reservation, error
+            ) from error
+        self._emit_exposed(request_id, reservation)
+
+    async def expose_or_fail_async(
+        self,
+        *,
+        selection: _Selection,
+        request_id: str,
+        reservation: SpendReservation,
+    ) -> None:
+        """Async :meth:`expose_or_fail` — the store call is awaited or thread-offloaded."""
+        try:
+            await self._dispatch(
+                lambda: self.spend_store.expose(
+                    ref=_ref(reservation), now_epoch_ms=self.clock()
+                )
+            )
+        except Exception as error:
+            await self.release_quietly_async(reservation)
+            raise self._exposure_fence_failed(
+                selection, request_id, reservation, error
+            ) from error
+        self._emit_exposed(request_id, reservation)
+
+    def _exposure_fence_failed(
+        self,
+        selection: _Selection,
+        request_id: str,
+        reservation: SpendReservation,
+        error: Exception,
+    ) -> TransportError:
+        """A failed pre-transmission fence — nothing reached the wire, so retryable."""
+        emit(
+            self.logger,
+            "error",
+            {
+                "event": "payment.exposed",
+                "requestId": request_id,
+                "reservationId": reservation.reservation_id,
+                "assetId": reservation.asset_id,
+                "reason": EXPOSURE_FENCE_FAILED_CAUSE,
+            },
+        )
+        return TransportError(
+            "The exposure fence could not be recorded before transmission",
+            context=self._route_context(
+                selection,
+                request_id,
+                "sign",
+                reservation_id=reservation.reservation_id,
+            ),
+            details={
+                "causeCategory": EXPOSURE_FENCE_FAILED_CAUSE,
+                "storeKind": getattr(self.spend_store, "kind", "unknown"),
+            },
+            cause=error,
+        )
 
     def reserve_or_fail(
         self,
@@ -960,23 +1281,64 @@ class _Core:
                 request_id=request_id,
                 challenge_hash=challenge_hash,
             )
+        except SpendScopeFrozenError as error:
+            self._emit_frozen(request_id, error)
+            raise
+        except RecipientUnpinnedError as error:
+            # Authoritative recipient refusal (SPEC §6.2), non-retryable — a store OUTAGE is
+            # a different path (the generic ``except`` below → TransportError, SS-11).
+            self._emit_recipient_rejected(request_id, error)
+            raise
         except Tx402Error:
             raise
         except Exception as error:
-            raise TransportError(
-                "The spend store could not take a reservation",
-                context=Tx402ErrorContext(
-                    request_id=request_id,
-                    phase="policy",
-                    amount_atomic=selection.requirement.requirement["amountAtomic"],
-                    asset_id=selection.requirement.asset_id,
-                ),
-                details={
-                    "causeCategory": SPEND_STORE_UNAVAILABLE_CAUSE,
-                    "storeKind": getattr(self.spend_store, "kind", "unknown"),
-                },
-                cause=error,
-            ) from error
+            raise self._reserve_outage(selection, request_id, error) from error
+
+    async def reserve_or_fail_async(
+        self,
+        *,
+        selection: _Selection,
+        prepared: _Prepared,
+        request_id: str,
+        challenge_hash: str,
+    ) -> tuple[SpendReservation, str]:
+        """Async :meth:`reserve_or_fail` — the store call is awaited or thread-offloaded."""
+        try:
+            return await self.reserve_async(
+                selection=selection,
+                prepared=prepared,
+                request_id=request_id,
+                challenge_hash=challenge_hash,
+            )
+        except SpendScopeFrozenError as error:
+            self._emit_frozen(request_id, error)
+            raise
+        except RecipientUnpinnedError as error:
+            self._emit_recipient_rejected(request_id, error)
+            raise
+        except Tx402Error:
+            raise
+        except Exception as error:
+            raise self._reserve_outage(selection, request_id, error) from error
+
+    def _reserve_outage(
+        self, selection: _Selection, request_id: str, error: Exception
+    ) -> TransportError:
+        """A store outage before a signature exists — genuinely retryable (O46, ADR-017)."""
+        return TransportError(
+            "The spend store could not take a reservation",
+            context=Tx402ErrorContext(
+                request_id=request_id,
+                phase="policy",
+                amount_atomic=selection.requirement.requirement["amountAtomic"],
+                asset_id=selection.requirement.asset_id,
+            ),
+            details={
+                "causeCategory": SPEND_STORE_UNAVAILABLE_CAUSE,
+                "storeKind": getattr(self.spend_store, "kind", "unknown"),
+            },
+            cause=error,
+        )
 
     @staticmethod
     def _route_context(
@@ -993,7 +1355,7 @@ class _Core:
         every downstream failure (``client.ts:928``); Python built a bare
         ``request_id``/``phase`` context at each site, so ``--json``'s ``error.context``
         dropped ``network``/``scheme``/``amountAtomic``/``assetId`` on every post-routing
-        failure — the parity break S34 found (O107). This is that one object, so the two
+        failure — a parity break a review found. This is that one object, so the two
         CLIs emit the same document. Every field it carries is a public identifier or an
         atomic figure, never a signer payload or an RPC URL (SEC-003).
         """
@@ -1029,44 +1391,74 @@ class _Core:
           ``ResourceDeliveryError`` is ``app-dependent``, so ``retryable`` is ``False``.
         - ``paid`` is **``True``**, not ``"unknown"``. The merchant's own metadata reported
           a successful settlement; tx402 knows the money moved and says so.
-        - The reservation is deliberately **not** released. It still counts against the
-          hourly cap until its TTL, which is the conservative direction to be wrong in.
+        - The reservation is deliberately **not** released. The fence ran before
+          transmission, so it is ``exposed`` — non-expiring — and keeps counting against
+          both the hourly and cumulative caps until an operator reconciles it with
+          ``resolve_exposed`` (ADR-026), the conservative direction to be wrong in.
         """
         try:
             self.spend_store.commit(
-                reservation_id=reservation.reservation_id,
+                ref=_ref(reservation),
                 committed_at_epoch_ms=self.clock(),
                 settlement_id=settlement_id,
             )
         except Exception as error:
-            emit(
-                self.logger,
-                "error",
-                {
-                    "event": "request.failed",
-                    "requestId": request_id,
-                    "errorCode": TX402_ERROR_CODES["resource_delivery"],
-                    "phase": "complete",
-                    "paid": True,
-                },
-            )
-            raise ResourceDeliveryError(
-                "The payment settled but the spend store could not record it",
-                context=self._route_context(
-                    selection,
-                    request_id,
-                    "complete",
-                    paid=True,
-                    reservation_id=reservation.reservation_id,
-                ),
-                details={
-                    "status": status,
-                    "reason": SPEND_STORE_COMMIT_FAILED_REASON,
-                    "reservationExpiresAtEpochMs": reservation.expires_at_epoch_ms,
-                    "storeKind": getattr(self.spend_store, "kind", "unknown"),
-                },
-                cause=error,
+            raise self._commit_failure(
+                selection, request_id, reservation, status, error
             ) from error
+
+    async def commit_or_fail_async(
+        self,
+        *,
+        selection: _Selection,
+        request_id: str,
+        reservation: SpendReservation,
+        settlement_id: str | None,
+        status: int,
+    ) -> None:
+        """Async :meth:`commit_or_fail` — the store call is awaited or thread-offloaded."""
+        try:
+            await self._dispatch(
+                lambda: self.spend_store.commit(
+                    ref=_ref(reservation),
+                    committed_at_epoch_ms=self.clock(),
+                    settlement_id=settlement_id,
+                )
+            )
+        except Exception as error:
+            raise self._commit_failure(
+                selection, request_id, reservation, status, error
+            ) from error
+
+    def _commit_failure(
+        self,
+        selection: _Selection,
+        request_id: str,
+        reservation: SpendReservation,
+        status: int,
+        error: Exception,
+    ) -> ResourceDeliveryError:
+        """A post-settlement store outage — money moved, so paid=True and not retryable."""
+        # NO request.failed here — the returned ResourceDeliveryError (paid=True) is raised
+        # and reaches the one advertised emit point (``log_request_failed``), logged once.
+        # Emitting here too double-counted the terminal event for one request (O18, §11).
+        return ResourceDeliveryError(
+            "The payment settled but the spend store could not record it",
+            context=self._route_context(
+                selection,
+                request_id,
+                "complete",
+                paid=True,
+                reservation_id=reservation.reservation_id,
+            ),
+            details={
+                "status": status,
+                "reason": SPEND_STORE_COMMIT_FAILED_REASON,
+                "reservationExpiresAtEpochMs": reservation.expires_at_epoch_ms,
+                "storeKind": getattr(self.spend_store, "kind", "unknown"),
+            },
+            cause=error,
+        )
 
     def unresolved(
         self,
@@ -1081,7 +1473,7 @@ class _Core:
 
         Which class is raised comes from the disposition's ``error_code``, not from this
         method: SPEC §6.1 requires a cross-origin redirect to raise
-        ``PaidRedirectBlockedError``, and before S15b the high-level client swallowed it and
+        ``PaidRedirectBlockedError``, and previously the high-level client swallowed it and
         reported ``AmbiguousPaymentError`` instead (O52). The money disposition is identical
         either way — retained to TTL — so the fix is an identity fix and nothing more.
         """
@@ -1159,29 +1551,16 @@ class _Core:
         reservation: SpendReservation,
         attempt: int,
     ) -> _Delivered | _Rechallenged:
-        """Applies SPEC §6.7's disposition to one completed signature-bearing attempt."""
+        """Applies SPEC §6.7's disposition to one completed signature-bearing attempt.
+
+        Store writes (commit, release) run synchronously here; :meth:`settle_async` is the
+        awaited/offloaded twin. Everything else — classification and error construction — is
+        pure and shared through the ``_settle_*`` helpers so the two paths cannot diverge.
+        """
         blocked = _blocked_redirect(response, request, request_id)
         if blocked is not None:
-            disposition = classify_paid_attempt(
-                attempt=attempt,
-                max_paid_attempts=self.policy.max_paid_attempts,
-                result=PaidAttemptResult(kind="redirect-blocked"),
-            )
-            raise self.unresolved(
-                selection=selection,
-                request_id=request_id,
-                reservation=reservation,
-                disposition=disposition,
-                cause=blocked,
-            )
-
-        # PAYMENT-RESPONSE is read *before* the disposition is taken, and on every status:
-        # "the merchant reports a successful settlement" is one of the table's inputs, not a
-        # check after the fact, and gating the read on 2xx is what hid O44.
-        settlement: SettlementEvidence
-        settlement_id: str | None
+            raise self._settle_blocked(selection, request_id, reservation, attempt, blocked)
         settlement, settlement_id = _read_payment_response(response)
-
         disposition = classify_paid_attempt(
             attempt=attempt,
             max_paid_attempts=self.policy.max_paid_attempts,
@@ -1189,32 +1568,8 @@ class _Core:
                 kind="response", status=response.status_code, settlement=settlement
             ),
         )
-
         if disposition.kind == "ambiguous":
-            # Reported here rather than at the read site, because "the merchant's
-            # settlement metadata does not decode" only becomes a completion once the table
-            # has said the money is retained and the outcome unknown (O57). ``"unknown"``
-            # is the honest value and it is what this disposition means.
-            if disposition.cause_category == MALFORMED_SETTLEMENT_CAUSE:
-                emit(
-                    self.logger,
-                    "warn",
-                    {
-                        "event": "payment.completed",
-                        "requestId": request_id,
-                        "paid": "unknown",
-                        "reason": SETTLEMENT_UNPARSEABLE_REASON,
-                    },
-                )
-            raise self.unresolved(
-                selection=selection,
-                request_id=request_id,
-                reservation=reservation,
-                disposition=disposition,
-            )
-
-        # SPEC §5.3: the settlement stands and the resource does not. Commit first — the
-        # money moved — and only then report the delivery failure, with ``paid=True``.
+            raise self._settle_ambiguous(selection, request_id, reservation, disposition)
         if disposition.kind == "paid-undelivered":
             self.commit_or_fail(
                 selection=selection,
@@ -1223,101 +1578,19 @@ class _Core:
                 settlement_id=settlement_id,
                 status=response.status_code,
             )
-            emit(
-                self.logger,
-                "warn",
-                {
-                    "event": "payment.completed",
-                    "requestId": request_id,
-                    "paid": True,
-                    "reason": disposition.reason,
-                },
+            raise self._settle_undelivered(
+                selection, request_id, reservation, response, disposition, attempt
             )
-            raise ResourceDeliveryError(
-                "The merchant reported a successful settlement but did not deliver "
-                "the resource",
-                context=self._route_context(
-                    selection,
-                    request_id,
-                    "complete",
-                    paid=True,
-                    reservation_id=reservation.reservation_id,
-                ),
-                details={
-                    "status": response.status_code,
-                    "reason": disposition.reason,
-                    "attempt": attempt,
-                    "maxPaidAttempts": self.policy.max_paid_attempts,
-                },
-            )
-
-        # Both remaining non-commit dispositions release: the merchant either re-challenged
-        # or refused, and each is evidence that no settlement occurred (SPEC §6.7).
         if disposition.kind != "commit":
-            self.release_quietly(reservation.reservation_id)
-
+            self.release_quietly(reservation)
         if disposition.kind == "rechallenge":
-            # Parsed from scratch, with the same binding checks the first challenge got.
-            #
-            # **A decode failure here is a post-transmission outcome and is classified as
-            # one.** The reservation is already released above — an HTTP ``402`` is
-            # intelligible whatever its header says, and it is the merchant declining the
-            # payment, so releasing stays right and settlement evidence still outranks the
-            # status line. What was wrong was letting the raw
-            # ``PaymentRequiredInvalidError``
-            # escape: it carries no ``paid`` context and maps to exit ``5``, a band
-            # documented
-            # as "no signature was ever produced". A signature *was* produced and
-            # transmitted.
-            # See ADR-022.
-            try:
-                return _Rechallenged(self.decode(response, prepared.request, request_id))
-            except Tx402Error as error:
-                # Mirrors the TypeScript reference exactly (``client.ts:1129``) so the two
-                # CLIs emit the same ``--json`` (O107): spread the decode failure's own
-                # details first — that is what keeps ``schemaPath`` — then let this error's
-                # ``status`` and ``reason`` win. The route context carries the reservation,
-                # which the bare context previously dropped here alone.
-                raise ResourceDeliveryError(
-                    "Merchant re-challenged undecodably",
-                    context=self._route_context(
-                        selection,
-                        request_id,
-                        "complete",
-                        paid=False,
-                        reservation_id=reservation.reservation_id,
-                    ),
-                    details={
-                        **error.details,
-                        "status": response.status_code,
-                        "reason": RECHALLENGE_UNDECODABLE_REASON,
-                    },
-                    cause=error,
-                ) from error
-
-        if disposition.kind == "failed":
-            raise ResourceDeliveryError(
-                f"Merchant re-challenged every one of the "
-                f"{self.policy.max_paid_attempts} permitted paid attempts"
-                if disposition.reason == MAX_PAID_ATTEMPTS_REASON
-                else "Merchant did not deliver the paid resource",
-                context=self._route_context(
-                    selection,
-                    request_id,
-                    "complete"
-                    if disposition.reason == "settlement-unsuccessful"
-                    else "retry",
-                    paid=False,
-                    reservation_id=reservation.reservation_id,
-                ),
-                details={
-                    "status": response.status_code,
-                    "reason": disposition.reason,
-                    "attempt": attempt,
-                    "maxPaidAttempts": self.policy.max_paid_attempts,
-                },
+            return self._settle_rechallenge(
+                selection, response, prepared, request_id, reservation
             )
-
+        if disposition.kind == "failed":
+            raise self._settle_failed(
+                selection, request_id, reservation, response, disposition, attempt
+            )
         self.commit_or_fail(
             selection=selection,
             request_id=request_id,
@@ -1325,12 +1598,232 @@ class _Core:
             settlement_id=settlement_id,
             status=response.status_code,
         )
-        # The one place a payment really did complete, and therefore the only place an
-        # absent header may be reported as a completed payment (O57). SPEC §6.7 forgives the
-        # missing metadata — the pinned protocol marks it optional — so the money is
-        # unaffected and only the severity moves: ``warn`` and a ``reason``, because a
-        # merchant that never sends it cannot be reconciled against, and an operator should
-        # be able to see that from the log stream alone.
+        return self._settle_delivered(
+            response, settlement, settlement_id, prepared, request_id
+        )
+
+    async def settle_async(
+        self,
+        *,
+        selection: _Selection,
+        response: httpx.Response,
+        request: httpx.Request,
+        prepared: _Prepared,
+        request_id: str,
+        reservation: SpendReservation,
+        attempt: int,
+    ) -> _Delivered | _Rechallenged:
+        """Async :meth:`settle` — commit/release awaited or offloaded (SPEC §3.3)."""
+        blocked = _blocked_redirect(response, request, request_id)
+        if blocked is not None:
+            raise self._settle_blocked(selection, request_id, reservation, attempt, blocked)
+        settlement, settlement_id = _read_payment_response(response)
+        disposition = classify_paid_attempt(
+            attempt=attempt,
+            max_paid_attempts=self.policy.max_paid_attempts,
+            result=PaidAttemptResult(
+                kind="response", status=response.status_code, settlement=settlement
+            ),
+        )
+        if disposition.kind == "ambiguous":
+            raise self._settle_ambiguous(selection, request_id, reservation, disposition)
+        if disposition.kind == "paid-undelivered":
+            await self.commit_or_fail_async(
+                selection=selection,
+                request_id=request_id,
+                reservation=reservation,
+                settlement_id=settlement_id,
+                status=response.status_code,
+            )
+            raise self._settle_undelivered(
+                selection, request_id, reservation, response, disposition, attempt
+            )
+        if disposition.kind != "commit":
+            await self.release_quietly_async(reservation)
+        if disposition.kind == "rechallenge":
+            return self._settle_rechallenge(
+                selection, response, prepared, request_id, reservation
+            )
+        if disposition.kind == "failed":
+            raise self._settle_failed(
+                selection, request_id, reservation, response, disposition, attempt
+            )
+        await self.commit_or_fail_async(
+            selection=selection,
+            request_id=request_id,
+            reservation=reservation,
+            settlement_id=settlement_id,
+            status=response.status_code,
+        )
+        return self._settle_delivered(
+            response, settlement, settlement_id, prepared, request_id
+        )
+
+    # -- settle: the pure (store-free) pieces both paths share --------------------------
+
+    def _settle_blocked(
+        self,
+        selection: _Selection,
+        request_id: str,
+        reservation: SpendReservation,
+        attempt: int,
+        blocked: BaseException,
+    ) -> Tx402Error:
+        disposition = classify_paid_attempt(
+            attempt=attempt,
+            max_paid_attempts=self.policy.max_paid_attempts,
+            result=PaidAttemptResult(kind="redirect-blocked"),
+        )
+        return self.unresolved(
+            selection=selection,
+            request_id=request_id,
+            reservation=reservation,
+            disposition=disposition,
+            cause=blocked,
+        )
+
+    def _settle_ambiguous(
+        self,
+        selection: _Selection,
+        request_id: str,
+        reservation: SpendReservation,
+        disposition: PaidAttemptDisposition,
+    ) -> Tx402Error:
+        # Reported here rather than at the read site, because "the merchant's settlement
+        # metadata does not decode" only becomes a completion once the table has said the
+        # money is retained and the outcome unknown (O57). "unknown" is the honest value.
+        if disposition.cause_category == MALFORMED_SETTLEMENT_CAUSE:
+            emit(
+                self.logger,
+                "warn",
+                {
+                    "event": "payment.completed",
+                    "requestId": request_id,
+                    "paid": "unknown",
+                    "reason": SETTLEMENT_UNPARSEABLE_REASON,
+                },
+            )
+        return self.unresolved(
+            selection=selection,
+            request_id=request_id,
+            reservation=reservation,
+            disposition=disposition,
+        )
+
+    def _settle_undelivered(
+        self,
+        selection: _Selection,
+        request_id: str,
+        reservation: SpendReservation,
+        response: httpx.Response,
+        disposition: PaidAttemptDisposition,
+        attempt: int,
+    ) -> ResourceDeliveryError:
+        # SPEC §5.3: the settlement stands and the resource does not. The caller commits
+        # first — the money moved — and only then reports this delivery failure, paid=True.
+        emit(
+            self.logger,
+            "warn",
+            {
+                "event": "payment.completed",
+                "requestId": request_id,
+                "paid": True,
+                "reason": disposition.reason,
+            },
+        )
+        return ResourceDeliveryError(
+            "The merchant reported a successful settlement but did not deliver "
+            "the resource",
+            context=self._route_context(
+                selection,
+                request_id,
+                "complete",
+                paid=True,
+                reservation_id=reservation.reservation_id,
+            ),
+            details={
+                "status": response.status_code,
+                "reason": disposition.reason,
+                "attempt": attempt,
+                "maxPaidAttempts": self.policy.max_paid_attempts,
+            },
+        )
+
+    def _settle_rechallenge(
+        self,
+        selection: _Selection,
+        response: httpx.Response,
+        prepared: _Prepared,
+        request_id: str,
+        reservation: SpendReservation,
+    ) -> _Rechallenged:
+        # A decode failure here is a post-transmission outcome and is classified as one: the
+        # reservation is already released, a 402 is the merchant declining the payment, and
+        # letting the raw PaymentRequiredInvalidError escape would map it to exit 5 ("no
+        # signature was ever produced") when one was produced and transmitted (ADR-022).
+        try:
+            return _Rechallenged(self.decode(response, prepared.request, request_id))
+        except Tx402Error as error:
+            # Mirrors the TypeScript reference (client.ts:1129) so both CLIs emit the same
+            # --json (O107): spread the decode failure's details first (keeps schemaPath),
+            # then let this error's status and reason win.
+            raise ResourceDeliveryError(
+                "Merchant re-challenged undecodably",
+                context=self._route_context(
+                    selection,
+                    request_id,
+                    "complete",
+                    paid=False,
+                    reservation_id=reservation.reservation_id,
+                ),
+                details={
+                    **error.details,
+                    "status": response.status_code,
+                    "reason": RECHALLENGE_UNDECODABLE_REASON,
+                },
+                cause=error,
+            ) from error
+
+    def _settle_failed(
+        self,
+        selection: _Selection,
+        request_id: str,
+        reservation: SpendReservation,
+        response: httpx.Response,
+        disposition: PaidAttemptDisposition,
+        attempt: int,
+    ) -> ResourceDeliveryError:
+        return ResourceDeliveryError(
+            f"Merchant re-challenged every one of the "
+            f"{self.policy.max_paid_attempts} permitted paid attempts"
+            if disposition.reason == MAX_PAID_ATTEMPTS_REASON
+            else "Merchant did not deliver the paid resource",
+            context=self._route_context(
+                selection,
+                request_id,
+                "complete" if disposition.reason == "settlement-unsuccessful" else "retry",
+                paid=False,
+                reservation_id=reservation.reservation_id,
+            ),
+            details={
+                "status": response.status_code,
+                "reason": disposition.reason,
+                "attempt": attempt,
+                "maxPaidAttempts": self.policy.max_paid_attempts,
+            },
+        )
+
+    def _settle_delivered(
+        self,
+        response: httpx.Response,
+        settlement: SettlementEvidence,
+        settlement_id: str | None,
+        prepared: _Prepared,
+        request_id: str,
+    ) -> _Delivered:
+        # The one place a payment really completed, and the only place an absent
+        # header may be reported as completed (O57). SPEC §6.7 forgives the missing
+        # metadata — the pinned protocol marks it optional — so only the severity moves.
         completed: dict[str, object] = {
             "event": "payment.completed",
             "requestId": request_id,
@@ -1339,9 +1832,6 @@ class _Core:
         if settlement == "absent":
             completed["reason"] = SETTLEMENT_ABSENT_REASON
         if settlement_id is not None:
-            # Hashed, never raw: see `settlement_id_hash`. The key is absent rather than
-            # null when the merchant supplied no identifier, matching the TypeScript
-            # reference's conditional spread so both streams have the same shape.
             completed["settlementIdHash"] = settlement_id_hash(settlement_id)
         completed["totalSdkOverheadMs"] = elapsed_ms(self.monotonic, prepared.started_at)
         emit(self.logger, "warn" if settlement == "absent" else "info", completed)
@@ -1411,7 +1901,7 @@ def _validate_logger(logger: object) -> None:
     ``error``. ``emit`` suppresses logger failures on purpose — a logger fault must never
     fail a payment that already settled — and that isolation is exactly what turned a
     misconfigured hook into perfect silence: a callable passed where an object belongs
-    produced zero events and no error (PLAN.md O71). The suppression stays; accepting a
+    produced zero events and no error. The suppression stays; accepting a
     value that can never work does not. The TypeScript client checks the same four
     attributes at the same point (ADR-005).
     """
@@ -1427,7 +1917,8 @@ def _build_core(
     solana_signer: object,
     policy: Policy | None,
     routing: RoutingPolicy | None,
-    spend_store: SpendStore | None,
+    recipient_policy: RecipientPolicy | None,
+    spend_store: SpendStore | AsyncSpendStore | None,
     manifest: Mapping[str, Any],
     clock: Clock,
     evm_rpc_transport: object,
@@ -1439,7 +1930,13 @@ def _build_core(
     logger: Tx402Logger,
     monotonic: Monotonic,
 ) -> tuple[_Core, SpendStore]:
-    """Validates configuration synchronously and returns an immutable core (SPEC §4.1)."""
+    """Validates configuration synchronously and returns an immutable core (SPEC §4.1).
+
+    Accepts a sync :class:`~tx402.ledger.SpendStore` or an
+    :class:`~tx402.ledger.AsyncSpendStore` (the async client awaits it; the sync client is
+    only ever given a sync store). The store is duck-typed on the ``_Core`` handle: the
+    ``_dispatch`` seam awaits or thread-offloads it based on ``store_is_async`` (SPEC §3.3).
+    """
     verified = assert_valid_release_manifest(
         manifest,
         context=Tx402ErrorContext(request_id="configuration", phase="initial"),
@@ -1453,12 +1950,32 @@ def _build_core(
     # silently replaced it with an in-memory store, so a fleet-wide cap became per-process
     # without any error (O54). The structural check then rejects a lookalike loudly rather
     # than letting duck typing discover the missing method mid-payment.
-    store: SpendStore = MemorySpendStore() if spend_store is None else spend_store
-    assert_spend_store(store)
+    resolved = MemorySpendStore() if spend_store is None else spend_store
+    assert_spend_store(resolved)
+    # Duck-typed onto the sync-typed ``_Core.spend_store`` handle; the ``_dispatch`` seam
+    # handles an async store at runtime (SPEC §3.3). The sync client only ever passes a sync
+    # store, so its direct calls stay correctly typed.
+    store = cast(SpendStore, resolved)
+    engine = PolicyEngine(verified, policy, routing, recipient_policy)
+    # A mode:"tofu" client MUST fail closed unless the store implements RecipientPinStore
+    # (SPEC §6.1) — the advisory read and the CLI need it. assert_spend_store validates only
+    # the data plane, so this is the one place the pin-store methods are required for tofu.
+    if engine.recipient_mode == "tofu" and not (
+        callable(getattr(resolved, "get_recipient_pins", None))
+        and callable(getattr(resolved, "get_recipient_policy", None))
+    ):
+        raise ConfigurationError(
+            "recipient_policy mode 'tofu' requires a RecipientPinStore",
+            context=Tx402ErrorContext(request_id="configuration", phase="initial"),
+            details={
+                "configPath": "recipientPolicy",
+                "reason": "recipient-tofu-needs-pin-store",
+            },
+        )
     core = _Core(
         evm_signer=evm_signer,
         solana_signer=solana_signer,
-        policy=PolicyEngine(verified, policy, routing),
+        policy=engine,
         spend_store=store,
         manifest=verified,
         clock=clock,
@@ -1620,10 +2137,17 @@ class Tx402Transport(httpx.BaseTransport):
             )
         except BaseException:
             # Still pre-transmission: nothing reached the merchant, so the budget goes back.
-            core.release_quietly(reservation.reservation_id)
+            core.release_quietly(reservation)
             raise
 
         core.log_request_retried(request_id, attempt, selection)
+        # Pre-transmission exposure fence (SPEC §7, ADR-026): the signature exists but is
+        # not yet on the wire (SEC-002), so the reservation is exposed durably before it can
+        # be. Transmission proceeds only if the fence recorded — a failed write releases the
+        # (still-un-transmitted) reservation and raises a retryable pre-transmission error.
+        core.expose_or_fail(
+            selection=selection, request_id=request_id, reservation=reservation
+        )
         try:
             paid = with_deadline(
                 lambda: self._inner.handle_request(retry),
@@ -1710,7 +2234,7 @@ class AsyncTx402Transport(httpx.AsyncBaseTransport):
             await response.aread()
             challenge = core.decode(response, request, request_id)
             core.log_payment_required(request_id, challenge, started_at=started_at)
-            decision = core.decide(challenge, request_id, host)
+            decision = await core.decide_async(challenge, request_id, host)
             selection = await core.plan_async(decision, request_id, core.clock())
             return _plan_from(request_id, response, challenge, selection)
         except Tx402Error as error:
@@ -1755,9 +2279,9 @@ class AsyncTx402Transport(httpx.AsyncBaseTransport):
         attempt: int,
     ) -> _Delivered | _Rechallenged:
         core = self._core
-        decision = core.decide(challenge, request_id, prepared.host)
+        decision = await core.decide_async(challenge, request_id, prepared.host)
         selection = await core.plan_async(decision, request_id, core.clock())
-        reservation, request_hash = core.reserve_or_fail(
+        reservation, request_hash = await core.reserve_or_fail_async(
             selection=selection,
             prepared=prepared,
             request_id=request_id,
@@ -1778,10 +2302,17 @@ class AsyncTx402Transport(httpx.AsyncBaseTransport):
                 disable_request_id_header=core.disable_request_id_header,
             )
         except BaseException:
-            core.release_quietly(reservation.reservation_id)
+            await core.release_quietly_async(reservation)
             raise
 
         core.log_request_retried(request_id, attempt, selection)
+        # Pre-transmission exposure fence (SPEC §7, ADR-026): the signature exists but is
+        # not yet on the wire (SEC-002), so the reservation is exposed durably before it can
+        # be. The store call is awaited or thread-offloaded through the same `_dispatch`
+        # seam as reserve/commit (SPEC §3.3); a failed fence releases and aborts transmit.
+        await core.expose_or_fail_async(
+            selection=selection, request_id=request_id, reservation=reservation
+        )
         try:
             paid = await with_deadline_async(
                 self._inner.handle_async_request(retry),
@@ -1796,7 +2327,7 @@ class AsyncTx402Transport(httpx.AsyncBaseTransport):
                 cause=error,
             ) from error
         await paid.aread()
-        return core.settle(
+        return await core.settle_async(
             selection=selection,
             response=paid,
             request=retry,
@@ -1820,6 +2351,7 @@ class Tx402Client:
         solana_signer: object = None,
         policy: Policy | None = None,
         routing: RoutingPolicy | None = None,
+        recipient_policy: RecipientPolicy | None = None,
         spend_store: SpendStore | None = None,
         transport: httpx.BaseTransport | None = None,
         evm_rpc_transport: httpx.BaseTransport | None = None,
@@ -1838,6 +2370,7 @@ class Tx402Client:
             solana_signer=solana_signer,
             policy=policy,
             routing=routing,
+            recipient_policy=recipient_policy,
             spend_store=spend_store,
             manifest=manifest,
             clock=clock,
@@ -1881,7 +2414,9 @@ class Tx402Client:
         return self._store.get_budget_state(
             policy_scope=policy_scope,
             asset_id=asset_id,
-            now_epoch_ms=_system_clock() if now_epoch_ms is None else now_epoch_ms,
+            # Default to the client's CONFIGURED clock, not the system clock, so a
+            # a test/skewed clock governs the default query — matches TS clock.now() (O19).
+            now_epoch_ms=self._core.clock() if now_epoch_ms is None else now_epoch_ms,
         )
 
     def reset_health(self) -> None:
@@ -1914,7 +2449,8 @@ class AsyncTx402Client:
         solana_signer: object = None,
         policy: Policy | None = None,
         routing: RoutingPolicy | None = None,
-        spend_store: SpendStore | None = None,
+        recipient_policy: RecipientPolicy | None = None,
+        spend_store: SpendStore | AsyncSpendStore | None = None,
         transport: httpx.AsyncBaseTransport | None = None,
         evm_rpc_transport: httpx.AsyncBaseTransport | None = None,
         solana_rpc_transport: httpx.AsyncBaseTransport | None = None,
@@ -1932,6 +2468,7 @@ class AsyncTx402Client:
             solana_signer=solana_signer,
             policy=policy,
             routing=routing,
+            recipient_policy=recipient_policy,
             spend_store=spend_store,
             manifest=manifest,
             clock=clock,
@@ -1969,13 +2506,20 @@ class AsyncTx402Client:
         """Plans a payment without reserving budget or producing a signature (SPEC §11)."""
         return await self._transport.plan(self._client.build_request(method, url, **kwargs))
 
-    def get_budget_state(
+    async def get_budget_state(
         self, *, policy_scope: str, asset_id: str, now_epoch_ms: int | None = None
     ) -> BudgetState:
-        return self._store.get_budget_state(
+        """Async budget snapshot — a NAMED break from 0.1 (SPEC §3.3/§14, ADR-031).
+
+        A synchronous accessor cannot read a network-backed store without blocking the loop,
+        so on the async client it must be awaited. Sync ``Tx402Client.get_budget_state``
+        is unchanged. For a durable store the ``now_epoch_ms`` argument is advisory (§3.4a).
+        """
+        return await self._core.budget_state_async(
             policy_scope=policy_scope,
             asset_id=asset_id,
-            now_epoch_ms=_system_clock() if now_epoch_ms is None else now_epoch_ms,
+            # The client's CONFIGURED clock, not the system clock (O19) — see the sync path.
+            now_epoch_ms=self._core.clock() if now_epoch_ms is None else now_epoch_ms,
         )
 
     def reset_health(self) -> None:

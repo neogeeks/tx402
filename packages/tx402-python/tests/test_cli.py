@@ -42,6 +42,7 @@ from tx402.cli import (
     EXIT_CODE_BY_ERROR,
     EXIT_CODES,
     JSON_SCHEMA_VERSION,
+    CallOptions,
     CliIo,
     UsageError,
     main,
@@ -171,7 +172,7 @@ class TestArgumentParsing:
 
     def test_reads_body_from_a_file(self) -> None:
         parsed = parse_args(["call", URL, "--body", "@payload.json"], lambda _p: "{}")
-        assert parsed.options is not None
+        assert isinstance(parsed.options, CallOptions)
         assert parsed.options.body == "{}"
         assert parsed.options.body_path == "payload.json"
 
@@ -212,21 +213,21 @@ class TestArgumentParsing:
 
     def test_normalises_the_method_and_rejects_an_unsupported_one(self) -> None:
         parsed = parse_args(["call", URL, "--method", "post"], lambda _p: "")
-        assert parsed.options is not None
+        assert isinstance(parsed.options, CallOptions)
         assert parsed.options.method == "POST"
         with pytest.raises(UsageError, match="Unsupported --method"):
             parse_args(["call", URL, "--method", "TRACE"], lambda _p: "")
 
 
 class TestExitCodeMapping:
-    """SPEC §11's nine codes, and the SPEC §8 taxonomy's fifteen mapped onto them."""
+    """SPEC §11's nine codes, and the SPEC §8 taxonomy's seventeen mapped onto them."""
 
     def test_classifies_every_error_code_in_the_taxonomy(self) -> None:
         # Exhaustive by assertion rather than by the type system, which is what Python
-        # gives us: a sixteenth error code added to SPEC §8 without a row here fails now,
+        # gives us: an eighteenth error code added to SPEC §8 without a row here fails now,
         # rather than silently exiting as an unclassified failure.
         assert {entry.code for entry in TX402_ERROR_TAXONOMY} == set(EXIT_CODE_BY_ERROR)
-        assert len(EXIT_CODE_BY_ERROR) == 15
+        assert len(EXIT_CODE_BY_ERROR) == 17
 
     def test_uses_each_of_the_nine_documented_codes_and_never_one(self) -> None:
         used = set(EXIT_CODE_BY_ERROR.values())
@@ -270,6 +271,8 @@ class TestExitCodeMapping:
             "TX402_PAYMENT_AMBIGUOUS": 8,
             "TX402_RESOURCE_DELIVERY": 9,
             "TX402_REDIRECT_BLOCKED": 8,
+            "TX402_SPEND_FROZEN": 3,
+            "TX402_RECIPIENT_UNPINNED": 3,
         }
         assert dict(EXIT_CODE_BY_ERROR) == expected
 

@@ -31,6 +31,19 @@ Both SDKs are validated against the same frozen cross-language conformance fixtu
 
 from __future__ import annotations
 
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as _dist_version
+
+# The installed ``tx402`` distribution version (U18). Reads the real installed dist metadata
+# (identical to ``package.json``/``pyproject.toml``); falls back to the version-synced
+# constant when imported from a source tree with no installed distribution.
+try:
+    __version__ = _dist_version("tx402")
+except PackageNotFoundError:  # pragma: no cover - only from an uninstalled source tree
+    from tx402._version import PACKAGE_VERSION
+
+    __version__ = PACKAGE_VERSION
+
 from tx402.bundled_manifest import BUNDLED_MANIFEST
 from tx402.chain import (
     MAX_AUTHORIZATION_SECONDS,
@@ -81,9 +94,11 @@ from tx402.errors import (
     InvalidPaymentRequiredError,
     NonReplayableRequestError,
     PaidRedirectBlockedError,
+    RecipientUnpinnedError,
     ReservedHeaderError,
     ResourceDeliveryError,
     SignerError,
+    SpendScopeFrozenError,
     TransportError,
     Tx402Error,
     Tx402ErrorContext,
@@ -115,11 +130,19 @@ from tx402.health import (
 from tx402.ledger import (
     RESERVATION_TTL_MS,
     ROLLING_WINDOW_MS,
+    AsyncRecipientPinStore,
+    AsyncSpendStore,
+    BudgetLimits,
     BudgetState,
     MemorySpendStore,
+    RecipientPinStore,
+    ReservationRef,
+    ReserveSpendResult,
     SpendEntry,
     SpendReservation,
     SpendStore,
+    SpendStoreAdmin,
+    StoreCapabilities,
     assert_spend_store,
 )
 from tx402.manifest import (
@@ -148,6 +171,7 @@ from tx402.policy import (
     PolicyDecision,
     PolicyEngine,
     PolicyRequirement,
+    RecipientPolicy,
     RoutingPolicy,
     normalize_policy_host,
 )
@@ -188,9 +212,12 @@ __all__ = [
     "TX402_ERROR_TAXONOMY",
     "X402_PROTOCOL_VERSION",
     "AmbiguousPaymentError",
+    "AsyncRecipientPinStore",
+    "AsyncSpendStore",
     "AsyncTx402Client",
     "AsyncTx402Transport",
     "BudgetExceededError",
+    "BudgetLimits",
     "BudgetState",
     "ChainAdapter",
     "ChainAuthorization",
@@ -226,6 +253,11 @@ __all__ = [
     "PolicyDecision",
     "PolicyEngine",
     "PolicyRequirement",
+    "RecipientPinStore",
+    "RecipientPolicy",
+    "RecipientUnpinnedError",
+    "ReservationRef",
+    "ReserveSpendResult",
     "ReservedHeaderError",
     "ResourceDeliveryError",
     "RouteCandidate",
@@ -234,8 +266,11 @@ __all__ = [
     "SignerError",
     "SpendEntry",
     "SpendReservation",
+    "SpendScopeFrozenError",
     "SpendStore",
+    "SpendStoreAdmin",
     "SpendStoreContractError",
+    "StoreCapabilities",
     "TransportError",
     "Tx402Client",
     "Tx402Error",

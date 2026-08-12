@@ -38,7 +38,7 @@ body:
     attributes:
       label: tx402 version
       description: Output of `tx402 --version`, or the version in your lockfile.
-      placeholder: "0.1.0"
+      placeholder: "0.2.0"
     validations:
       required: true
   - type: input

@@ -23,9 +23,9 @@ release it. A fresh 402 for the same resource is exactly that evidence — the m
 still asking to be paid — which is why a re-challenge releases while a 5xx retains.
 Releasing on anything ambiguous would let the same money be spent twice against the cap.
 
-**S15b (ADR-016) made that asymmetry actually hold.** Until then the status line was
-consulted first, so a 403 carrying a successful ``PAYMENT-RESPONSE`` released the
-reservation and reported the call unpaid — the audit's O44. Settlement evidence is now read
+**Settlement evidence is what makes that asymmetry actually hold (ADR-016).** If the status
+line were consulted first, a 403 with a successful ``PAYMENT-RESPONSE`` would release the
+reservation and report the call unpaid. Settlement evidence is now read
 on every status and outranks the status line, and a present-but-undecodable header is its
 own fourth evidence value rather than being folded into "absent".
 """
@@ -42,8 +42,8 @@ MAX_PAID_ATTEMPTS_REASON: Final = "max-paid-attempts-exhausted"
 
 #: What the merchant's PAYMENT-RESPONSE proves about settlement.
 #:
-#: Four values, not three. Until S15b ``"unknown"`` covered both an absent header and one
-#: that does not decode, and the audit's O53 showed why that conflation is wrong: SPEC §6.7
+#: Four values, not three. A single ``"unknown"`` would conflate an absent header with one
+#: that does not decode, and that conflation is wrong: SPEC §6.7
 #: accepts *missing* metadata because the pinned upstream protocol marks the header
 #: optional, and says a 2xx is paid-success "only when any required upstream
 #: PAYMENT-RESPONSE parses successfully". See ADR-016.
@@ -83,8 +83,8 @@ class PaidAttemptDisposition:
 
     ``kind`` is the money disposition; ``error_code`` is the public error identity. They
     are two fields rather than one because SPEC §6.1 names a specific error for a
-    cross-origin redirect whose money disposition is the ordinary retained one — which is
-    what let S15b fix O52 without touching what happens to the money.
+    cross-origin redirect whose money disposition is the ordinary retained one — so the
+    redirect can be reported without touching what happens to the money.
     """
 
     kind: Literal["commit", "rechallenge", "failed", "paid-undelivered", "ambiguous"]
@@ -206,7 +206,7 @@ def classify_paid_attempt(
         return _ambiguous("server-error")
 
     # A same-origin redirect reaches here because v0.1 does not follow one (SPEC §6.1's
-    # exception is not implemented — PLAN.md open item O26). A redirect is *not* a refusal:
+    # exception is not implemented). A redirect is *not* a refusal:
     # the merchant may have settled and be pointing at the delivered resource. Releasing on
     # it would give back budget for money that moved, so it is ambiguous rather than failed.
     if 300 <= status < 400:

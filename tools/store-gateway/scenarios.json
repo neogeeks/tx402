@@ -1,0 +1,87 @@
+[
+  {
+    "key": "verb:freeze",
+    "seed": "governed",
+    "provideAdmin": true,
+    "args": ["freeze", "api.merchant.example", "--json"]
+  },
+  {
+    "key": "verb:unfreeze",
+    "seed": "governed",
+    "provideAdmin": true,
+    "args": ["unfreeze", "api.merchant.example", "--json"]
+  },
+  {
+    "key": "verb:budget-administered",
+    "seed": "governed",
+    "provideAdmin": false,
+    "args": [
+      "budget",
+      "https://api.merchant.example/checkout",
+      "--network",
+      "eip155:8453",
+      "--asset",
+      "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+      "--json"
+    ]
+  },
+  {
+    "key": "verb:budget-value-flags",
+    "seed": "consumed-no-limits",
+    "provideAdmin": false,
+    "args": [
+      "budget",
+      "api.merchant.example",
+      "--network",
+      "eip155:8453",
+      "--asset",
+      "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+      "--max-per-hour",
+      "2000000",
+      "--max-total",
+      "8000000",
+      "--json"
+    ]
+  },
+  {
+    "key": "verb:budget-unknown",
+    "seed": "consumed-no-limits",
+    "provideAdmin": false,
+    "args": [
+      "budget",
+      "api.merchant.example",
+      "--network",
+      "eip155:8453",
+      "--asset",
+      "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+      "--json"
+    ]
+  },
+  {
+    "key": "verb:pins",
+    "seed": "governed",
+    "provideAdmin": false,
+    "args": ["pins", "api.merchant.example", "--network", "eip155:8453", "--json"]
+  },
+  {
+    "key": "verb:rotate-recipient",
+    "seed": "governed",
+    "provideAdmin": true,
+    "args": [
+      "rotate-recipient",
+      "api.merchant.example",
+      "--network",
+      "eip155:8453",
+      "--to",
+      "0xAbCdEf0000000000000000000000000000000001",
+      "0x0000000000000000000000000000000000000002",
+      "--json"
+    ]
+  },
+  {
+    "key": "verb:freeze-admin-denied",
+    "seed": "governed",
+    "provideAdmin": false,
+    "args": ["freeze", "api.merchant.example", "--json"]
+  }
+]

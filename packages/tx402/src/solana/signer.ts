@@ -264,7 +264,7 @@ export function toTransactionSigner(input: {
       const transaction = transactions[0];
       const validated = validateTransaction(transaction, plan, context);
 
-      // Read the clock only after the transaction exists. This mirrors the S5 clock-boundary
+      // Read the clock only after the transaction exists. This mirrors the clock-boundary
       // fix: never compute a bound before the value it will constrain has been produced.
       record.expiresAtEpochMs = Date.now() + lifetimeSeconds * 1000;
       record.serializedBytes = validated.transactionBytes.byteLength;

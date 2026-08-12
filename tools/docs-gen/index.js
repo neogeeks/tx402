@@ -5,7 +5,7 @@
  *   node tools/docs-gen/index.js build   # emit the generated pages
  *   node tools/docs-gen/index.js check   # fail if what is on disk is stale
  *
- * **Why generate rather than write.** The error reference is a table of fifteen error
+ * **Why generate rather than write.** The error reference is a table of seventeen error
  * codes, their retryability, their required context keys, and the CLI exit code each maps
  * to. Every one of those facts already exists in shipped source — `TX402_ERROR_TAXONOMY`
  * in `core/errors.ts` and `EXIT_CODE_BY_ERROR` in `cli/exit-codes.ts` — and a
@@ -214,6 +214,11 @@ want all of them.
 
 ## At a glance
 
+The **Retryable** column is the machine boolean tx402 acts on automatically: only \`TX402_TRANSPORT\`
+is auto-retried, under your own backoff policy. It is a different axis from each error's
+**Retryability** line in the detail below (\`conditional\`, \`after-correction\`, …), which is human
+guidance on whether the *same request* can be retried once you fix the underlying cause.
+
 <div class="exit-codes">
 
 ${summary}
@@ -246,9 +251,10 @@ was transmitted: \`TX402_PAYMENT_AMBIGUOUS\` — a timeout, a 5xx, a connection 
 same-origin redirect it declined to follow, or a \`PAYMENT-RESPONSE\` that is present and does
 not decode — and \`TX402_REDIRECT_BLOCKED\`, a cross-origin redirect refused after the merchant
 already had the signature. In both cases the budget reservation
-is deliberately **retained** until its TTL rather than released, so the same money cannot be
-spent twice against the hourly cap. Retrying without reconciling against the merchant can pay
-twice.
+is deliberately held as a non-expiring **exposed** reservation rather than released — it does not
+expire on its own and keeps consuming the cap until an operator reconciles it — so the same money
+cannot be spent twice against the hourly cap. Retrying without reconciling against the merchant can
+pay twice.
 :::
 
 ## Every error in detail

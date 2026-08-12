@@ -27,10 +27,26 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { run, type CliIo } from "../src/cli/run.js";
 import { BUNDLED_MANIFEST } from "../src/core/bundled-manifest.js";
+import { MemorySpendStore } from "../src/core/ledger.js";
+import { bearerTokenScope, serveGateway } from "../src/gateway/index.js";
 import type { EvmManifestAsset, EvmManifestNetwork } from "../src/core/manifest.js";
 import { privateKeyToEvmSigner } from "../src/signers/index.js";
 // Shared with the generator and the Python pin so the three cannot drift.
 import { normalize } from "../../../tools/cli-parity/normalize.js";
+import { applySeed } from "../../../tools/store-gateway/seeds.js";
+
+/** The operator-verb scenarios (SPEC §10), the same list the generator and Python pin read. */
+const VERB_SCENARIOS = JSON.parse(
+  readFileSync(
+    fileURLToPath(new URL("../../../tools/store-gateway/scenarios.json", import.meta.url)),
+    "utf8",
+  ),
+) as ReadonlyArray<{
+  key: string;
+  seed: string;
+  provideAdmin: boolean;
+  args: string[];
+}>;
 
 const BASE = BUNDLED_MANIFEST.networks["eip155:8453"] as EvmManifestNetwork;
 const USDC = BASE.assets[0] as EvmManifestAsset;
@@ -112,6 +128,41 @@ async function runScenario(scenario: string) {
   }
 }
 
+/**
+ * Runs the TS CLI for one operator-verb scenario (SPEC §10) against a reference gateway fronting
+ * a deterministically-seeded `MemorySpendStore` — the same setup the generator uses, from source.
+ */
+async function runVerbScenario(scenario: (typeof VERB_SCENARIOS)[number]) {
+  const store = new MemorySpendStore();
+  await applySeed(store, scenario.seed, Date.now());
+  const gateway = await serveGateway({
+    dataStore: store,
+    adminStore: store,
+    resolveScope: bearerTokenScope({ dataToken: "data-token", adminToken: "admin-token" }),
+  });
+  const env: Record<string, string> = {
+    TX402_SPEND_STORE: gateway.url,
+    TX402_SPEND_STORE_TOKEN: "data-token",
+  };
+  if (scenario.provideAdmin) env["TX402_SPEND_STORE_ADMIN"] = "admin-token";
+  const out: string[] = [];
+  const io: CliIo = {
+    argv: scenario.args,
+    env,
+    stdout: (text) => out.push(text),
+    stderr: () => {},
+    readFile: () => {
+      throw new Error("no filesystem in this harness");
+    },
+  };
+  try {
+    const exitCode = await run(io);
+    return { exitCode, json: normalize(JSON.parse(out.join(""))) };
+  } finally {
+    await gateway.close();
+  }
+}
+
 describe("CLI --json is identical across the two languages (O107)", () => {
   // The golden is the shared contract; deriving the scenario list from it means a scenario
   // added on one side without the other is a failure, not a silently skipped row.
@@ -127,7 +178,24 @@ describe("CLI --json is identical across the two languages (O107)", () => {
     });
   }
 
-  it("covers exactly the scenarios the merchant offers", () => {
-    expect(Object.keys(golden).sort()).toEqual(Object.keys(SCENARIOS).sort());
+  // The five operator verbs (SPEC §10) share the golden, keyed `verb:*` (ADR-024).
+  for (const scenario of VERB_SCENARIOS) {
+    it(`matches the golden for ${scenario.key}`, async () => {
+      expect(
+        golden[scenario.key],
+        `scenario ${scenario.key} missing from the golden`,
+      ).toBeDefined();
+      const actual = await runVerbScenario(scenario);
+      expect(actual.exitCode).toBe(golden[scenario.key]!.exitCode);
+      expect(actual.json).toEqual(golden[scenario.key]!.json);
+    });
+  }
+
+  it("covers exactly the scenarios the merchant and the verbs offer", () => {
+    const expected = [
+      ...Object.keys(SCENARIOS),
+      ...VERB_SCENARIOS.map((scenario) => scenario.key),
+    ].sort();
+    expect(Object.keys(golden).sort()).toEqual(expected);
   });
 });

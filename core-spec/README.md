@@ -14,7 +14,7 @@ neither implementation may keep a private copy of any of it.
 The following were frozen at **M0** (session S2) and are the last cheap moment to rename anything:
 
 - every field name in `schemas/`
-- the fifteen error codes and fifteen error class names in `schemas/common.schema.json`
+- the seventeen error codes and seventeen error class names in `schemas/common.schema.json`
 - the canonical serialization used for manifest signing (ADR-012)
 - the conformance vector format and vector IDs
 

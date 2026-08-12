@@ -4,7 +4,7 @@
   "kind": "errors.taxonomy",
   "milestone": "M0",
   "title": "The complete SPEC §8 error taxonomy, frozen",
-  "description": "Fifteen rows, in specification order. Each SDK exposes its own taxonomy table and this vector compares it field for field, so a rename, a reordering, a dropped required-detail key, or a changed retryability classification fails in both languages at once.\n\nThe `retryable` boolean is stated alongside `retryability` deliberately. It is derived — true only for `caller-policy` — and stating both here means a change to the derivation rule cannot slip through unnoticed on the grounds that the classification was left alone (ADR-011).",
+  "description": "Seventeen rows, in specification order (fifteen frozen at M0; `TX402_SPEND_FROZEN` and `TX402_RECIPIENT_UNPINNED` appended at 0.2.0, SPEC §8). Each SDK exposes its own taxonomy table and this vector compares it field for field, so a rename, a reordering, a dropped required-detail key, or a changed retryability classification fails in both languages at once.\n\nThe `retryable` boolean is stated alongside `retryability` deliberately. It is derived — true only for `caller-policy` — and stating both here means a change to the derivation rule cannot slip through unnoticed on the grounds that the classification was left alone (ADR-011).",
   "spec": ["SPEC §8", "SPEC §4.2", "ADR-005", "ADR-011"],
   "expected": {
     "entries": [
@@ -118,6 +118,20 @@
         "retryability": "caller-policy",
         "retryable": true,
         "requiredDetails": ["causeCategory"]
+      },
+      {
+        "code": "TX402_SPEND_FROZEN",
+        "className": "SpendScopeFrozenError",
+        "retryability": "no",
+        "retryable": false,
+        "requiredDetails": ["scope", "frozenScope"]
+      },
+      {
+        "code": "TX402_RECIPIENT_UNPINNED",
+        "className": "RecipientUnpinnedError",
+        "retryability": "no",
+        "retryable": false,
+        "requiredDetails": ["merchantScope", "reason"]
       }
     ]
   }

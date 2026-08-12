@@ -1,12 +1,17 @@
 ---
 title: The CLI
-description: tx402 call — flags, output contract, exit codes, and how to use it in a script.
+description: tx402 call and the five operator verbs — flags, output contract, exit codes, and how to use them in a script.
 sidebar:
   order: 4
 ---
 
 Both packages install the same `tx402` command with the same flags, the same `--json` document,
 and the same exit codes. `npx tx402` works with no install at all.
+
+The command has two modes. `tx402 call` **makes** a payment, and is the whole of the first part of
+this page. The five operator verbs — `freeze`, `unfreeze`, `budget`, `pins`, and
+`rotate-recipient` — **govern** a shared spend store a fleet reserves against, and are documented
+under [Operator verbs](#operator-verbs) at the end.
 
 ```text
 tx402 call <URL> [options]
@@ -90,7 +95,7 @@ stream, which is why a warning can never corrupt your redirected output.
     "transaction": "0x8a01f2027e5af993977c5c4c7dded4e8a031aa0a07578aa2f5d429f670af5af0",
     "payer": "0xaad1566216D2447B530E04945dfEefD04C84967B"
   },
-  "timings": { "elapsedMs": 452, "events": 9 },
+  "timings": { "elapsedMs": 452, "events": 10 },
   "error": null
 }
 ```
@@ -223,3 +228,152 @@ A missing or unreadable file is a usage error raised **before** any network requ
 run does not first cost the merchant a round trip to discover your file is not there. The
 underlying OS error is not forwarded — it quotes an absolute path, which ends up in CI logs more
 often than anyone intends.
+
+## Operator verbs
+
+`tx402 call` makes payments. The other five verbs **govern** the shared spend store a fleet of
+callers reserves against — they are how an operator freezes spending, reads a budget, and manages
+recipient pins from a shell rather than from code. They do nothing useful against the default
+in-process `MemorySpendStore`, whose state dies with the process; they exist for a **durable shared
+store** — Redis, or a capability gateway — which is where a fleet's one budget actually lives.
+
+```text
+tx402 freeze          <host | "*">                                   (admin)
+tx402 unfreeze        <host | "*">                                   (admin)
+tx402 budget          <url|host> --network <CAIP2> [--asset <ADDR>]
+                                 [--max-per-hour <MONEY>] [--max-total <MONEY>]   (data)
+tx402 pins            <url|host> --network <CAIP2>                   (data)
+tx402 rotate-recipient <url|host> --network <CAIP2> --to <addr…>    (admin)
+```
+
+### The store comes from the environment, never a flag
+
+Every verb needs to know which store to talk to and with what credential, and reads all of it from
+the environment — for the same reason `call` takes no key flag. A Redis DSN or a bearer token on a
+command line lands in shell history and `ps` output.
+
+| Variable | What it is |
+| :--- | :--- |
+| `TX402_SPEND_STORE` | The store. `https://<gateway>/…` for a [capability gateway](../../operations/gateway/), or `redis://…` / `rediss://…` for a [raw Redis DSN](../../operations/shared-store/). |
+| `TX402_SPEND_STORE_TOKEN` | The **data-plane** credential — a gateway bearer token. For raw Redis, the data-user credential is the DSN in `TX402_SPEND_STORE` itself. |
+| `TX402_SPEND_STORE_ADMIN` | The **admin** credential — a gateway admin bearer token, or a raw Redis admin-user DSN. An agent process must not hold this; that is the whole point of the split. |
+| `TX402_SPEND_STORE_NAMESPACE` | Deployment isolation prefix. Default `tx402`. |
+
+:::caution[A Durable Object is not a CLI store]
+A Durable Object is reached through a Worker **binding**, not dialled over the network, so the
+standalone CLI cannot address one. A bare `do://<binding>` is refused with `TX402_CONFIG_INVALID`,
+`reason: "durable-object-not-a-cli-dsn"`, exit `2`. Govern a DO through **wrangler**, or stand up
+the reference gateway in front of it and point `TX402_SPEND_STORE` at that — see the
+[DO topology](../../operations/durable-object/) and [gateway deploy](../../operations/gateway/)
+runbooks.
+:::
+
+### Two planes, and the admin one fails closed without a credential
+
+`freeze`, `unfreeze`, and `rotate-recipient` change admin state, so they require
+`TX402_SPEND_STORE_ADMIN`. `budget` and `pins` read only data-plane state, so a data credential is
+enough. An admin verb invoked with **only** a data credential is refused before the store is
+touched:
+
+```json
+{
+  "schemaVersion": 1,
+  "ok": false,
+  "exitCode": 2,
+  "error": {
+    "code": "TX402_CONFIG_INVALID",
+    "message": "An admin credential is required for this operation. Set TX402_SPEND_STORE_ADMIN (a gateway admin bearer token, or a raw Redis admin-user DSN).",
+    "details": { "configPath": "TX402_SPEND_STORE_ADMIN", "reason": "admin-credential-required" }
+  }
+}
+```
+
+This is the **same** `admin-credential-required` a gateway raises for a data token on an admin
+method, and a raw Redis admin-user ACL raises for a denied write — one identity across all three
+topologies, so a script branches on one thing. It does not close the compromised-application
+spending path; the [security model](../../security/) says what the boundary does and does not do.
+
+### The `--json` shapes
+
+`freeze` / `unfreeze` report the scope and its new state; `pins` reports the pinned recipient set:
+
+```json
+// tx402 freeze api.merchant.example --json
+{ "schemaVersion": 1, "ok": true, "exitCode": 0, "scope": "api.merchant.example", "frozen": true }
+
+// tx402 pins api.merchant.example --network eip155:8453 --json
+{ "schemaVersion": 1, "ok": true, "exitCode": 0, "scope": "api.merchant.example",
+  "network": "eip155:8453",
+  "recipients": ["0x1111111111111111111111111111111111111111",
+                 "0x2222222222222222222222222222222222222222"] }
+```
+
+`budget` reports the whole ledger for one `(scope, network, asset)` — committed, reserved, exposed,
+and the two cumulative figures — plus, **where it can source them**, the caps and what is still
+available:
+
+```json
+// tx402 budget api.merchant.example --network eip155:8453 --json
+{
+  "schemaVersion": 1, "ok": true, "exitCode": 0,
+  "scope": "api.merchant.example",
+  "network": "eip155:8453",
+  "asset": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+  "committedAtomic": "300000",
+  "reservedAtomic": "0",
+  "exposedAtomic": "200000",
+  "cumulativeCommittedAtomic": "300000",
+  "cumulativeConsumedAtomic": "500000",
+  "limitSource": "administered",
+  "perHourLimitAtomic": "1000000",
+  "cumulativeLimitAtomic": "5000000",
+  "availablePerHourAtomic": "500000",
+  "availableCumulativeAtomic": "4500000",
+  "frozen": false
+}
+```
+
+`limitSource` names where the caps came from and is the field to read before you trust `available*`:
+
+- `"administered"` — the store's own [administered limits](../../guides/policy/#administered-caps), which a drifted worker cannot widen. This is the authoritative answer.
+- `"value-flags"` — you supplied `--max-per-hour` / `--max-total`, and availability is computed
+  against **your** numbers, not the store's.
+- `"unknown"` — neither is set, so `budget` reports the consumed amounts honestly and leaves every
+  `*LimitAtomic` and `available*Atomic` `null` rather than inventing a ceiling.
+
+The per-request `--max-spend` from `call` is deliberately **not** a source: it caps one payment,
+not the hour or the lifetime, and deriving availability from it would report a limit that does not
+exist. `exposedAtomic` is money that a maybe-settled payment is still holding against both caps —
+[reconcile it](../../operations/exposed-reconciliation/) rather than waiting for it to clear, because it
+never expires.
+
+### `rotate-recipient` canonicalizes, and warns when it cannot be atomic
+
+`rotate-recipient` overwrites the pinned set for a `(scope, network)` with the `--to` addresses,
+after canonicalizing them (an EVM address is lowercased, so `0xABCD…` and `0xabcd…` are one pin),
+and prints the stored set:
+
+```json
+// tx402 rotate-recipient api.merchant.example --network eip155:8453 \
+//   --to 0xAbCdEf0000000000000000000000000000000001 0x0000000000000000000000000000000000000002 --json
+{ "schemaVersion": 1, "ok": true, "exitCode": 0, "scope": "api.merchant.example",
+  "network": "eip155:8453",
+  "recipients": ["0xabcdef0000000000000000000000000000000001",
+                 "0x0000000000000000000000000000000000000002"] }
+```
+
+When the pin store and the budget store are one backend — the reference stores are — an in-flight
+reserve asserts either the old pin or the new one, never a torn state, so the rotation is race-free
+on its own. When they are **separate** backends the CLI cannot guarantee that, so it prints a
+**freeze-before-rotate** warning to stderr (leaving `--json` a clean artifact) and the
+[recipient-rotation runbook](../../operations/recipient-rotation/) is the procedure: freeze the scope,
+rotate, then unfreeze. It warns only when it detects a gateway backend that is not already frozen;
+against a raw Redis store, known to be one backend, it stays quiet.
+
+### Exit codes are the same set
+
+The verbs reuse `call`'s exit codes; there is no verb-only number. `0` is success, `2` is a usage
+or configuration error (a bad flag, a `do://` store, a missing admin credential), and `7` is a
+store outage — a verb whose store is unreachable raises a `TransportError`, retryable under your
+own policy, exactly as a reserve against that store would. The full table is in the
+[error reference](../../reference/errors/).

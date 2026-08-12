@@ -36,11 +36,13 @@ export {
   RESERVED_REQUEST_HEADERS,
   REQUEST_ID_HEADER,
 } from "./meta.js";
+// The published package version, parity with Python's `tx402.__version__` (U18).
+export { PACKAGE_VERSION } from "./version.js";
 
 /**
  * Error taxonomy (SPEC §8).
  *
- * Every failure the SDK raises is one of these fifteen classes, and every one carries the
+ * Every failure the SDK raises is one of these seventeen classes, and every one carries the
  * same `code` string in TypeScript and in Python. Switch on `error.code` rather than on
  * class identity — the code is what survives a serialization boundary.
  */
@@ -65,6 +67,8 @@ export {
   ResourceDeliveryError,
   PaidRedirectBlockedError,
   TransportError,
+  SpendScopeFrozenError,
+  RecipientUnpinnedError,
 } from "./core/errors.js";
 
 export type {
@@ -109,13 +113,14 @@ export type {
 export { BUNDLED_MANIFEST } from "./core/bundled-manifest.js";
 export { TRUSTED_MANIFEST_KEYS, MANIFEST_SIGNING_DOMAIN } from "./core/trusted-keys.js";
 
-export { createTx402Client } from "./core/client.js";
+export { createTx402Client, EVENT_NAMES } from "./core/client.js";
 export type {
   BudgetState,
   PaymentInspection,
   Tx402Client,
   Tx402ClientConfig,
   Tx402Clock,
+  Tx402EventName,
   Tx402Logger,
   Tx402RequestInfo,
   Tx402RequestInit,
@@ -215,11 +220,17 @@ export type { RequestFingerprintInput } from "./core/fingerprint.js";
 export { MemorySpendStore, RESERVATION_TTL_MS, ROLLING_WINDOW_MS } from "./core/ledger.js";
 export type {
   SpendStore,
+  RecipientPinStore,
+  SpendStoreAdmin,
+  StoreCapabilities,
+  ReservationRef,
+  BudgetLimits,
   SpendReservation,
   SpendReservationState,
   SpendEntry,
   SpendTotals,
   ReserveSpendInput,
+  ReserveSpendResult,
   CommitSpendInput,
   SpendQuery,
 } from "./core/ledger.js";
@@ -227,6 +238,7 @@ export type {
 export { PolicyEngine, normalizePolicyHost } from "./core/policy.js";
 export type {
   PolicyConfig,
+  RecipientPolicyConfig,
   RoutingPolicyConfig,
   PolicyDecision,
   PolicyRequirement,

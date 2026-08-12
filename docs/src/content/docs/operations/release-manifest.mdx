@@ -2,7 +2,7 @@
 title: The release manifest
 description: Signing, verifying, and re-issuing the bundled network manifest.
 sidebar:
-  order: 4
+  order: 3
 ---
 
 The signed release manifest is the only channel through which chain addresses, token
@@ -91,9 +91,9 @@ _Releasing → The release signing key_.
 ### Rotation
 
 ```bash
-node tools/manifest-signer/index.js keygen --key-id tx402-release-2
+node tools/manifest-signer/index.js keygen --key-id tx402-release-3
 # add the new public key to BOTH trusted-keys.ts and trusted_keys.py — do not remove the old
-node tools/manifest-signer/index.js sign --key-id tx402-release-2 --key <new pem>
+node tools/manifest-signer/index.js sign --key-id tx402-release-3 --key <new pem>
 node tools/manifest-signer/index.js embed
 ```
 

@@ -38,12 +38,14 @@ import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import {
   mkdirSync,
+  mkdtempSync,
   readFileSync,
   readdirSync,
   writeFileSync,
   rmSync,
   statSync,
 } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -77,11 +79,43 @@ const ALLOWED_LICENSES = new Set([
   // CPython itself was distributed under before Python-2.0.
   "CNRI-Python",
   // Legacy free-text spellings that predate SPDX identifiers. Kept deliberately short:
-  // every entry here is a licence someone read, not a wildcard.
+  // every entry here is a licence someone read, not a wildcard. NONE of these is a valid
+  // SPDX License List identifier (SPDX has `BSD-2-Clause`/`BSD-3-Clause`, never bare `BSD`),
+  // so they are accepted by the gate but must never reach `license.id` — see `licenseEntry`
+  // and `SPDX_LICENSE_IDS` below (O35).
   "BSD",
   "Apache 2.0",
   "Apache License 2.0",
   "Public Domain",
+]);
+
+/**
+ * The SPDX License List identifiers this tool may emit into a CycloneDX `license.id`.
+ *
+ * A CycloneDX `license.id` MUST be a value from the SPDX License List; anything else makes the
+ * document schema-invalid (O32/O35). This is the SPDX-valid subset of the single-token values the
+ * emitter can produce — every entry verified against the SPDX License List. It deliberately does
+ * NOT contain the legacy free-text spellings in `ALLOWED_LICENSES` (`BSD`, `Apache 2.0`, …): those
+ * are acceptable *licences* but not SPDX *identifiers*, so `licenseEntry` routes them to the
+ * free-text `license.name` instead. Membership here is the single gate on `license.id`, so a future
+ * non-SPDX token added to `ALLOWED_LICENSES` (or surfaced by a new dependency) fails closed to
+ * `license.name` rather than shipping an invalid id.
+ */
+const SPDX_LICENSE_IDS = new Set([
+  "MIT",
+  "MIT-0",
+  "ISC",
+  "Apache-2.0",
+  "BSD-2-Clause",
+  "BSD-3-Clause",
+  "0BSD",
+  "Unlicense",
+  "CC0-1.0",
+  "BlueOak-1.0.0",
+  "Python-2.0",
+  "PSF-2.0",
+  "MPL-2.0",
+  "CNRI-Python",
 ]);
 
 /**
@@ -105,6 +139,31 @@ const DECLARED_ELSEWHERE = new Map([
     {
       license: "MIT",
       source: "https://github.com/kevinheavey/jsonalias — LICENSE, MIT",
+    },
+  ],
+  // Conditional/platform dependencies (O32): resolved MARKER-INDEPENDENTLY so a Linux/CPython-3.13
+  // host that cannot install a `sys_platform == "win32"` / older-Python dep still verifies its
+  // licence, instead of shipping a schema-invalid `NOT-INSTALLED` placeholder past the gate.
+  [
+    "pypi:exceptiongroup",
+    {
+      license: "MIT",
+      source: "https://github.com/agronholm/exceptiongroup — LICENSE, MIT",
+    },
+  ],
+  [
+    "pypi:async-timeout",
+    {
+      license: "Apache-2.0",
+      source: "https://github.com/aio-libs/async-timeout — LICENSE, Apache-2.0",
+    },
+  ],
+  [
+    "pypi:pywin32",
+    {
+      license: "PSF-2.0",
+      source:
+        "https://github.com/mhammond/pywin32 — LICENSE.txt, Python Software Foundation License",
     },
   ],
 ]);
@@ -387,13 +446,31 @@ print(json.dumps(out))
  * @param {string} ecosystem @param {string} name @param {string} declared
  */
 function resolveDeclaredLicense(ecosystem, name, declared) {
-  if (declared !== "UNKNOWN") return declared;
+  // `NOT-INSTALLED` (a dep conditional on a marker this host does not match) is resolved the same
+  // way as `UNKNOWN` — from the hand-read map — so a platform/older-Python dep is never left
+  // unverified (O32).
+  if (declared !== "UNKNOWN" && declared !== "NOT-INSTALLED") return declared;
   const known = DECLARED_ELSEWHERE.get(`${ecosystem}:${name}`);
   if (known === undefined) return declared;
   notes.push(
-    `licence: ${name} declares none; read as ${known.license} from ${known.source}`,
+    `licence: ${name} declares none here (${declared}); read as ${known.license} from ${known.source}`,
   );
   return known.license;
+}
+
+/**
+ * One CycloneDX `licenses[]` entry for a resolved licence value. A single **SPDX** id goes in
+ * `license.id`; an SPDX EXPRESSION (`OR`/`AND`/`WITH`) goes in `expression` (never `license.id`,
+ * which must be a single identifier); anything else — free text, a non-SPDX shorthand like bare
+ * `BSD` (SPDX has `BSD-2-Clause`/`BSD-3-Clause`, never `BSD`), or an unresolved placeholder
+ * (`NOT-INSTALLED`/`UNKNOWN`) — goes in the free-text `license.name`. This keeps the document
+ * schema-valid: a `license.id` that is not on the SPDX License List is invalid CycloneDX (O32/O35).
+ * Membership in `SPDX_LICENSE_IDS` is the sole gate, so a non-SPDX token fails closed to `name`.
+ */
+function licenseEntry(value) {
+  if (/\b(?:OR|AND|WITH)\b/u.test(value)) return { expression: value };
+  if (SPDX_LICENSE_IDS.has(value)) return { license: { id: value } };
+  return { license: { name: value } };
 }
 
 function cycloneDx(name, version, components) {
@@ -413,7 +490,7 @@ function cycloneDx(name, version, components) {
         name: component.name,
         version: component.version,
         purl: component.purl,
-        licenses: [{ license: { id: component.license } }],
+        licenses: [licenseEntry(component.license)],
       }))
       .sort((a, b) => a.purl.localeCompare(b.purl)),
   };
@@ -535,14 +612,15 @@ function licenseGate(inventories) {
     }
   }
   for (const component of seen.values()) {
-    if (component.license === "NOT-INSTALLED") {
-      // A dependency conditional on an interpreter this machine is not running — for
-      // example `exceptiongroup ; python_full_version < "3.11"` on CPython 3.13. Its
-      // metadata genuinely cannot be read here, so reporting it as an unacceptable licence
-      // would be a false finding. CI's 3.10 leg resolves it.
-      notes.push(
-        `licence: ${component.name}@${component.version} is not installed for this ` +
-          `interpreter, so its licence was not read here`,
+    if (component.license === "NOT-INSTALLED" || component.license === "UNKNOWN") {
+      // Fail closed (O32). A conditional/platform dep whose metadata cannot be read on THIS host
+      // is no longer waved through — it is resolved marker-independently from `DECLARED_ELSEWHERE`
+      // (see `resolveDeclaredLicense`). If it reaches here still unresolved, it ships an unchecked
+      // licence, which must block until a human reads it and records a cited source.
+      problems.push(
+        `licence: ${component.name}@${component.version} could not be resolved ` +
+          `(${component.license}); add it to DECLARED_ELSEWHERE with a cited source, or it must ` +
+          `not ship`,
       );
       continue;
     }
@@ -734,33 +812,89 @@ function digestTree(directory) {
   };
 }
 
-function reproducibleGate() {
+/**
+ * Digest an archive by its EXTRACTED content (name + sha256 of each member), NOT its raw bytes —
+ * so archive-level nondeterminism (gzip mtime, member order, file mode) can neither mask nor
+ * manufacture a difference. `zip` for a wheel, `tar` for a `.tgz`/`.tar.gz`.
+ */
+function digestArchive(kind, archivePath) {
+  const tmp = mkdtempSync(join(tmpdir(), "tx402-repro-"));
+  try {
+    if (kind === "zip") run("unzip", ["-q", "-o", archivePath, "-d", tmp]);
+    else run("tar", ["-xzf", archivePath, "-C", tmp]);
+    return digestTree(tmp);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+}
+
+/** The one file in `dir` matching `pattern` (a freshly-built artifact directory). */
+function onlyFile(dir, pattern) {
+  const match = readdirSync(dir).find((name) => pattern.test(name));
+  if (match === undefined) throw new Error(`no file matching ${pattern} in ${dir}`);
+  return join(dir, match);
+}
+
+/**
+ * Clean-build the THREE published artifacts once and digest each by its extracted content: the npm
+ * `dist/`, the packed npm TARBALL (`npm pack` — what `npm publish` ships), and the Python WHEEL +
+ * SDIST (`uv build` — what PyPI ships), the latter under a fixed `SOURCE_DATE_EPOCH` + pinned
+ * hatchling. The old gate hashed only `dist/` twice, so it substantiated nothing about the packages
+ * a user actually installs (O31).
+ */
+function buildArtifacts() {
   const dist = join(ROOT, "packages/tx402/dist");
-
   rmSync(dist, { recursive: true, force: true });
   run("pnpm", ["--filter", "tx402", "build"]);
-  const first = digestTree(dist);
+  const distDigest = digestTree(dist);
 
-  rmSync(dist, { recursive: true, force: true });
-  run("pnpm", ["--filter", "tx402", "build"]);
-  const second = digestTree(dist);
+  const npmOut = mkdtempSync(join(tmpdir(), "tx402-npm-"));
+  run("npm", ["pack", "--pack-destination", npmOut], { cwd: join(ROOT, "packages/tx402") });
+  const npmTarball = digestArchive("tar", onlyFile(npmOut, /\.tgz$/u));
+  rmSync(npmOut, { recursive: true, force: true });
 
-  if (first.digest === second.digest) {
+  const pyOut = mkdtempSync(join(tmpdir(), "tx402-py-"));
+  run("uv", ["build", "--out-dir", pyOut], {
+    cwd: join(ROOT, "packages/tx402-python"),
+    env: { ...process.env, SOURCE_DATE_EPOCH: "1700000000" },
+  });
+  const wheel = digestArchive("zip", onlyFile(pyOut, /\.whl$/u));
+  const sdist = digestArchive("tar", onlyFile(pyOut, /\.tar\.gz$/u));
+  rmSync(pyOut, { recursive: true, force: true });
+
+  return { dist: distDigest, npmTarball, wheel, sdist };
+}
+
+/** Pure: which artifacts differ between two builds. Fed differing digests by `selftest` (O31). */
+function compareBuilds(first, second) {
+  return ["dist", "npmTarball", "wheel", "sdist"].filter(
+    (key) => first[key].digest !== second[key].digest,
+  );
+}
+
+function reproducibleGate() {
+  const first = buildArtifacts();
+  const second = buildArtifacts();
+  const differ = compareBuilds(first, second);
+  if (differ.length === 0) {
     console.log(
-      `  reproducible build: identical across two clean builds (${first.digest.slice(0, 16)}…)`,
+      "  reproducible build: npm dist + tarball and Python wheel + sdist are all identical " +
+        "across two clean builds",
     );
   } else {
-    const differing = first.manifest.filter(
-      (line, index) => line !== second.manifest[index],
-    );
     problems.push(
-      `reproducible build: two clean builds differ (${differing.length} file(s), first: ` +
-        `${differing[0] ?? "path set differs"})`,
+      `reproducible build: ${differ.join(", ")} differ across two clean builds — the published ` +
+        `artifact is not reproducible`,
     );
   }
 
   mkdirSync(OUT, { recursive: true });
-  writeFileSync(join(OUT, "build-digest.txt"), first.manifest.join("\n") + "\n");
+  writeFileSync(
+    join(OUT, "build-digest.txt"),
+    Object.entries(first)
+      .map(([key, value]) => `${key}  ${value.digest}`)
+      .join("\n") + "\n",
+  );
 }
 
 // --- run ----------------------------------------------------------------------------------------
@@ -873,11 +1007,85 @@ function selftest() {
       `  ${ok ? "OK  " : "FAIL"}  ${result.blocks ? "blocks" : "passes"}: ${result.label}`,
     );
   }
+
+  // O32: the licence gate fails closed on an unresolved licence, and the CycloneDX emitter never
+  // produces a schema-invalid `license.id` (a placeholder or an SPDX expression).
+  const cdx = cycloneDx("t", "1", [
+    {
+      name: "a",
+      version: "1",
+      purl: "pkg:pypi/a@1",
+      license: "Apache-2.0 OR BSD-3-Clause",
+    },
+    { name: "b", version: "1", purl: "pkg:pypi/b@1", license: "NOT-INSTALLED" },
+    { name: "c", version: "1", purl: "pkg:pypi/c@1", license: "MIT" },
+    // O35: bare `BSD` is an accepted licence but NOT an SPDX identifier — it must land in
+    // `license.name`, never `license.id`. This fixture fails the `invalidId` check below against
+    // the pre-fix emitter (which shipped `{"license":{"id":"BSD"}}` in the pypi SBOMs).
+    { name: "d", version: "1", purl: "pkg:pypi/d@1", license: "BSD" },
+  ]);
+  // Any `license.id` that is not on the SPDX License List is schema-invalid CycloneDX. The check
+  // is the SPDX enum itself (not a placeholder denylist), so a future non-SPDX token fails closed.
+  const invalidId = cdx.components.some((component) =>
+    (component.licenses ?? []).some(
+      (entry) =>
+        typeof entry.license?.id === "string" && !SPDX_LICENSE_IDS.has(entry.license.id),
+    ),
+  );
+  const bsdEntry = cdx.components.find((component) => component.name === "d")?.licenses[0];
+  const exprEntry = cdx.components.find((component) => component.name === "a")?.licenses[0];
+  const nameEntry = cdx.components.find((component) => component.name === "b")?.licenses[0];
+  // O31: the reproducible-build comparison actually DETECTS a changed artifact (falsifiability).
+  const buildA = {
+    dist: { digest: "a" },
+    npmTarball: { digest: "b" },
+    wheel: { digest: "c" },
+    sdist: { digest: "d" },
+  };
+  const buildMutatedWheel = { ...buildA, wheel: { digest: "MUTATED" } };
+
+  const o32 = [
+    [
+      "licence gate blocks NOT-INSTALLED (fail-closed)",
+      licenseAcceptable("NOT-INSTALLED") === false,
+    ],
+    ["licence gate blocks UNKNOWN (fail-closed)", licenseAcceptable("UNKNOWN") === false],
+    ["CycloneDX never emits a non-SPDX license.id", invalidId === false],
+    [
+      "an SPDX expression maps to a CycloneDX `expression`",
+      exprEntry?.expression === "Apache-2.0 OR BSD-3-Clause",
+    ],
+    [
+      "a placeholder licence maps to `license.name`, not `license.id`",
+      nameEntry?.license?.name === "NOT-INSTALLED",
+    ],
+    [
+      "a non-SPDX shorthand (bare `BSD`) maps to `license.name`, not `license.id` (O35)",
+      bsdEntry?.license?.name === "BSD" && bsdEntry?.license?.id === undefined,
+    ],
+    [
+      "reproducible compare reports NO diff for identical builds",
+      compareBuilds(buildA, buildA).length === 0,
+    ],
+    [
+      "reproducible compare DETECTS a changed artifact",
+      compareBuilds(buildA, buildMutatedWheel).join() === "wheel",
+    ],
+  ];
+  for (const [label, ok] of o32) {
+    if (!ok) failed += 1;
+    console.log(`  ${ok ? "OK  " : "FAIL"}  ${label}`);
+  }
+
   if (failed > 0) {
-    problems.push(`${failed} of ${results.length} gate self-tests behaved incorrectly`);
+    problems.push(
+      `${failed} of ${results.length + o32.length} gate self-tests behaved incorrectly`,
+    );
     return;
   }
-  console.log(`  selftest: ${results.length} negative fixtures behave as specified`);
+  console.log(
+    `  selftest: ${results.length + o32.length} negative fixtures behave as specified`,
+  );
 }
 
 const command = process.argv[2] ?? "all";

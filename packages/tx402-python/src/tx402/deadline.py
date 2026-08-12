@@ -1,7 +1,7 @@
 """Deadlines tx402 enforces in its own control flow.
 
 A deadline may not be entrusted to cancellation propagation. The TypeScript SDK learned
-this the hard way at S5 — a composed ``AbortSignal`` was collected before it could fire, and
+this the hard way — a composed ``AbortSignal`` was collected before it could fire, and
 a rebuilt ``Request`` silently broke the follow chain — and the same class of failure exists
 in Python: a transport wrapper that swallows :class:`asyncio.CancelledError`, or a
 synchronous client with no cancellation mechanism at all, leaves a hanging merchant hanging

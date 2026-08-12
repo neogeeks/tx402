@@ -78,18 +78,20 @@ These are tested properties, not aspirations. A report that one of them does not
 serious report:
 
 - Policy evaluation and an atomic budget reservation complete **before** any signer call, on
-  every attempt (SEC-002).
+  every attempt.
 - Signatures, private keys, complete signed transactions, and authorization payloads never enter
-  the diagnostic stream, an error's serialization, or a log (SEC-003). The test suite seeds real
+  the diagnostic stream, an error's serialization, or a log. The test suite seeds real
   secrets into every input and searches the whole output for each one.
 - The main configuration accepts signer **abstractions**, never a raw private key. The
-  convenience adapter is isolated behind its own import path (SEC-001).
+  convenience adapter is isolated behind its own import path.
 - A paid retry never follows a cross-origin redirect, and fails before transmitting the
-  signature (SEC-005). It does not follow same-origin ones either — see ADR-014.
-- Challenge parsing enforces byte, depth, array, and string limits (SEC-006).
+  signature. It does not follow same-origin ones either, so a signed retry cannot
+  be silently redirected to a different path on the same host.
+- Challenge parsing enforces byte, depth, array, and string limits.
 - The bundled release manifest is Ed25519-signed and verified offline at client construction
-  against keys compiled into the package (SEC-007).
-- Every amount is an integer in atomic units, everywhere, in both languages (ADR-006).
+  against keys compiled into the package.
+- Every amount is an integer in atomic units, everywhere, in both languages — money is never
+  a floating-point value and never crosses a language boundary as one.
 - The core import path loads no chain library in either language.
 
 ## Supported versions
@@ -106,7 +108,7 @@ Until `1.0`, security fixes land on the latest minor only.
 - Releases are published from CI with provenance, through trusted publishing. No long-lived
   registry token exists.
 - The release manifest signing key is held outside developer machines.
-- Every dependency bump replays all 73 cross-language conformance vectors before it ships.
+- Every dependency bump replays all 88 cross-language conformance vectors before it ships.
 - Both SDKs are held to the same behavioural fixtures, so a fix that lands in one language and
   not the other fails CI rather than shipping.
 

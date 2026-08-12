@@ -40,9 +40,13 @@ EVENT_NAMES: Final[tuple[str, ...]] = (
     "policy.checked",
     "route.planned",
     "budget.reserved",
+    "recipient.pinned",
+    "recipient.rejected",
+    "spend.frozen",
     "sign.started",
     "sign.completed",
     "request.retried",
+    "payment.exposed",
     "payment.completed",
     "request.failed",
 )

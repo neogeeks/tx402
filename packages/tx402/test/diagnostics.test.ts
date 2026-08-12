@@ -256,6 +256,7 @@ describe("SPEC §10 event contract", () => {
       "sign.started": ["requestId", "signerKind"],
       "sign.completed": ["requestId", "signerKind", "durationMs"],
       "request.retried": ["requestId", "attempt", "selectedNetwork"],
+      "payment.exposed": ["requestId", "reservationId", "assetId", "amountAtomic"],
       "payment.completed": ["requestId", "paid", "totalSdkOverheadMs"],
     };
     for (const [name, fields] of Object.entries(required)) {
@@ -276,6 +277,7 @@ describe("SPEC §10 event contract", () => {
       "sign.started",
       "sign.completed",
       "request.retried",
+      "payment.exposed",
       "payment.completed",
     ]);
   });
