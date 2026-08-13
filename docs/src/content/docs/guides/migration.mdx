@@ -29,8 +29,17 @@ here is what to actually do about each.
 - **The `SpendStore` contract is now v2.** A custom store must add `expose`, `listExposed`,
   `isFrozen`, and a `capabilities` property (`{ atomicGlobalFreeze }`), and `reserve` must return a
   `ReserveSpendResult` (`{ reservation, recipientPinEstablished }`) rather than a bare reservation.
-  Run the published conformance suite — `check_spend_store` / `checkSpendStore` — against your store;
-  it enforces every new member and the atomicity the whole design rests on. **Most people should not
+  Run the published conformance suite against your store — it enforces every new member and the
+  atomicity the whole design rests on. It ships in both packages, off the core path, so importing
+  it costs a core install nothing:
+
+  ```ts
+  import { checkSpendStore } from "tx402/spend-store-contract";
+  ```
+
+  ```python
+  from tx402.spend_store_contract import check_spend_store
+  ``` **Most people should not
   implement a store at all in 0.2.0** — the [Redis, Durable Object, and gateway reference
   stores](../../operations/shared-store/) exist so you don't have to.
 - **Lifecycle operations take a `ReservationRef`.** `release`, `expose`, and admin `resolveExposed`

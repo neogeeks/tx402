@@ -38,24 +38,29 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          # Full history so the tag's containment in protected `main` can be proven below.
+          # Full history so the tag's reachability from `main` can be proven below.
           fetch-depth: 0
 
       # A tag may point at ANY commit. Publishing is gated on the same suites CI runs, but those
-      # only prove the tagged TREE — not that it is the tested protected-main history. This binds
-      # the tag to `main`: the tagged commit must be reachable from `origin/main`, so a release can
-      # never be cut from untested or force-pushed history.
-      - name: The tagged commit is contained in protected main
+      # only prove the tagged TREE — not that it is the history `main` actually carries. This
+      # binds the tag to `main`: the tagged commit must be reachable from `origin/main`, so a
+      # release cannot be cut from a branch that never landed.
+      #
+      # WHAT THIS DOES NOT PROVE. Reachability is not protection. This step used to call `main`
+      # "protected", which it is not — branch protection is a repository setting, and with it off
+      # (or with a force-push) ancestry can be satisfied by history nobody reviewed, and this gate
+      # still passes. It is the tag-side half of the guarantee and says only what it checks.
+      - name: The tagged commit is reachable from origin/main
         run: |
           set -euo pipefail
           git fetch --no-tags --quiet origin main
           tag_sha="$(git rev-parse HEAD)"
           if ! git merge-base --is-ancestor "$tag_sha" origin/main; then
-            echo "::error::The tagged commit ${tag_sha} is not contained in origin/main." \
-                 "A release may only be tagged on the tested protected-main history."
+            echo "::error::The tagged commit ${tag_sha} is not reachable from origin/main." \
+                 "A release may only be tagged on history that has landed on main."
             exit 1
           fi
-          echo "tag ${tag_sha} is on protected main"
+          echo "tag ${tag_sha} is reachable from origin/main"
 
       - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
         with:

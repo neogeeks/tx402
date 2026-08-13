@@ -78,6 +78,48 @@ function cleanBody(body) {
     .trim();
 }
 
+/**
+ * Rewrite relative links to absolute site paths.
+ *
+ * A relative link is only meaningful relative to the URL the reader is at, and a mirror is
+ * published at TWO of them: `/<slug>.md` (whose base is the parent directory) and
+ * `/<slug>/index.md` (whose base is the page's own directory). Those bases differ by one
+ * level, so no single relative link can be correct in both — `../gateway/`, correct on the
+ * HTML page at `/operations/shared-store/`, resolves to `/gateway/` in the `.md` mirror and
+ * 404s. Twenty such links across ten mirrors did exactly that.
+ *
+ * Absolute paths are the only form that survives being served from more than one depth, so
+ * each link is resolved once against the page's canonical URL and emitted absolute.
+ *
+ * Links inside fenced code are left alone: they are samples, not navigation.
+ */
+function absolutizeLinks(body, slug) {
+  const base = slug === "" ? "/" : `/${slug}/`;
+  const out = [];
+  let inFence = false;
+  for (const line of body.split("\n")) {
+    if (/^\s*```/.test(line)) {
+      inFence = !inFence;
+      out.push(line);
+      continue;
+    }
+    if (inFence) {
+      out.push(line);
+      continue;
+    }
+    out.push(
+      line.replace(/(\]\()([^)\s]+)(\))/g, (whole, open, href, close) => {
+        if (/^(?:[a-z][a-z0-9+.-]*:|\/\/|\/|#)/i.test(href)) return whole;
+        const [pathPart, hash = ""] = href.split(/(?=#)/);
+        if (!pathPart) return whole;
+        const resolved = new URL(pathPart, `https://x${base}`).pathname;
+        return `${open}${resolved}${hash}${close}`;
+      }),
+    );
+  }
+  return out.join("\n");
+}
+
 function slugOf(rel) {
   const base = rel
     .replace(/\.(md|mdx)$/i, "")
@@ -114,7 +156,7 @@ for (const file of walk(contentDir)) {
     slug,
     title,
     description,
-    clean: cleanBody(body),
+    clean: absolutizeLinks(cleanBody(body), slug),
     url: slug === "" ? `${SITE}/` : `${SITE}/${slug}/`,
     mdRel: slug === "" ? "index.md" : `${slug}.md`,
     mdUrl: slug === "" ? `${SITE}/index.md` : `${SITE}/${slug}.md`,

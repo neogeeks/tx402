@@ -13,6 +13,7 @@ Workers only — a Python or CLI process reaches a DO through a [gateway](../gat
 ## Bind the class
 
 ```ts title="src/index.ts"
+import { createTx402Client } from "tx402";
 import { durableObjectSpendStore } from "tx402/durable-object";
 export { Tx402SpendStoreDO } from "tx402/durable-object";
 
