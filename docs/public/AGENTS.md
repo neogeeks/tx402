@@ -76,7 +76,8 @@ const res = await tx402.fetch(url, init);
 Command line:
 
 ```bash
-# Plan a payment without signing (no key is touched):
+# Plan a payment without signing (no signature is produced; planning does read
+# your payer address and balance, so a key must be configured):
 npx tx402 call <url> --max-spend "0.10 USDC" --dry-run
 
 # Govern a shared store (operator verbs; set TX402_SPEND_STORE + a data/admin credential):
