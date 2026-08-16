@@ -244,6 +244,24 @@ Grouped the other way — which errors produce which code:
 
 ${grouped}
 
+:::note[The quote timestamp is RFC 3339, not an epoch]
+\`TX402_CLOCK_SKEW\`, and the \`quote-timestamp-invalid\` / \`quote-expired\` reasons on
+\`TX402_PAYMENT_REQUIRED_INVALID\`, all read one optional field: **\`extra.timestamp\`** on each
+entry of the merchant's \`accepts\` array.
+
+It must be an **RFC 3339 UTC string ending in \`Z\`** — \`"2026-08-12T18:41:07Z"\`. A numeric
+epoch, in seconds or in milliseconds, is **rejected rather than interpreted**: the value is
+either a \`Z\`-suffixed string the runtime's date parser accepts, or it is invalid. Omitting the
+field entirely is fine and simply skips the freshness check.
+
+The strictness is deliberate. An epoch that could be seconds or milliseconds is a thousand-fold
+ambiguity inside a *freshness* check, and guessing wrong either expires every quote or expires
+none of them.
+
+Writing the merchant side: emit \`new Date().toISOString()\` in JavaScript, or
+\`datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")\` in Python.
+:::
+
 :::caution[Exit 8 is the one to handle specially]
 Exit 8 means the signature reached the merchant and tx402 could not determine the outcome. Two
 codes produce it, and they are exactly the two that can only be reached **after** a signature
@@ -260,6 +278,11 @@ pay twice.
 ## Every error in detail
 
 ${detail}
+
+:::tip[Debug a specific failure]
+Paste a trace or a typed error into [402 Replay](https://tools.tx402.io/replay) to reconstruct the
+lifecycle, find the phase that broke, and see whether retrying is safe or would pay twice.
+:::
 `;
 }
 

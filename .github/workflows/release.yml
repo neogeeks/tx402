@@ -38,24 +38,29 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          # Full history so the tag's containment in protected `main` can be proven below.
+          # Full history so the tag's reachability from `main` can be proven below.
           fetch-depth: 0
 
       # A tag may point at ANY commit. Publishing is gated on the same suites CI runs, but those
-      # only prove the tagged TREE — not that it is the tested protected-main history. This binds
-      # the tag to `main`: the tagged commit must be reachable from `origin/main`, so a release can
-      # never be cut from untested or force-pushed history.
-      - name: The tagged commit is contained in protected main
+      # only prove the tagged TREE — not that it is the history `main` actually carries. This
+      # binds the tag to `main`: the tagged commit must be reachable from `origin/main`, so a
+      # release cannot be cut from a branch that never landed.
+      #
+      # WHAT THIS DOES NOT PROVE. Reachability is not protection. This step used to call `main`
+      # "protected", which it is not — branch protection is a repository setting, and with it off
+      # (or with a force-push) ancestry can be satisfied by history nobody reviewed, and this gate
+      # still passes. It is the tag-side half of the guarantee and says only what it checks.
+      - name: The tagged commit is reachable from origin/main
         run: |
           set -euo pipefail
           git fetch --no-tags --quiet origin main
           tag_sha="$(git rev-parse HEAD)"
           if ! git merge-base --is-ancestor "$tag_sha" origin/main; then
-            echo "::error::The tagged commit ${tag_sha} is not contained in origin/main." \
-                 "A release may only be tagged on the tested protected-main history."
+            echo "::error::The tagged commit ${tag_sha} is not reachable from origin/main." \
+                 "A release may only be tagged on history that has landed on main."
             exit 1
           fi
-          echo "tag ${tag_sha} is on protected main"
+          echo "tag ${tag_sha} is reachable from origin/main"
 
       - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
         with:
@@ -394,11 +399,19 @@ jobs:
           set -euo pipefail
           version="${GITHUB_REF_NAME#v}"
           # Registry propagation is not instantaneous; retry rather than fail on a race.
+          # Exhausting the retries is a FAILURE, not something to fall through: the old loop
+          # ran off the end and let the next command produce the error, which reported a
+          # missing binary instead of "the package never appeared".
+          installed=""
           for attempt in 1 2 3 4 5; do
-            npm install --no-save "tx402@$version" && break
+            if npm install --no-save "tx402@$version"; then installed=yes; break; fi
             echo "attempt $attempt failed, waiting"
             sleep 20
           done
+          if [ -z "$installed" ]; then
+            echo "::error::tx402@$version did not become installable from npm after 5 attempts."
+            exit 1
+          fi
           npx --yes "tx402@$version" --version
           node -e "import('tx402').then(m => { if (typeof m.createTx402Client !== 'function') throw new Error('missing export'); console.log('npm ok'); })"
 
@@ -406,11 +419,22 @@ jobs:
         run: |
           set -euo pipefail
           version="${GITHUB_REF_NAME#v}"
+          # `--clear` is load-bearing, and 0.2.0 is why. PyPI had not propagated yet, so
+          # attempt 1's `uv pip install` failed AFTER `uv venv` had already created `.venv`.
+          # Every later attempt then died at `uv venv` — "a virtual environment already
+          # exists" — so the `&&` chain short-circuited and the install was never retried
+          # even once. The retry loop that existed precisely for propagation lag could not
+          # survive its own first failure. Recreating the environment each time fixes it.
+          installed=""
           for attempt in 1 2 3 4 5; do
-            uv venv && uv pip install "tx402==$version" && break
+            if uv venv --clear && uv pip install "tx402==$version"; then installed=yes; break; fi
             echo "attempt $attempt failed, waiting"
             sleep 20
           done
+          if [ -z "$installed" ]; then
+            echo "::error::tx402==$version did not become installable from PyPI after 5 attempts."
+            exit 1
+          fi
           uv run tx402 --version
           uv run python -c "import tx402; print('pypi ok', tx402.PACKAGE_NAME)"
 

@@ -56,12 +56,30 @@ Route planning **does** read your payer address and balance, because a route can
 without knowing whether it is fundable. "Never invokes a signer" means never produces a
 signature.
 
+:::tip[The same evaluation, with the rules shown in order]
+[The 402 Policy Playground](https://tools.tx402.io/policy) runs this same `PolicyEngine` against a
+challenge you paste and shows which rule fired, in evaluation order, with the typed error your own
+code would raise. `--dry-run` is the answer for your real endpoint and your real key; the playground
+is the answer for "why would this policy reject that challenge?"
+:::
+
 ## stdout and stderr are a contract
 
 **stdout** carries the response body — or, with `--json`, exactly one JSON object. Nothing else,
 ever.
 
 **stderr** carries everything else: warnings, the human-readable plan, and errors.
+
+:::note[The one case `--json` does not produce a document]
+A **usage error — exit `2`** — is reported as human-readable help on stderr, with stdout empty,
+even when `--json` was passed. A misspelled flag or a missing URL is a mistake in the
+invocation, so the flag it would be reported through has not been established as meaningful
+yet. Both languages behave identically here.
+
+A script that consumes `--json` should therefore branch on the exit code first and parse stdout
+only for exit codes other than `2`. Every other outcome — including every policy, protocol,
+signer, transport and ambiguity failure — emits exactly one JSON object, as above.
+:::
 
 That split is what makes this work even when the call is noisy:
 
@@ -241,7 +259,7 @@ store** — Redis, or a capability gateway — which is where a fleet's one budg
 tx402 freeze          <host | "*">                                   (admin)
 tx402 unfreeze        <host | "*">                                   (admin)
 tx402 budget          <url|host> --network <CAIP2> [--asset <ADDR>]
-                                 [--max-per-hour <MONEY>] [--max-total <MONEY>]   (data)
+                                 [--max-per-hour <ATOMIC>] [--max-total <ATOMIC>] (data)
 tx402 pins            <url|host> --network <CAIP2>                   (data)
 tx402 rotate-recipient <url|host> --network <CAIP2> --to <addr…>    (admin)
 ```
@@ -297,23 +315,41 @@ spending path; the [security model](../../security/) says what the boundary does
 
 `freeze` / `unfreeze` report the scope and its new state; `pins` reports the pinned recipient set:
 
-```json
-// tx402 freeze api.merchant.example --json
-{ "schemaVersion": 1, "ok": true, "exitCode": 0, "scope": "api.merchant.example", "frozen": true }
+```bash
+tx402 freeze api.merchant.example --json
+```
 
-// tx402 pins api.merchant.example --network eip155:8453 --json
-{ "schemaVersion": 1, "ok": true, "exitCode": 0, "scope": "api.merchant.example",
+```json
+{ "schemaVersion": 1, "ok": true, "exitCode": 0, "scope": "api.merchant.example", "frozen": true }
+```
+
+```bash
+tx402 pins api.merchant.example --network eip155:8453 --json
+```
+
+```json
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "exitCode": 0,
+  "scope": "api.merchant.example",
   "network": "eip155:8453",
-  "recipients": ["0x1111111111111111111111111111111111111111",
-                 "0x2222222222222222222222222222222222222222"] }
+  "recipients": [
+    "0x1111111111111111111111111111111111111111",
+    "0x2222222222222222222222222222222222222222"
+  ]
+}
 ```
 
 `budget` reports the whole ledger for one `(scope, network, asset)` — committed, reserved, exposed,
 and the two cumulative figures — plus, **where it can source them**, the caps and what is still
 available:
 
+```bash
+tx402 budget api.merchant.example --network eip155:8453 --json
+```
+
 ```json
-// tx402 budget api.merchant.example --network eip155:8453 --json
 {
   "schemaVersion": 1, "ok": true, "exitCode": 0,
   "scope": "api.merchant.example",
@@ -353,13 +389,23 @@ never expires.
 after canonicalizing them (an EVM address is lowercased, so `0xABCD…` and `0xabcd…` are one pin),
 and prints the stored set:
 
+```bash
+tx402 rotate-recipient api.merchant.example --network eip155:8453 \
+  --to 0xAbCdEf0000000000000000000000000000000001 0x0000000000000000000000000000000000000002 --json
+```
+
 ```json
-// tx402 rotate-recipient api.merchant.example --network eip155:8453 \
-//   --to 0xAbCdEf0000000000000000000000000000000001 0x0000000000000000000000000000000000000002 --json
-{ "schemaVersion": 1, "ok": true, "exitCode": 0, "scope": "api.merchant.example",
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "exitCode": 0,
+  "scope": "api.merchant.example",
   "network": "eip155:8453",
-  "recipients": ["0xabcdef0000000000000000000000000000000001",
-                 "0x0000000000000000000000000000000000000002"] }
+  "recipients": [
+    "0xabcdef0000000000000000000000000000000001",
+    "0x0000000000000000000000000000000000000002"
+  ]
+}
 ```
 
 When the pin store and the budget store are one backend — the reference stores are — an in-flight

@@ -13,6 +13,12 @@ the change**.
 
 Pinning is a [shared-store](../shared-store/) feature; the admin verbs below need an admin credential.
 
+:::tip[See what a merchant's payout address has actually been doing]
+[402 History](https://tools.tx402.io/history) shows an endpoint's observed payout address over time,
+with every change dated. Worth a look before you establish a pin, and again when a rotation request
+arrives — "this address changed twice last month" is a fact you want before you plan the freeze.
+:::
+
 ## Establishing a pin
 
 There are two authoritative ways a `(scope, network)` gets a pinned set, both admin-plane:

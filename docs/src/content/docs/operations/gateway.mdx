@@ -68,6 +68,12 @@ export { default } from "tx402/gateway/worker";
 
 ```jsonc title="wrangler.jsonc"
 {
+  "name": "tx402-gateway",
+  "main": "src/index.ts",
+  "compatibility_date": "2024-11-01",
+  // REQUIRED. The gateway reaches `core/ledger`, which imports `node:crypto`; without this
+  // flag the Worker fails to boot with `No such module "node:crypto"`.
+  "compatibility_flags": ["nodejs_compat"],
   "durable_objects": {
     "bindings": [{ "name": "SPEND_DO", "class_name": "Tx402SpendStoreDO" }]
   },
@@ -75,6 +81,28 @@ export { default } from "tx402/gateway/worker";
   "vars": { "TX402_GATEWAY_TOPOLOGY": "id-per-scope" }
 }
 ```
+
+:::caution[`nodejs_compat` is required]
+`tx402/gateway/worker` reaches `core/ledger`, which imports **`node:crypto`**. Without
+`compatibility_flags: ["nodejs_compat"]` the Worker does not boot:
+
+```
+No such module "node:crypto"
+```
+
+Which entry points need it, exactly:
+
+| Import | Needs `nodejs_compat` |
+| :--- | :--- |
+| `tx402` | **Yes** |
+| `tx402/durable-object` | **Yes** — `durableObjectSpendStore` reaches `core/ledger` |
+| `tx402/gateway/worker` | **Yes** |
+| `tx402/gateway` | No — the Node gateway server reaches no Node built-in |
+
+The `Tx402SpendStoreDO` **class** itself avoids `node:crypto` and derives its ids from the
+Workers `crypto.getRandomValues`, but importing the module that exports it does not, so any
+Worker deploying the DO still needs the flag.
+:::
 
 ```bash
 wrangler secret put TX402_GATEWAY_DATA_TOKEN
