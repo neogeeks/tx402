@@ -35,6 +35,9 @@
 - [Release manifest](https://docs.tx402.io/operations/release-manifest/)
 - [Publishing](https://docs.tx402.io/operations/publishing/)
 
+## Hosted tools
+- [Hosted tools](https://docs.tx402.io/tools/): what the free browser and API tools at tools.tx402.io do, which SDK functions each one runs, and how to call them as JSON or Markdown
+
 ## Source and packages
 - [GitHub repository](https://github.com/neogeeks/tx402): source, issues, and full history (Apache-2.0)
 - [npm: tx402](https://www.npmjs.com/package/tx402) · [PyPI: tx402](https://pypi.org/project/tx402/)
