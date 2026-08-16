@@ -61,8 +61,9 @@ already with the merchant.** A redirect is a response, so the request that provo
 sent first. What tx402 refuses is the *second* request, to the redirect target.
 
 That makes both kinds of redirect an **exit `8`** outcome, with `context.paid` of `"unknown"` and
-the budget reservation **retained** until its TTL. Treat them exactly as the error reference tells
-you to treat exit 8: money may have moved, do not retry blindly, reconcile with the merchant.
+the budget reservation held as a non-expiring **exposed** reservation until an operator reconciles
+it. Treat them exactly as the error reference tells you to treat exit 8: money may have moved, do
+not retry blindly, reconcile with the merchant.
 
 | Redirect       | Error                    | Details it carries                                            |
 | :------------- | :----------------------- | :-------------------------------------------------------------- |
@@ -105,13 +106,46 @@ Ed25519-signed and verified offline at client construction, against keys compile
 package. A tampered manifest fails construction rather than routing a payment to an attacker's
 contract.
 
+### A fleet shares one budget, and its controls resist a drifted worker
+
+When many cooperating agents run against one wallet, 0.2.0 gives them a single authoritative budget
+in a shared durable store, and four controls over it that a data-plane worker cannot relax:
+
+- **A cumulative ceiling as well as an hourly rate.** `policy.maxTotal` bounds *lifetime* spend
+  against a scope, not just the rolling hour — and a maybe-settled ("exposed") payment keeps
+  consuming both caps until an operator reconciles it, so an ambiguous outcome cannot quietly free
+  budget to be spent again. See [exposed reconciliation](../../operations/exposed-reconciliation/).
+- **A kill switch.** An operator can `freeze` a merchant scope — or the whole store with `"*"`,
+  on a backend that supports atomic global freeze — and every subsequent reserve is denied
+  *before* a signer is reached. A freeze stops future authorizations; it cannot revoke a signature
+  already on the wire. See [the kill-switch runbook](../../operations/kill-switch/).
+- **Recipient pinning.** With a pin in place, a merchant that changes its payout address
+  mid-conversation is refused rather than paid. The pin is on the challenge's `payTo`, compared
+  canonically, and asserted inside the same atomic reserve as the budget check. See
+  [recipient rotation](../../operations/recipient-rotation/).
+- **An admin-state boundary.** The controls above are set through an **admin** credential the
+  agents do not hold; agents hold only a **data-plane** credential that can reserve and read but
+  cannot freeze, re-pin, or raise a limit. So a worker that has drifted — or been steered by
+  injected content — cannot relax its own guardrails.
+
+**What that boundary is, precisely — and what it is not.** It protects **admin state**: a client
+cannot unfreeze itself, override a pin, or widen a cap. It is **not** a defense of the *spending
+path* against a fully **compromised** application. An app that has been taken over still holds the
+signer and can bypass the store to pay directly; bounding that needs signer mediation and is
+**0.3.0**, not this release. The guarantee 0.2.0 makes is for **cooperating** clients holding
+data-plane credentials — the fleet shares one budget, spending can be frozen, and no merchant can
+silently redirect a payment — and this page says exactly that rather than implying more.
+
 ## What tx402 does not defend against
 
 Stated plainly, because a security page that only lists strengths is not useful.
 
 - **A compromised process.** A key in your process memory is readable by anything that can read
   your process. tx402 reduces how often it is _needed_, not what an attacker with code execution
-  can do. Use an external signer.
+  can do. Use an external signer. The 0.2.0 admin/data-plane split narrows what a *drifted
+  cooperating* worker can do to the shared controls, but it does **not** stop a process that has
+  been fully compromised from spending — it still holds the signer and can bypass the store.
+  Closing that is 0.3.0's signer-mediation work, and this release does not claim it.
 - **A malicious merchant charging what it said it would.** tx402 enforces _your_ caps and the
   protocol's rules. If you allow $0.10 and the merchant asks for $0.10 for nothing, you pay
   $0.10 for nothing. Caps bound the damage; they do not judge value.
@@ -119,10 +153,15 @@ Stated plainly, because a security page that only lists strengths is not useful.
   tells it. `AmbiguousPaymentError` exists because sometimes the merchant tells it nothing.
 - **A hostile RPC endpoint's data, beyond chain identity.** tx402 proves the chain, caps the
   time, and fails over. It does not independently verify a returned balance.
-- **Cross-process budget.** The default ledger is in-memory and per-client. Two processes have
-  two budgets, and the hourly window resets on restart.
-- **Anything after v0.1's scope**: no cross-chain swaps, no asynchronous settlement, no
-  streaming payments.
+- **Cross-process budget, by default.** The default `MemorySpendStore` is in-memory and
+  per-client, so two processes have two budgets and the hourly window resets on restart — **unless
+  a durable shared store is configured**, which is exactly what 0.2.0 adds (Redis, a Cloudflare
+  Durable Object, or a gateway in front of either). With one configured the fleet shares one
+  authoritative budget; without one, this line still holds. See
+  [the shared-store runbook](../../operations/shared-store/).
+- **Anything past the 0.2.0 scope**: no cross-chain swaps, no asynchronous settlement, no
+  streaming payments, and — stated plainly — no protection of the spending path against a
+  compromised application, which arrives with signer mediation in 0.3.0.
 
 ## Reporting a vulnerability
 

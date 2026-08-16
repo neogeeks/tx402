@@ -1,0 +1,156 @@
+---
+title: The Durable Object store and its topology
+description: Running the SQLite-backed Durable Object SpendStore on Cloudflare Workers — id-per-scope versus a single coordinator, and the admin-token boundary.
+sidebar:
+  order: 9
+---
+
+If you already run on Cloudflare Workers, `tx402/durable-object` gives you a shared store with no
+separate service to operate: a SQLite-backed Durable Object that holds the ledger, does the whole
+reservation as one synchronous transaction, and survives restart and eviction. It is TypeScript /
+Workers only — a Python or CLI process reaches a DO through a [gateway](../gateway/), never directly.
+
+## Bind the class
+
+```ts title="src/index.ts"
+import { createTx402Client } from "tx402";
+import { durableObjectSpendStore } from "tx402/durable-object";
+export { Tx402SpendStoreDO } from "tx402/durable-object";
+
+export default {
+  async fetch(request: Request, env: Env) {
+    const store = durableObjectSpendStore({
+      locate: (scope) => env.SPEND_DO.get(env.SPEND_DO.idFromName(scope)),
+    });
+    const tx402 = createTx402Client({ signers: { evm }, spendStore: store });
+    // …use tx402.fetch(...)
+  },
+};
+```
+
+```jsonc title="wrangler.jsonc"
+{
+  "name": "tx402-store",
+  "main": "src/index.ts",
+  "compatibility_date": "2024-11-01",
+  // REQUIRED. `tx402/durable-object` reaches `core/ledger`, which imports `node:crypto`;
+  // without this flag the Worker fails to boot with `No such module "node:crypto"`.
+  "compatibility_flags": ["nodejs_compat"],
+  "durable_objects": {
+    "bindings": [{ "name": "SPEND_DO", "class_name": "Tx402SpendStoreDO" }]
+  },
+  // SQLite-backed is required — amounts are TEXT and the reserve atom is a synchronous SQL batch.
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Tx402SpendStoreDO"] }]
+}
+```
+
+`compatibility_flags: ["nodejs_compat"]` is not optional. `tx402/durable-object` reaches
+`core/ledger`, which imports `node:crypto`, so a Worker deploying the DO fails at startup
+without it — see [the gateway runbook](../gateway/#option-b--a-worker-gateway-in-front-of-a-durable-object)
+for which entry point needs the flag and which does not.
+
+There is no `url`, `namespace`, or `topology` option — the store is configured entirely by the
+`locate` function you pass and one capability flag. That is the whole surface.
+
+## Bundling a Worker that imports the client
+
+The `src/index.ts` above imports `createTx402Client`, and `wrangler dev` / `wrangler deploy` bundle
+with esbuild, which resolves tx402's chain adapters at **build** time. The "the core loads no chain
+library until you pay on that chain" property is a *runtime* property — a Node process only
+`import()`s the adapter for a chain it actually pays on — and it **does not carry to a bundler**,
+which must resolve every `import()` it can see. So even an **EVM-only** Worker fails to bundle
+without the Solana peers, with errors like `Could not resolve "@x402/svm"`, `"@solana/kit"`, and
+`"@solana-program/token"`.
+
+Install **both** chains' peer packages and it bundles cleanly (~1.3 MiB, ~258 KiB gzipped):
+
+```sh
+npm install @x402/evm @x402/svm @solana-program/token @solana/kit viem
+```
+
+If you never pay on one chain and want to keep it out of the bundle, alias its packages to an empty
+stub in `wrangler.jsonc` instead of installing them:
+
+```jsonc
+{
+  // empty.js is one line: `export default {};`
+  "alias": {
+    "@x402/svm": "./empty.js",
+    "@solana/kit": "./empty.js",
+    "@solana-program/token": "./empty.js"
+  }
+}
+```
+
+A route that then tries the aliased chain fails at runtime — which is the point: you have declared
+you never use it.
+
+A **store-only** Worker — one that imports `durableObjectSpendStore` (or the
+[gateway worker](../gateway/#option-b--a-worker-gateway-in-front-of-a-durable-object)) but **not**
+`createTx402Client` — pulls in no chain adapter and needs none of these peers. That store-holding
+boundary is the recommended shape: the Worker holds the store, and the client, with its chain
+peers, lives in the agent process.
+
+## The two topologies are just how `locate` maps a scope
+
+### id-per-scope (default)
+
+`locate: (scope) => env.SPEND_DO.get(env.SPEND_DO.idFromName(scope))` gives **one DO per merchant
+host**. Per-scope reserve, commit, expose, and freeze are atomic — one object serializes its own
+events. Because the shard is per merchant, Cloudflare's soft ceiling of roughly **1,000 requests per
+second per object** is per-merchant headroom, which is almost always enough.
+
+What id-per-scope **cannot** do is atomic store-wide freeze: a global `"*"` freeze would have to be
+read by every per-scope object, and they are separate storage domains. So an id-per-scope store
+declares `atomicGlobalFreeze: false`, and `freeze("*")` **fails closed** with
+`ConfigurationError (reason: "global-freeze-unsupported")` rather than pretending to freeze
+everything. Per-scope freeze works normally. See [the kill-switch runbook](../kill-switch/).
+
+### single-coordinator (opt-in, atomic global freeze)
+
+Route every scope through one fixed object:
+
+```ts
+const COORDINATOR = env.SPEND_DO.idFromName("spend-coordinator");
+durableObjectSpendStore({
+  locate: () => env.SPEND_DO.get(COORDINATOR),
+  atomicGlobalFreeze: true,
+});
+```
+
+Now `freeze("*")` is atomic — every reserve goes through the same object that holds the global flag.
+The cost is that the whole fleet now shares that ~1,000 req/s ceiling, which Cloudflare explicitly
+advises against for throughput. So it is opt-in, and the deployment **must validate a throughput
+acceptance threshold** against a *deployed* coordinator before relying on it — a local baseline is
+not that acceptance. Choose this only when fleet-wide-atomic freeze is worth a single-object
+throughput bound.
+
+Under overload — a reserve that cannot reach its DO — the store **fails closed**: a retryable
+`TransportError` (`causeCategory: "durable-object-unreachable"`) and **no signature**.
+
+## The admin boundary is a deployment secret, verified inside the DO
+
+Cloudflare exposes a DO's methods as RPC to *any* Worker holding the binding, so a separate
+TypeScript interface is not a security boundary. Instead, each admin method takes an admin token that
+the DO verifies **inside itself**, against a Worker environment secret:
+
+```bash
+wrangler secret put TX402_DO_ADMIN_SECRET
+```
+
+- The **data-plane** adapter — `durableObjectSpendStore({ locate })` — carries **no** admin token,
+  so a data Worker holding the binding still cannot freeze, re-pin, or set a limit.
+- The **admin** adapter is `new DurableObjectSpendStore({ locate, adminToken })`, whose token is
+  verified against `TX402_DO_ADMIN_SECRET`. Deploy it in an admin Worker (or the
+  [gateway](../gateway/)) whose environment has the secret; the data Worker's environment does not.
+
+Because the trust root is a deployment secret and not an RPC first-write, there is no
+unauthenticated first call to race, even for a lazily created per-scope object. Rotation is a
+redeploy with a new secret. This makes the admin-state boundary real on Durable Objects; it does
+**not** close the compromised-application spending path (0.3.0), per [the security model](../../security/).
+
+## Reaching it from Python or the CLI
+
+A Durable Object has no address a `redis://`-style DSN could name, so the standalone CLI refuses a
+bare `do://` store. Front the DO with the [Worker gateway](../gateway/#option-b--a-worker-gateway-in-front-of-a-durable-object)
+and point clients and the CLI at that HTTPS endpoint instead.

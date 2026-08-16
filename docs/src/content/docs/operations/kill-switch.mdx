@@ -1,0 +1,77 @@
+---
+title: The kill switch
+description: Freezing spending for one merchant scope or the whole store — what it stops, what it cannot, and the topology that makes a global freeze atomic.
+sidebar:
+  order: 10
+---
+
+The kill switch stops future spending on command. Freeze a scope and every subsequent `reserve`
+against it is denied **before a signer is reached** — no signature, no payment. It lives in the
+shared store's admin plane, so it works across a whole fleet from one command, and a data-plane
+worker cannot un-freeze itself.
+
+This is a day-2 control for a [shared store](../shared-store/); against the default in-process
+`MemorySpendStore` freeze exists but only affects that one process.
+
+## Freeze and unfreeze
+
+From the CLI, with an admin credential configured
+([operator verbs](../../guides/cli/#operator-verbs)):
+
+```bash
+export TX402_SPEND_STORE="https://gateway.example"   # or a rediss://admin DSN
+export TX402_SPEND_STORE_ADMIN="$ADMIN_TOKEN"
+
+tx402 freeze api.merchant.example      # stop paying this merchant
+tx402 unfreeze api.merchant.example    # resume
+
+tx402 freeze "*"                       # stop paying everyone (see the topology note below)
+```
+
+Or from code, through the admin store:
+
+```ts
+await admin.freeze("api.merchant.example", Date.now());
+await admin.unfreeze("api.merchant.example", Date.now());
+```
+
+Freeze is keyed by the **normalized merchant host** — the same scope key the budget uses — or the
+sentinel `"*"` for the whole store. It is asset-independent: freezing `api.merchant.example` stops
+payments in every asset to that host.
+
+## What a frozen scope does to a request
+
+A `reserve` against a frozen scope raises `SpendScopeFrozenError` (`TX402_SPEND_FROZEN`, exit `3`),
+carrying `{ scope, frozenScope }`, and the client emits a `spend.frozen` event at `warn`. Because
+the refusal happens in `reserve`, before the signer, a frozen fleet produces **zero signatures** —
+exactly like a policy refusal. A store *outage* is never mistaken for a freeze: an unreachable store
+is a retryable `TransportError`, not this error.
+
+## What freeze cannot do
+
+- **It cannot revoke a signature already on the wire.** Freeze is a stop-*future*-authorization
+  control, not a chain rollback. A payment whose signature was already transmitted is the merchant's
+  now; freezing does not recall it.
+- **It does not release existing reservations.** Reservations already taken — including *exposed*
+  ones from a maybe-settled payment — remain and keep counting against the caps. Unfreeze preserves
+  all committed and exposed accounting exactly; freezing and unfreezing is not a way to clear the
+  ledger. To resolve an exposed reservation you [reconcile it](../exposed-reconciliation/).
+
+## Global `"*"` freeze is a topology capability
+
+Freezing one scope is atomic on every backend. Freezing **everything** with `"*"` is only atomic
+where the global flag and a reservation share one coordination domain — **single-instance Redis** and
+the **single-coordinator Durable Object** topology. There, `capabilities.atomicGlobalFreeze` is
+`true` and `freeze("*")` blocks every scope atomically.
+
+On **Redis Cluster** and the **id-per-scope DO** topology the global flag lives in a different slot
+or storage domain from a scope's reservation, so `atomicGlobalFreeze` is `false` and `freeze("*")`
+**fails closed** with `ConfigurationError (reason: "global-freeze-unsupported")` rather than
+silently freezing nothing. The message tells the operator to run single-instance Redis or the
+coordinator DO if fleet-wide-atomic freeze is required. Per-scope freeze is unconditional and works
+on all four.
+
+If you need a reliable panic button on a topology that cannot do atomic global freeze, freeze the
+handful of scopes your fleet actually pays, or put a single-coordinator backend behind the
+[gateway](../gateway/). `tx402 budget <host> --network …` reports `"frozen": true/false` per scope so
+you can confirm the state.

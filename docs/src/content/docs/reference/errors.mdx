@@ -12,7 +12,7 @@ sidebar:
   section. Edit the source and regenerate; `pnpm docs:check` fails if this file is stale.
 */}
 
-tx402 raises **15 typed errors** and the CLI reports them
+tx402 raises **17 typed errors** and the CLI reports them
 through **9 exit codes**. Both tables below are
 generated from the shipped source — `TX402_ERROR_TAXONOMY` and `EXIT_CODE_BY_ERROR` — so a
 code documented here is a code the binary actually returns.
@@ -22,6 +22,11 @@ to `isTx402Error` / `is_tx402_error`. Catch by class when you want one, by predi
 want all of them.
 
 ## At a glance
+
+The **Retryable** column is the machine boolean tx402 acts on automatically: only `TX402_TRANSPORT`
+is auto-retried, under your own backoff policy. It is a different axis from each error's
+**Retryability** line in the detail below (`conditional`, `after-correction`, …), which is human
+guidance on whether the *same request* can be retried once you fix the underlying cause.
 
 <div class="exit-codes">
 
@@ -42,6 +47,8 @@ want all of them.
 | `TX402_RESOURCE_DELIVERY`        | `ResourceDeliveryError`       | 9    | no        |
 | `TX402_REDIRECT_BLOCKED`         | `PaidRedirectBlockedError`    | 8    | no        |
 | `TX402_TRANSPORT`                | `TransportError`              | 7    | yes       |
+| `TX402_SPEND_FROZEN`             | `SpendScopeFrozenError`       | 3    | no        |
+| `TX402_RECIPIENT_UNPINNED`       | `RecipientUnpinnedError`      | 3    | no        |
 
 </div>
 
@@ -73,13 +80,31 @@ refused" with "the interpreter died" would make a script unable to tell them apa
 Grouped the other way — which errors produce which code:
 
 - **2** — `TX402_CONFIG_INVALID`, `TX402_RESERVED_HEADER`, `TX402_NON_REPLAYABLE`
-- **3** — `TX402_POLICY_BUDGET`, `TX402_POLICY_DOMAIN`
+- **3** — `TX402_POLICY_BUDGET`, `TX402_POLICY_DOMAIN`, `TX402_SPEND_FROZEN`, `TX402_RECIPIENT_UNPINNED`
 - **4** — `TX402_LIQUIDITY`
 - **5** — `TX402_PROTOCOL_UNSUPPORTED`, `TX402_SCHEME_UNSUPPORTED`, `TX402_PAYMENT_REQUIRED_INVALID`, `TX402_CLOCK_SKEW`
 - **6** — `TX402_SIGNER`
 - **7** — `TX402_TRANSPORT`
 - **8** — `TX402_PAYMENT_AMBIGUOUS`, `TX402_REDIRECT_BLOCKED`
 - **9** — `TX402_RESOURCE_DELIVERY`
+
+:::note[The quote timestamp is RFC 3339, not an epoch]
+`TX402_CLOCK_SKEW`, and the `quote-timestamp-invalid` / `quote-expired` reasons on
+`TX402_PAYMENT_REQUIRED_INVALID`, all read one optional field: **`extra.timestamp`** on each
+entry of the merchant's `accepts` array.
+
+It must be an **RFC 3339 UTC string ending in `Z`** — `"2026-08-12T18:41:07Z"`. A numeric
+epoch, in seconds or in milliseconds, is **rejected rather than interpreted**: the value is
+either a `Z`-suffixed string the runtime's date parser accepts, or it is invalid. Omitting the
+field entirely is fine and simply skips the freshness check.
+
+The strictness is deliberate. An epoch that could be seconds or milliseconds is a thousand-fold
+ambiguity inside a *freshness* check, and guessing wrong either expires every quote or expires
+none of them.
+
+Writing the merchant side: emit `new Date().toISOString()` in JavaScript, or
+`datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")` in Python.
+:::
 
 :::caution[Exit 8 is the one to handle specially]
 Exit 8 means the signature reached the merchant and tx402 could not determine the outcome. Two
@@ -88,9 +113,10 @@ was transmitted: `TX402_PAYMENT_AMBIGUOUS` — a timeout, a 5xx, a connection re
 same-origin redirect it declined to follow, or a `PAYMENT-RESPONSE` that is present and does
 not decode — and `TX402_REDIRECT_BLOCKED`, a cross-origin redirect refused after the merchant
 already had the signature. In both cases the budget reservation
-is deliberately **retained** until its TTL rather than released, so the same money cannot be
-spent twice against the hourly cap. Retrying without reconciling against the merchant can pay
-twice.
+is deliberately held as a non-expiring **exposed** reservation rather than released — it does not
+expire on its own and keeps consuming the cap until an operator reconciles it — so the same money
+cannot be spent twice against the hourly cap. Retrying without reconciling against the merchant can
+pay twice.
 :::
 
 ## Every error in detail
@@ -274,3 +300,33 @@ atomic amounts, and categories, never a signature, a key, or an authorization pa
 These keys are guaranteed present in `error.details`, so a handler can read them without
 an existence check. Everything in `details` is redaction-safe by construction: identifiers,
 atomic amounts, and categories, never a signature, a key, or an authorization payload.
+
+### `TX402_SPEND_FROZEN`
+
+`SpendScopeFrozenError` · exit **3** (policy) · `retryable: false`
+
+**Retryability:** `no` — Never. The condition will not change on its own.
+
+**Always carries**: `scope`, `frozenScope`
+
+These keys are guaranteed present in `error.details`, so a handler can read them without
+an existence check. Everything in `details` is redaction-safe by construction: identifiers,
+atomic amounts, and categories, never a signature, a key, or an authorization payload.
+
+### `TX402_RECIPIENT_UNPINNED`
+
+`RecipientUnpinnedError` · exit **3** (policy) · `retryable: false`
+
+**Retryability:** `no` — Never. The condition will not change on its own.
+
+**Always carries**: `merchantScope`, `reason`
+
+These keys are guaranteed present in `error.details`, so a handler can read them without
+an existence check. Everything in `details` is redaction-safe by construction: identifiers,
+atomic amounts, and categories, never a signature, a key, or an authorization payload.
+
+
+:::tip[Debug a specific failure]
+Paste a trace or a typed error into [402 Replay](https://tools.tx402.io/replay) to reconstruct the
+lifecycle, find the phase that broke, and see whether retrying is safe or would pay twice.
+:::

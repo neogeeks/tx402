@@ -17,9 +17,16 @@ const tx402 = createTx402Client({
   policy: {
     maxPerRequest: "0.10 USDC",
     maxPerHour: "5.00 USDC",
+    maxTotal: "50.00 USDC", // lifetime ceiling — opt-in, 0.2.0
     allowedDomains: ["api.example.com", "*.trusted.dev"],
     allowedNetworks: ["eip155:8453", "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"],
     maxPaidAttempts: 2,
+  },
+  recipientPolicy: {
+    // Pin each merchant's payout address — opt-in, 0.2.0. `tofu` needs a shared store; this
+    // allowlist form is self-contained. Both are explained under "Recipient pinning" below.
+    mode: "allowlist",
+    allow: [{ host: "api.example.com", network: "eip155:8453", recipients: ["0x…"] }],
   },
   routing: { preferNetworks: ["eip155:8453"] },
 });
@@ -31,16 +38,23 @@ tx402 = Tx402Client(
     policy=Policy(
         max_per_request="0.10 USDC",
         max_per_hour="5.00 USDC",
+        max_total="50.00 USDC",  # lifetime ceiling — opt-in, 0.2.0
         allowed_domains=["api.example.com", "*.trusted.dev"],
         allowed_networks=["eip155:8453"],
         max_paid_attempts=2,
+    ),
+    recipient_policy=RecipientPolicy(  # opt-in, 0.2.0 — see "Recipient pinning" below
+        mode="allowlist",
+        allow=[{"host": "api.example.com", "network": "eip155:8453", "recipients": ["0x…"]}],
     ),
     routing=RoutingPolicy(prefer_networks=["eip155:8453"]),
 )
 ```
 
-Every field is optional and every default is conservative. The full table is in the
-[configuration reference](../../reference/configuration/).
+Every field is optional and every default is conservative — `maxTotal` and `recipientPolicy` both
+default to off, so this section behaves exactly as v0.1 did until you set them. The full table is in
+the [configuration reference](../../reference/configuration/); the two new controls have their own
+sections below.
 
 ## Evaluation order is fixed
 
@@ -50,17 +64,23 @@ The order is fixed, and both SDKs implement exactly it:
 2. **Network** — the CAIP-2 network against `allowedNetworks` and the signed release manifest.
 3. **Scheme and asset** — the payment scheme and token against what tx402 supports and what the
    manifest declares for that network.
-4. **Per-request cap** — the amount against `maxPerRequest`.
-5. **Rolling hourly cap** — the amount against `maxPerHour`, over committed spend **plus active
-   reservations** in the last 3 600 000 ms.
-6. **Challenge freshness** — a timestamp in the challenge's `extra`, if one is present.
+4. **Recipient** — the merchant's payout address against your pins or allowlist. This step runs
+   only when `recipientPolicy.mode` is not `"off"`, and it is **advisory** here — the authoritative
+   check happens inside the reservation. See [Recipient pinning](#recipient-pinning).
+5. **Per-request cap** — the amount against `maxPerRequest`.
+6. **Rolling hourly cap, then the cumulative cap** — the amount against `maxPerHour` over committed
+   spend **plus active reservations** in the last 3 600 000 ms, and against `maxTotal` over lifetime
+   spend. See [The cumulative cap](#the-cumulative-cap).
+7. **Challenge freshness** — a timestamp in the challenge's `extra`, if one is present.
 
 The order is observable, and it is chosen so the cheapest and most specific refusals come first.
 A request to a domain you never allowed is refused without a network round trip, without a
-balance read, and without consulting the ledger.
+balance read, and without consulting the ledger. The recipient step is deliberately before the
+cap checks: a payment to the wrong address is refused for being to the wrong address, not for
+being over a limit.
 
-Only after all six pass may route planning read a balance. That matters more than it sounds: a
-balance query against a merchant-named chain is already an observable side effect of a request
+Only after these checks pass may route planning read a balance. That matters more than it sounds:
+a balance query against a merchant-named chain is already an observable side effect of a request
 your policy would have refused.
 
 :::note[The hourly window counts reservations]
@@ -135,14 +155,144 @@ The default is `["*"]`, because a domain allowlist that is subtly wrong is worse
 allowlist — it fails closed on the wrong things and teaches people to disable it. Set it
 explicitly once you know your merchants.
 
+## The cumulative cap
+
+`maxPerHour` is a *rate*: it bounds spend in any rolling 60-minute window and then forgets.
+`maxTotal` is a *ceiling*: it bounds **lifetime** spend against a scope and never resets. A
+long-running agent that stays under its hourly rate can still, over days, spend far more than you
+intended — `maxTotal` is the number that stops that.
+
+```ts
+policy: {
+  maxPerRequest: "0.10 USDC",
+  maxPerHour: "5.00 USDC",
+  maxTotal: "50.00 USDC", // this scope will never spend more than $50, ever
+}
+```
+
+The three caps are ordered `maxTotal ≥ maxPerHour ≥ maxPerRequest`, checked at construction. A
+`maxTotal` below `maxPerHour` is a `ConfigurationError` (`reason: "below-max-per-hour"`) rather than
+a silently ignored value: a ceiling under the rate could never bind, so it is a mistake, not a
+setting.
+
+**What counts against it** is lifetime **committed + exposed + reserved** — the same three terms as
+the hourly cap, without the window. Two consequences are worth knowing:
+
+- **A maybe-settled payment keeps consuming it.** An ambiguous outcome leaves the reservation
+  *exposed* (see [the request lifecycle](../lifecycle/)), and an exposed amount counts against
+  `maxTotal` **forever**, until an operator reconciles it. The cap errs toward over-counting — it
+  holds budget for a payment that may not have settled rather than let a possibly-settled one
+  escape. [Reconciling exposed payments](../../operations/exposed-reconciliation/) is how that
+  budget is released or committed.
+- **There is no automatic reset in 0.2.0.** `maxTotal` is a lifetime bound by design. An operator
+  can reset it deliberately, but tx402 never rolls it over on a schedule.
+
+`maxTotal` is optional and absent by default — omit it and behaviour is exactly v0.1's rolling
+window. `getBudgetState` / `get_budget_state` reports both the cumulative figure and what remains
+under it.
+
+## Administered caps
+
+Everything above is the **caller's** config: the numbers this client passes in. In a fleet, that is
+only as trustworthy as the client — a worker that has drifted, or been steered by injected content,
+could construct itself with a laxer cap. So 0.2.0 lets an **operator** administer the authoritative
+caps *in the store*, through the admin plane, where application code cannot reach them.
+
+When a scope has administered limits, `reserve` enforces `min(administered, caller)` per dimension,
+and the store — not the caller — decides which binds:
+
+- A caller cap **stricter** than the administered one is honoured. A worker that wants a tighter
+  bound keeps it.
+- A caller cap that **exceeds** the administered one is refused with `ConfigurationError`
+  (`reason: "cap-exceeds-administered"`) — a drifted worker cannot widen the fleet cap by asking.
+- Lowering an administered cap **below** what is already spent is allowed and rolls nothing back
+  (you cannot unspend); it clamps availability to zero and refuses new reserves.
+
+`tx402 budget` reports which caps are in force and where they came from — `limitSource:
+"administered"` is the store's own authoritative answer. See the
+[shared-store runbook](../../operations/shared-store/) for provisioning them and the
+[operator verbs](../cli/#operator-verbs) for reading them.
+
+An administered cap is keyed by `(scope, asset)`, and — like a recipient pin — **the asset is matched
+canonically**: an `eip155` asset's `erc20:0x…` contract is compared lowercased, so a cap set with the
+checksummed manifest form and one set with the all-lowercase form bind the *same* ledger. Provisioning
+a cap under one casing and paying under another still enforces it (a Solana `token:` mint is
+case-sensitive base58 and matched verbatim).
+
+**When neither knob is administered, the caller's config applies** — and the guarantee is then only
+as strong as your trust in identically configured clients. That is the honest scope of a fleet
+without administered caps, stated rather than implied.
+
+## Recipient pinning
+
+A merchant names its own payout address in each `402` challenge (`payTo`). Nothing in the protocol
+stops a compromised or malicious merchant from naming a *different* address on a later challenge —
+and an agent paying whatever it is told would pay the new one. Recipient pinning refuses that: with
+a pin in place, a payment to an address that is not the pinned one is refused before a signer is
+reached.
+
+Three modes, set through `recipientPolicy` / `recipient_policy`:
+
+| Mode | What it does |
+| :--- | :--- |
+| `"off"` (default) | No recipient check. Behaviour identical to v0.1. |
+| `"allowlist"` | You declare the allowed `(host, network, recipients)` up front in `allow`. A recipient not on the list is refused. |
+| `"tofu"` | Trust on first use — the first recipient seen for a `(scope, network)` is pinned, and every later payment must match it. Needs a store that implements `RecipientPinStore` and TOFU enabled on the scope. |
+
+```ts
+recipientPolicy: {
+  mode: "allowlist",
+  allow: [{ host: "api.example.com", network: "eip155:8453", recipients: ["0xYourMerchantPayout…"] }],
+}
+```
+
+**The pin is on the payout address, compared canonically.** It is the challenge's `payTo`, not a
+derived token account. An EVM address is compared lowercased (there is no checksum step); a Solana
+address is compared as its exact base58. So the address you write in `allow` and the one the
+merchant presents match regardless of letter case on EVM.
+
+**Advisory in policy, authoritative in the reservation.** The recipient step in `evaluate` (order
+step 4 above) is a fast, read-only pre-filter that gives you an early rejection — but it is *not*
+the security boundary, and `plan()` / `--dry-run` never establish or mutate a pin. The authoritative
+check happens inside the atomic `reserve`, against the set the **store** holds, in the same
+operation as the budget reservation. That is what makes an administered pin impossible for a drifted
+worker to bypass.
+
+:::note[A TOFU pin is claimed at the recipient step, not at reserve *success*]
+The first-use claim happens when `reserve` checks the recipient — before it checks the per-hour and
+cumulative caps. So a first payment to a new recipient that is then **refused for budget** still
+leaves the recipient pinned: the pin outlives the refusal. This is deliberate and fail-secure — the
+pin only ever locks the recipient *tighter*, and a later retry (or a smaller amount) matches the pin
+already in place. It does mean `getRecipientPins` can show a recipient that never completed a payment.
+:::
+
+A refused payment raises `RecipientUnpinnedError` (`TX402_RECIPIENT_UNPINNED`, exit 3), with
+`reason` one of:
+
+- `not-allowlisted` — the recipient is not in an administered allowlist.
+- `pin-mismatch` — the recipient differs from an established TOFU pin (the merchant "changed").
+- `assertion-required` — the scope requires a recipient and the caller omitted it.
+
+A pin-*store outage* is never this error: an unreachable store is infrastructure unavailability, so
+it surfaces as a retryable `TransportError` (fail-closed, no signature), exactly like every other
+pre-signature store outage.
+
+**A legitimate recipient change is now an operator action.** Once a recipient is pinned, a merchant
+that genuinely moves its payout address is refused until an operator rotates the pin — that is the
+point, and the trade-off. [Recipient rotation](../../operations/recipient-rotation/) is the runbook,
+including the freeze-before-rotate procedure for a split pin/budget backend.
+
 ## What policy does not do
 
 - **It is not a rate limiter.** `maxPerHour` bounds spend, not request count.
-- **It is not shared across processes _by default_.** The default ledger is in-memory, so two
-  processes have two budgets. Supply your own `SpendStore` and they share one — see below.
-- **It does not survive a restart.** A fresh client starts with a fresh hourly window. This is a
-  deliberate v0.1 scope decision, not an oversight.
-- **It cannot stop a merchant from asking.** It stops tx402 from paying.
+- **The default ledger is per-process and does not survive a restart.** `MemorySpendStore` is
+  in-memory, so two processes have two budgets and a fresh client starts with a fresh window.
+  Configure a durable shared store — Redis, a Durable Object, or a gateway — and a fleet shares one
+  authoritative budget that *does* survive a restart. See
+  [Sharing one budget across processes](#sharing-one-budget-across-processes) and
+  [the shared-store runbook](../../operations/shared-store/).
+- **It cannot stop a merchant from asking.** It stops tx402 from paying — and, with the
+  [kill switch](../../operations/kill-switch/), stops it store-wide on an operator's command.
 
 ## Checking your budget
 
@@ -191,7 +341,22 @@ another's allowance, and USDC on Base is a different budget from USDC on Solana.
 
 The scope key is the **normalized merchant host** in both languages, which is what makes a
 shared store actually shared: two processes calling `api.example.com` write the same ledger
-row. Supply any object with the four `SpendStore` methods.
+row. You supply a store, and the client reserves against it instead of the in-memory default.
+
+**You usually do not write one.** 0.2.0 ships three reference stores, each behind its own optional
+import, off the size-gated core path:
+
+| Store | Import | Use when |
+| :--- | :--- | :--- |
+| Redis | `tx402/redis` · `tx402.stores.redis` | A fleet sharing one Redis (self-hosted or Upstash), cross-language. |
+| Durable Object | `tx402/durable-object` | You run on Cloudflare Workers and want per-scope atomicity with no separate service. |
+| Gateway | `tx402/gateway` · `tx402.stores.gateway` | A service holds the real credential and clients hold only a token — the recommended production boundary, and the only way for a Python or CLI client to reach a Durable Object. |
+
+The [shared-store runbook](../../operations/shared-store/) stands one up end to end. All three
+implement the same **v2 `SpendStore` contract** — the v0.1 four methods plus `expose`, `isFrozen`,
+`listExposed`, and a `capabilities` property — so switching between them changes only construction.
+
+If you do implement your own, the published conformance suite proves it against the contract:
 
 ```python
 from tx402 import check_spend_store
@@ -202,5 +367,12 @@ check_spend_store(lambda: MySpendStore())   # shipped conformance suite
 `check_spend_store` is part of the published package, not this repository's test suite, and
 it runs the whole contract — including twenty concurrent reservations against a five-unit
 cap, because the rule an adapter is most likely to break is that `reserve` must be atomic.
-TypeScript publishes the same contract as the `SpendStore` interface. Both are documented in
-full on the type itself.
+TypeScript publishes the same contract as the `SpendStore` interface and a `checkSpendStore`
+twin. Both are documented in full on the type itself.
+
+
+:::tip[Try a policy without writing code]
+The [402 Policy Playground](https://tools.tx402.io/policy) runs this same `PolicyEngine` server-side
+against a real payment challenge, and shows which rule allowed or blocked it, in evaluation order, with the
+exact typed error your code would raise.
+:::

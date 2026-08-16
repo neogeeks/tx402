@@ -27,13 +27,20 @@ your call
   ├─ 6. plan routes                 balances read concurrently, candidates ranked
   ├─ 7. RESERVE                     atomic, from your local budget
   ├─ 8. sign                        exactly one authorization, fresh nonce
-  ├─ 9. retry once                  carrying PAYMENT-SIGNATURE
+  ├─ 9. EXPOSE fence                durable, before the wire; the hold stops expiring
+  ├─ 10. retry once                 carrying PAYMENT-SIGNATURE
   │
   │   ← 200, with a PAYMENT-RESPONSE header
   │
-  ├─ 10. read settlement
-  └─ 11. COMMIT                     the reservation becomes spend
+  ├─ 11. read settlement
+  └─ 12. COMMIT                     the reservation becomes spend
 ```
+
+Step 9, the **EXPOSE fence**, records the reservation durably the instant before the signed request
+is transmitted. It moves the reservation to `exposed`, which **removes its expiry**: an exposed hold
+never expires on its own. If the fence write fails, the request is not sent (nothing can have moved)
+and a retryable `TransportError` is raised. Only a reservation that was never transmitted still
+expires at its 120-second TTL — which is exactly the case where expiry is safe.
 
 If the resource does not answer `402`, steps 3 onward never happen. A non-paying request costs
 you nothing but the request itself.
@@ -74,11 +81,21 @@ sent, so nothing can have settled, and holding budget would be wrong.
 
 **After** the signature is on the wire, a failure means tx402 **cannot know** whether the
 merchant settled. A timeout, a connection reset, a 5xx, and a redirect it declined to follow all
-say the same thing: the outcome is unknown. So the reservation is **retained** until its TTL and
-you get `AmbiguousPaymentError`.
+say the same thing: the outcome is unknown. Because the EXPOSE fence already ran, the reservation is
+**exposed** — it does **not** expire, and it keeps consuming the cap — until an operator reconciles
+it. You get `AmbiguousPaymentError`.
 
-Retaining is the conservative choice. Releasing would hand budget back for money that may have
-moved, and the same dollar could then be spent again inside the same hour.
+Holding is the conservative choice. Releasing would hand budget back for money that may have moved,
+and the same dollar could then be spent again inside the same hour. The exposed hold is never
+auto-retried and never dropped by a TTL; it waits for an operator to confirm whether it settled.
+
+The `AmbiguousPaymentError` you receive always carries `reservationExpiresAtEpochMs` in its details,
+and the name misleads: it is **not** a deadline for the exposed hold. It is the reservation's
+original **pre-fence TTL** — the 120-second expiry it carried before step 9's EXPOSE fence removed
+that expiry — retained only as informational context (which is why it reads as a timestamp already
+in the past or near future). An exposed hold does **not** expire when that instant passes, or ever;
+do not wait for it to lapse. It is released only when an operator
+[reconciles it](../../operations/exposed-reconciliation/).
 
 ## Failure modes, by where they happen
 
@@ -89,13 +106,13 @@ moved, and the same dollar could then be spent again inside the same hour.
 | Planning                  | No viable route                        | none taken   | `TX402_LIQUIDITY` with per-network deficits     |
 | Planning                  | No signer for any offered chain        | none taken   | `TX402_SCHEME_UNSUPPORTED`                      |
 | Signing                   | Signer refused or returned garbage     | **released** | `TX402_SIGNER`                                  |
-| After transmission        | Timeout, reset, 5xx, same-origin 3xx   | **retained** | `TX402_PAYMENT_AMBIGUOUS`                       |
-| After transmission        | Cross-origin redirect                  | **retained** | `TX402_REDIRECT_BLOCKED`, `paid: "unknown"`     |
-| After transmission        | `PAYMENT-RESPONSE` present, undecodable | **retained** | `TX402_PAYMENT_AMBIGUOUS`, `settlement-metadata-unparseable` |
+| After transmission        | Timeout, reset, 5xx, same-origin 3xx   | **exposed** | `TX402_PAYMENT_AMBIGUOUS`                       |
+| After transmission        | Cross-origin redirect                  | **exposed** | `TX402_REDIRECT_BLOCKED`, `paid: "unknown"`     |
+| After transmission        | `PAYMENT-RESPONSE` present, undecodable | **exposed** | `TX402_PAYMENT_AMBIGUOUS`, `settlement-metadata-unparseable` |
 | Refused, no settlement    | 4xx with no `PAYMENT-RESPONSE`         | **released** | `TX402_RESOURCE_DELIVERY`, `paid: false`        |
 | Delivered, not settled    | `success: false` in `PAYMENT-RESPONSE` | **released** | `TX402_RESOURCE_DELIVERY`, `paid: false`        |
 | Settled, resource refused | 403 **with** a successful settlement   | **committed** | `TX402_RESOURCE_DELIVERY`, `paid: true`        |
-| Settled, ledger write failed | Your spend store rejected the commit | **retained** | `TX402_RESOURCE_DELIVERY`, `paid: true`         |
+| Settled, ledger write failed | Your spend store rejected the commit | **exposed** | `TX402_RESOURCE_DELIVERY`, `paid: true`         |
 
 **The last three rows are the ones worth reading twice.**
 Settlement evidence outranks the status line: if the merchant's own `PAYMENT-RESPONSE`
@@ -153,29 +170,40 @@ const tx402 = createTx402Client({
 });
 ```
 
-Events cover all ten names the client emits, in the order a paid call produces them:
-`request.started`, `payment.required`, `policy.checked`, `route.planned`, `budget.reserved`,
-`sign.started`, `sign.completed`, `request.retried`, `payment.completed`, and `request.failed`.
-Python exports the same list as `EVENT_NAMES`.
+Events cover all fourteen names the client emits. Ten fall on the path a paid call produces them
+in: `request.started`, `payment.required`, `policy.checked`, `route.planned`, `budget.reserved`,
+`sign.started`, `sign.completed`, `request.retried`, `payment.exposed`, `payment.completed`. Four
+are conditional: `request.failed` on any failure; `spend.frozen` when a reserve is denied because
+the scope — or the whole store — is frozen by the kill switch; `recipient.pinned` when a
+trust-on-first-use pin is established inside the reserve; and `recipient.rejected` when an attempt
+is refused because its recipient is not pinned. Both SDKs export the list as `EVENT_NAMES` (and
+TypeScript a `Tx402EventName` union), so a caller can switch on it exhaustively without string
+literals.
 
 The level is part of the contract, and it is not uniform:
 
 | Level                | Events                                                                                          |
 | :------------------- | :------------------------------------------------------------------------------------------------ |
-| `info`               | `request.started`, `payment.required`, `policy.checked`, `route.planned`, `budget.reserved`, `request.retried` |
+| `info`               | `request.started`, `payment.required`, `policy.checked`, `route.planned`, `budget.reserved`, `request.retried`, `recipient.pinned` |
 | `debug`              | `sign.started`, `sign.completed` — a signature attempt is detail, not a milestone                |
+| `info` **or** `error` | `payment.exposed` — `info` when the reservation is exposed just before transmission; `error` when that write fails and the transmit is aborted |
 | `info` **or** `warn` | `payment.completed` — `warn` on any of three merchant faults, listed below |
+| `warn`               | `spend.frozen` — a reserve was denied because the scope or the whole store is frozen; `recipient.rejected` — an attempt was refused because its recipient is not pinned |
 | `warn` **or** `error` | `request.failed` — `warn` when the outcome is ambiguous and the money is still reserved, `error` otherwise |
 
-**Three of the ten are emitted once per request. The other seven are emitted once per
-attempt**, so a call the merchant re-challenges emits each of those seven twice — as the
+**Three of the fourteen are emitted once per request. The happy-path eight are emitted once per
+attempt**, so a call the merchant re-challenges emits each of those eight twice — as the
 "every attempt re-plans from scratch" section above implies, and as both languages do
-identically:
+identically. The remaining three are per-attempt conditionals: `spend.frozen` is
+`budget.reserved`'s denial counterpart and fires in its place when the scope is frozen;
+`recipient.rejected` fires when the attempt's recipient is refused; and `recipient.pinned` fires
+once, alongside `budget.reserved`, on the attempt whose reserve establishes a first-use pin. A
+frozen or recipient-refused reserve ends the request, so neither denial repeats.
 
 | Cardinality           | Events                                                                                                          |
 | :-------------------- | :---------------------------------------------------------------------------------------------------------------- |
 | Once per **request**  | `request.started`, `payment.completed`, `request.failed`                                                        |
-| Once per **attempt**  | `payment.required`, `policy.checked`, `route.planned`, `budget.reserved`, `sign.started`, `sign.completed`, `request.retried` |
+| Once per **attempt**  | `payment.required`, `policy.checked`, `route.planned`, `budget.reserved`, `sign.started`, `sign.completed`, `request.retried`, `payment.exposed`, `spend.frozen`, `recipient.pinned`, `recipient.rejected` |
 
 **This matters for anything that counts.** `budget.reserved` is in the second group, so a metric
 built on it counts *attempts at spending*, not requests — which is usually what you want, but only
@@ -197,10 +225,28 @@ will fire on the third row too, where the evidence exists and the delivery is wh
 
 **`budget.reserved` is the one to watch.** It is emitted at `info` immediately before a signer
 becomes reachable, which makes it the last event before money can move — so it is the event
-worth alerting on, and it is one of the nine a successful paid call emits (`"events": 9` under
+worth alerting on, and it is one of the ten a successful paid call emits (`"events": 10` under
 `--json`). A listener that only handles `sign.started` sees nothing at `info` at all. Every
 event is
 **redaction-safe by construction**: identifiers, hashes, atomic amounts, and categories only.
 Signatures, keys, authorization payloads, and RPC URLs with credentials never enter the stream,
 and the test suite proves it by seeding real secrets into every input and searching the whole
 serialised output for each one.
+
+:::note[Operator actions are not request-path events]
+Freezing or unfreezing a scope is an **admin-plane** action, reported by the
+[`freeze` / `unfreeze` CLI verb](../cli/#operator-verbs)'s own output — not
+a request-path event, so there is no `freeze.enabled` in `EVENT_NAMES`. What a *request* sees when a
+scope is frozen is `spend.frozen`, emitted in `budget.reserved`'s place. Likewise, hitting the
+cumulative cap is not a separate event: it is `request.failed` carrying
+`BudgetExceededError.details.capKind: "cumulative"` — the same event a per-hour refusal produces
+with `capKind: "per-hour"`. The four request-path events **0.2.0 adds** are `payment.exposed`,
+`spend.frozen`, `recipient.pinned`, and `recipient.rejected` (the changelog's list); `request.failed`,
+though conditional, is a pre-existing 0.1.0 event, not one of the additions.
+:::
+
+
+:::tip[See a real challenge decoded]
+The [402 Inspector](https://tools.tx402.io/inspect) probes a live x402 endpoint and shows what it charges,
+on which network, to whom — decoded by `decodePaymentRequired`, the same function this guide describes.
+:::

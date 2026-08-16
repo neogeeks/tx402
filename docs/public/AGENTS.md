@@ -6,6 +6,8 @@ Guidance for AI agents and automated tools working with **tx402** — the spend-
 
 tx402 wraps an HTTP client and completes the `402 Payment Required` handshake for autonomous agents. It enforces spend policy — per-request caps, hourly/cumulative budgets, domain and chain allowlists, and an atomic reservation — **before any key is signed**, then deterministically routes across the chains a merchant offered (Base and Solana), fails over RPC endpoints, and returns typed, ambiguity-safe outcomes. It is buyer-side only: it never custodies funds, never calls a facilitator's verify/settle, and never bridges or swaps.
 
+Across a **fleet** of cooperating agents sharing one durable store, it adds a lifetime cumulative ceiling, an operator kill switch that freezes spending on command, and recipient pinning that refuses a merchant that changes its payout address — all governed through a data/admin credential split so a drifted worker cannot relax its own guardrails. It does not yet protect the spending path against a _compromised_ application (that needs signer mediation, arriving in a later release), and the docs say so plainly.
+
 - Runtimes: TypeScript (Node 20+) and Python (3.10+)
 - Package: `tx402` (unscoped) on npm and PyPI
 - License: Apache-2.0
@@ -24,9 +26,18 @@ npm install tx402 @solana-program/token @solana/kit @x402/svm viem # Solana
 # Python (3.10+)
 pip install tx402            # core, no chain
 pip install "tx402[evm]"     # Base / EVM
-pip install "tx402[solana]"  # Solana
-pip install "tx402[all]"     # both
+pip install "tx402[svm]"     # Solana
+pip install "tx402[all]"     # both chains
 ```
+
+A shared spend store across a fleet is optional and off the size-gated core path:
+
+```bash
+npm install ioredis          # or: npm install redis    (TypeScript, for the tx402/redis store)
+pip install "tx402[redis]"   # Python (sync + async Redis stores)
+```
+
+The Cloudflare Durable Object store (`tx402/durable-object`) and the gateway client (`tx402/gateway`) need no extra install. See the [shared-store runbook](https://docs.tx402.io/operations/shared-store/).
 
 ## Configuration
 
@@ -39,13 +50,21 @@ const tx402 = createTx402Client({
   signers: { evm, solana },
   policy: {
     maxPerRequest: "0.50 USDC", // per-request cap
-    maxPerHour: "10.00 USDC", // cumulative hourly budget
+    maxPerHour: "10.00 USDC", // rolling hourly budget
+    maxTotal: "100.00 USDC", // lifetime ceiling (opt-in)
     allowedNetworks: ["eip155:8453", "solana:mainnet"], // chain allowlist
+  },
+  // Refuse a merchant that changes its payout address (opt-in):
+  recipientPolicy: {
+    mode: "allowlist",
+    allow: [{ host: "api.example.com", network: "eip155:8453", recipients: ["0x…"] }],
   },
 });
 ```
 
 Amounts are always integer atomic units (never floats). Additional options include a domain allowlist and `maxPaidAttempts`; see the full [configuration reference](https://docs.tx402.io/reference/configuration/).
+
+To share one budget across a fleet — with an operator kill switch, administered caps a worker cannot widen, and recipient pinning — pass a durable `spendStore` (Redis, a Durable Object, or a gateway) instead of the default in-process store. The [shared-store runbook](https://docs.tx402.io/operations/shared-store/) stands one up end to end.
 
 ## Usage
 
@@ -57,11 +76,16 @@ const res = await tx402.fetch(url, init);
 Command line:
 
 ```bash
-# Plan a payment without signing (no key is touched):
+# Plan a payment without signing (no signature is produced; planning does read
+# your payer address and balance, so a key must be configured):
 npx tx402 call <url> --max-spend "0.10 USDC" --dry-run
+
+# Govern a shared store (operator verbs; set TX402_SPEND_STORE + a data/admin credential):
+tx402 budget api.merchant.example --network eip155:8453   # read the shared budget (data)
+tx402 freeze api.merchant.example                          # stop paying a merchant (admin)
 ```
 
-See the [Quickstart](https://docs.tx402.io/start/quickstart/) for an end-to-end paid call.
+See the [Quickstart](https://docs.tx402.io/start/quickstart/) for an end-to-end paid call and the [CLI guide](https://docs.tx402.io/guides/cli/) for all five operator verbs.
 
 ## Developing tx402 (in the repository)
 
@@ -77,7 +101,7 @@ See the [Quickstart](https://docs.tx402.io/start/quickstart/) for an end-to-end 
 - Policy evaluation and budget reservation happen **before** any signer call.
 - Never log or embed signatures, keys, or authorization payloads.
 - The buyer never calls a facilitator's verify/settle; the merchant owns settlement.
-- TypeScript and Python are held to identical behavior by 73 shared conformance vectors.
+- TypeScript and Python are held to identical behavior by 88 shared conformance vectors.
 
 ## Security
 

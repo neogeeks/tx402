@@ -245,6 +245,100 @@
   --sl-shadow-lg: var(--tx-shadow);
 }
 
+/* The SAME light tokens, for the theme Starlight calls "auto".
+ *
+ * Starlight stamps `data-theme` only for an EXPLICIT light or dark choice. On "auto" — the
+ * default, and therefore every first-time visitor — the attribute is absent and Starlight
+ * falls back to its own `@media (prefers-color-scheme: light)` rules. Those turned the
+ * chrome light while the tokens above stayed dark, so a light-OS reader met dark muted text
+ * on a white sidebar: #99a2b6 on #ffffff, 2.56:1, well under the 4.5:1 floor.
+ *
+ * Scoped with `:not([data-theme="dark"])` so an explicit dark choice still wins on a
+ * light-preferring OS. Keep these declarations in step with the block above — the
+ * `docs:contrast` check fails if either drifts below 4.5:1.
+ */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]),
+  :root:not([data-theme="dark"]) ::backdrop {
+    color-scheme: light;
+
+    --tx-bg: #fbfcfe;
+    --tx-bg-alt: #f3f6fa;
+    --tx-surface: #ffffff;
+    --tx-surface-2: #f7f9fc;
+    --tx-surface-3: #eef2f8;
+    --tx-border: #e0e6f0;
+    --tx-border-strong: #c3ccdd;
+    --tx-text: #0f141d;
+    --tx-text-muted: #545f77;
+    --tx-text-faint: #6f7a90;
+
+    --tx-accent: #0b62d6;
+    --tx-accent-soft: rgba(11, 98, 214, 0.08);
+    --tx-accent-line: rgba(11, 98, 214, 0.3);
+    --tx-accent-strong: #094fad;
+    --tx-on-accent: #ffffff;
+
+    --tx-ok: #10693a;
+    --tx-ok-soft: rgba(16, 105, 58, 0.1);
+    --tx-warn: #8a5a00;
+    --tx-warn-soft: rgba(138, 90, 0, 0.1);
+    --tx-err: #c22b21;
+    --tx-err-soft: rgba(194, 43, 33, 0.09);
+
+    --tx-grid-line: rgba(30, 60, 110, 0.06);
+    --tx-header-bg: rgba(251, 252, 254, 0.82);
+    --tx-shadow: 0 1px 2px rgba(15, 23, 42, 0.05), 0 14px 34px -22px rgba(15, 23, 42, 0.3);
+    --tx-code-bg: var(--tx-surface-2);
+
+    --sl-color-white: var(--tx-text);
+    --sl-color-gray-1: #1b2230;
+    --sl-color-gray-2: #2b3446;
+    --sl-color-gray-3: var(--tx-text-muted);
+    --sl-color-gray-4: var(--tx-text-faint);
+    --sl-color-gray-5: var(--tx-border-strong);
+    --sl-color-gray-6: var(--tx-border);
+    --sl-color-gray-7: var(--tx-surface-2);
+    --sl-color-black: var(--tx-bg);
+
+    --sl-color-accent-low: #d3e0ff;
+    --sl-color-accent: var(--tx-accent);
+    --sl-color-accent-high: #16305c;
+
+    --sl-color-orange-low: var(--tx-warn-soft);
+    --sl-color-orange: var(--tx-warn);
+    --sl-color-orange-high: #6b4600;
+    --sl-color-green-low: var(--tx-ok-soft);
+    --sl-color-green: var(--tx-ok);
+    --sl-color-green-high: #0b4f2b;
+    --sl-color-blue-low: var(--tx-accent-soft);
+    --sl-color-blue: var(--tx-accent);
+    --sl-color-blue-high: #0a4a9e;
+    --sl-color-red-low: var(--tx-err-soft);
+    --sl-color-red: var(--tx-err);
+    --sl-color-red-high: #94201a;
+    --sl-color-purple-low: var(--tx-accent-soft);
+    --sl-color-purple: #3d51c7;
+    --sl-color-purple-high: #26308a;
+
+    --sl-color-text: var(--sl-color-gray-2);
+    --sl-color-text-accent: var(--tx-accent);
+    --sl-color-text-invert: var(--tx-on-accent);
+    --sl-color-bg-nav: var(--tx-header-bg);
+    --sl-color-bg-sidebar: var(--tx-bg);
+    --sl-color-bg-inline-code: var(--tx-surface-2);
+    --sl-color-bg-accent: var(--tx-accent);
+    --sl-color-hairline: var(--tx-border);
+    --sl-color-hairline-light: var(--tx-border);
+    --sl-color-hairline-shade: var(--tx-border);
+    --sl-color-backdrop-overlay: rgba(15, 23, 42, 0.45);
+
+    --sl-shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
+    --sl-shadow-md: var(--tx-shadow);
+    --sl-shadow-lg: var(--tx-shadow);
+  }
+}
+
 /* ------------------------------------------------------------------- base -- */
 
 body {

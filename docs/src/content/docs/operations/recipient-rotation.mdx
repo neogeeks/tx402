@@ -1,0 +1,102 @@
+---
+title: Pinning and rotating recipients
+description: Establishing a merchant's payout address, and the freeze-before-rotate procedure for changing it safely.
+sidebar:
+  order: 11
+---
+
+[Recipient pinning](../../guides/policy/#recipient-pinning) refuses a payment to any address that is
+not the one pinned for a merchant. The consequence an operator has to plan for is the mirror image:
+when a merchant *legitimately* changes its payout address, every payment is refused until you rotate
+the pin. This runbook is how you establish a pin and how you rotate one **without a reserve racing
+the change**.
+
+Pinning is a [shared-store](../shared-store/) feature; the admin verbs below need an admin credential.
+
+:::tip[See what a merchant's payout address has actually been doing]
+[402 History](https://tools.tx402.io/history) shows an endpoint's observed payout address over time,
+with every change dated. Worth a look before you establish a pin, and again when a rotation request
+arrives — "this address changed twice last month" is a fact you want before you plan the freeze.
+:::
+
+## Establishing a pin
+
+There are two authoritative ways a `(scope, network)` gets a pinned set, both admin-plane:
+
+**An administered allowlist** — you name the addresses up front:
+
+```ts
+await admin.setRecipientPins(
+  "api.merchant.example",
+  "eip155:8453",
+  ["0xYourMerchantPayoutAddress…"],
+  Date.now(),
+);
+```
+
+**Trust on first use (TOFU)** — the store pins the first recipient it sees, then requires every later
+payment to match. Enable it on the scope, and (usually) require the assertion so a caller cannot skip
+it:
+
+```ts
+await admin.setTofuEnabled("api.merchant.example", true, Date.now());
+await admin.setRecipientAssertionRequired("api.merchant.example", true, Date.now());
+```
+
+A client with `recipientPolicy.mode: "tofu"` and a store implementing `RecipientPinStore` then
+claims the pin inside its first reserve. Until TOFU is enabled on the scope, a `"tofu"` client fails
+closed (`reason: "recipient-tofu-not-provisioned"`) rather than silently accepting a first
+recipient — a misconfiguration surfaced, not an open door. `tx402 pins <host> --network …` shows the
+current set, and `tx402 rotate-recipient` is the write path for both kinds.
+
+## Rotating a pin
+
+`rotate-recipient` overwrites the pinned set with the addresses you give, after canonicalizing them
+(an EVM address is lowercased):
+
+```bash
+export TX402_SPEND_STORE="https://gateway.example"   # or a rediss://admin DSN
+export TX402_SPEND_STORE_ADMIN="$ADMIN_TOKEN"
+
+tx402 rotate-recipient api.merchant.example \
+  --network eip155:8453 \
+  --to 0xTheMerchantsNewPayoutAddress…
+```
+
+`--to` is variadic, so a set with more than one allowed recipient is `--to 0xA… 0xB…`. The verb
+prints the stored canonical set, and `--json` returns it as a clean artifact.
+
+## Freeze before you rotate — when the pin and budget backends differ
+
+Whether a rotation is safe to do live depends on whether the pin store and the budget store are the
+**same backend**.
+
+- **One backend (the reference stores — Redis, DO, or a gateway over either).** The in-reserve
+  recipient assertion and the pin write hit the same store, so a reserve in flight during a rotation
+  asserts either the old pin (and is admitted before the write) or the new one (after) — never a torn
+  state. Rotation is race-free on its own; just run `rotate-recipient`.
+
+- **Separate backends.** If your pins live in a different store from your budget, a reserve cannot
+  assert the pin atomically with the rotation, so a payment could slip through against a
+  half-changed pin. The contract for that case is **freeze-before-rotate**:
+
+  ```bash
+  tx402 freeze api.merchant.example              # no reserve can race the change
+  tx402 rotate-recipient api.merchant.example --network eip155:8453 --to 0xNew…
+  tx402 unfreeze api.merchant.example
+  ```
+
+  The freeze guarantees no reserve runs during the window between the old and new pin.
+
+The CLI helps you notice the second case: `rotate-recipient` prints a **freeze-before-rotate
+warning** to stderr when it detects a gateway backend whose topology it cannot confirm is co-located
+*and* the scope is not already frozen. Against a raw Redis store, known to be one backend, it stays
+quiet. The warning is stderr-only, so `--json` stays a clean artifact you can pipe.
+
+## Why a rotation is deliberately an operator action
+
+Making a recipient change require an operator is the whole point of pinning: a merchant that changes
+its payout address mid-conversation is exactly the attack the pin exists to refuse, and a fleet that
+auto-accepted the change would have no pin at all. The refusal a caller sees until you rotate is
+`RecipientUnpinnedError` (`reason: "pin-mismatch"` for TOFU, `"not-allowlisted"` for an allowlist),
+exit `3` — a signal to verify the new address out of band and then rotate, not to retry.

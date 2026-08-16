@@ -1,0 +1,91 @@
+---
+title: Solana Devnet runbook
+description: Funding and verifying the Solana Devnet test wallet.
+sidebar:
+  order: 6
+---
+
+The Solana adapter's automated suite is fully deterministic and needs no wallet: it runs against a
+local JSON-RPC stub (`tools/svm-rpc-stub`) and the local test merchant. This runbook is for the
+**opt-in live test** on Solana Devnet, which is required before release. It is the Solana companion
+to the [Base Sepolia runbook](../base-testnet/), and reads the same way.
+
+## 1. Create a dedicated wallet
+
+The rule is specific: "dedicated low-balance wallets funded only for automated Base
+Sepolia and Solana Devnet tests". Do not reuse a wallet that holds anything you would mind losing,
+and do not reuse one that has ever touched mainnet — a testnet key that leaks is only harmless if
+it controls nothing else.
+
+```sh
+# solana-keygen ships with the Solana CLI. It writes a JSON array of 64 keypair bytes —
+# which is exactly the shape TX402_SOLANA_DEVNET_KEYPAIR expects.
+solana-keygen new --no-bip39-passphrase --outfile ./tx402-devnet.json
+solana-keygen pubkey ./tx402-devnet.json   # the address to fund
+```
+
+Store the key file in a password manager or a secret manager. Never commit it, never pass it as a
+command-line flag — the CLI forbids it outright — and never paste it into an issue.
+
+## 2. Fund it
+
+Two balances are needed, both small:
+
+| What        | Why                                                                                                                              | Suggested |
+| :---------- | :----------------------------------------------------------------------------------------------------------------------------- | :-------- |
+| Devnet SOL  | Not spent by tx402 — the buyer never broadcasts a transaction — but pays account rent if you create the token account yourself, and is useful for any manual on-chain check | 1 SOL     |
+| Devnet USDC | The asset the exact scheme authorizes                                                                                          | 5 USDC    |
+
+- Devnet SOL: `solana airdrop 1 <address> --url devnet` (the faucet is rate-limited — retry, or use a web faucet).
+- Devnet USDC: [https://faucet.circle.com](https://faucet.circle.com) (select Solana Devnet). The faucet also creates your associated token account.
+
+The USDC mint the SDK will use is the one in the signed manifest —
+`4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU` — not whatever a faucet page happens to name. If a
+faucet sends a different token the balance read will simply report zero.
+
+## 3. Run the live suite
+
+```sh
+TX402_SOLANA_DEVNET_KEYPAIR="$(cat ./tx402-devnet.json)" \
+  pnpm --filter tx402 exec vitest run test/solana-devnet.live.test.ts
+```
+
+Without the environment variable the file is skipped, which is why ordinary CI stays green with no
+wallet configured.
+
+If the public Devnet RPC rate-limits you, point the suite at a private endpoint with
+`TX402_SOLANA_DEVNET_RPC_URL` — the same RPC-override variable the volume suite and `tools/ttv`
+read:
+
+```sh
+TX402_SOLANA_DEVNET_KEYPAIR="$(cat ./tx402-devnet.json)" \
+TX402_SOLANA_DEVNET_RPC_URL=https://your-devnet-rpc.example \
+  pnpm --filter tx402 exec vitest run test/solana-devnet.live.test.ts
+```
+
+What it exercises for real: cluster identity against the manifest's published Devnet genesis hash, a
+USDC balance and associated-token-account read for your address, a real recent blockhash, the full
+policy → reserve → sign path, and a real Ed25519 signature from your key. The merchant half is
+played by the local test merchant, which validates the authorization it receives.
+
+What **this test file** does not exercise: settlement. The signed transaction is accepted by the
+local merchant but never broadcast to the cluster, so no Devnet USDC moves. That is a property of
+this suite, not a limit of the test merchant: given a facilitator, the same local merchant settles
+for real and Devnet USDC moves — that is exactly what the [quickstart](../../start/quickstart/)
+Solana path does, and what `tools/ttv` measures the five-minute target against.
+
+## 4. Before release
+
+The public testnet smoke suite must pass **twice from clean environments**, and
+T-019 asks for 50 Base Sepolia and 50 Solana Devnet calls with zero SDK-caused
+failures. Both need this wallet funded, so keep it topped up rather than draining it after a
+single run.
+
+## Troubleshooting
+
+| Symptom                                            | Cause                                                                                          |
+| :------------------------------------------------- | :-------------------------------------------------------------------------------------------- |
+| `TX402_LIQUIDITY` with `available: "0"`            | USDC is on the wrong cluster, the associated token account does not exist yet, or a faucet sent a different mint |
+| `TX402_TRANSPORT` with `causeCategory: "timeout"` or `"transport"` | Public Devnet RPC is slow (`"timeout"`) or rate-limiting you outright with HTTP 429 (`"transport"`); set `TX402_SOLANA_DEVNET_RPC_URL` to a private endpoint |
+| `TX402_TRANSPORT` with `genesis-hash-mismatch`     | An RPC endpoint answered for another cluster — tx402 refuses to trust it                       |
+| `solana airdrop` reports `airdrop request failed`  | The Devnet faucet is rate-limited; wait and retry, or fund from a web faucet                   |

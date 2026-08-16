@@ -70,18 +70,25 @@ have settled. It may not have.
 
 What tx402 has already done for you:
 
-- **Retained** the budget reservation until its TTL, rather than releasing it. The same money
-  cannot be spent again inside the hour by accident.
+- **Held** the budget reservation as an **exposed** reservation that does **not** expire on its
+  own, rather than releasing it. The same money cannot be spent again — not this hour, not ever —
+  until an operator reconciles it.
 - Recorded `causeCategory` in the error's `details`, so you can tell a timeout from a 5xx from a
   redirect.
-- Recorded `reservationExpiresAtEpochMs`, so you know how long the hold lasts.
+- Recorded `reservationExpiresAtEpochMs` — the reservation's originally declared expiry. Once a
+  reservation is exposed this is **advisory only**: the hold no longer expires and waits for
+  reconciliation.
 
 What you must do:
 
-1. **Do not retry automatically.** This is the whole reason it has a dedicated exit code.
+1. **Do not retry automatically.** This is the whole reason it has a dedicated exit code. Retrying
+   an ambiguous payment can pay twice, because it may already have settled.
 2. Reconcile against the merchant, using the `requestId` you logged.
-3. If it settled, treat the resource as paid for and fetch it however the merchant provides.
-4. If it did not, retry deliberately — after the reservation TTL, or with a fresh client.
+3. If it settled, treat the resource as paid for and fetch it however the merchant provides, then
+   an operator confirms the hold with admin `resolveExposed(ref, "committed")`.
+4. If it did **not** settle, an operator frees the budget with `resolveExposed(ref, "released")`
+   (see the [exposed-reconciliation runbook](/operations/exposed-reconciliation/)). Never re-drive
+   the same call hoping the TTL cleared it — an exposed hold has no TTL to clear.
 
 Building this reconciliation is your responsibility, and tx402 cannot do it for you: it does not
 call the facilitator, and it has no way to know your merchant's idempotency semantics.
@@ -118,6 +125,6 @@ The bundled release manifest **expires**. `pnpm manifest:verify` warns below 90 
 and a client cannot be constructed against an expired one. Re-issuing it is a patch release, so
 keep tx402 reasonably current rather than pinning it forever.
 
-Upstream `@x402/*` moves quickly. Every dependency bump replays all 73 conformance vectors in
+Upstream `@x402/*` moves quickly. Every dependency bump replays all 88 conformance vectors in
 both languages before it ships, so a protocol-envelope change cannot land silently — but that
 also means a tx402 release may lag an upstream one by the time it takes to reconcile.

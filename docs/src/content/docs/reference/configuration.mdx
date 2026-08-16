@@ -231,7 +231,8 @@ Python — so the path in the error is always one you could have typed.
 
 **`paymentRetryMs` covers the signature-bearing attempt**, and a paid retry that hits its
 deadline is **ambiguous**, not failed: the signature was already transmitted, so
-`AmbiguousPaymentError` is raised and the reservation is retained until its 120-second TTL.
+`AmbiguousPaymentError` is raised and the reservation is held as a non-expiring **exposed**
+reservation until an operator reconciles it.
 Setting this very low does not make failures cleaner — it makes ambiguous outcomes more
 likely. The initial request carries no such hazard, which is why it is the one that may be
 bounded freely: nothing has been signed yet.
@@ -257,6 +258,8 @@ Listed here so this page is a complete reference rather than a selective one.
 | `signers.solana`          | absent                      | Required to select a Solana route.                                                                                                       |
 | `policy.maxPerRequest`    | `"0.50 USDC"`               | Per-payment ceiling. Integer atomic units; a decimal that does not divide exactly into the asset's atomic unit is rejected.               |
 | `policy.maxPerHour`       | `"10.00 USDC"`              | Rolling 60-minute cap over committed entries **plus** live reservations, per scope and asset. Must be ≥ `maxPerRequest`.                  |
+| `policy.maxTotal`<br />`max_total` | absent             | **Lifetime** ceiling per scope and asset — committed + exposed + reserved, no window, no automatic reset. Opt-in; must be ≥ `maxPerHour`. See [the cumulative cap](../../guides/policy/#the-cumulative-cap). |
+| `recipientPolicy`<br />`recipient_policy` | `{ mode: "off" }` | Pins a merchant's payout address so a changed recipient is refused. `mode` is `"off"` / `"allowlist"` / `"tofu"`; `allow` lists `{ host, network, recipients }`. `"tofu"` needs a store implementing `RecipientPinStore`. See [recipient pinning](../../guides/policy/#recipient-pinning). |
 | `policy.allowedDomains`   | `["*"]`                     | Matched against the normalized host before the first request **and** before the paid retry.                                              |
 | `policy.allowedNetworks`  | Base + Solana production    | Empty list is invalid. Aliases accepted in, canonical CAIP-2 out — see above.                                                            |
 | `policy.maxPaidAttempts`  | `2`                         | Range 1–3. Counts signed retries only, never the initial unpaid request. Exhaustion is a typed terminal error, not a loop that stops.     |
@@ -264,7 +267,7 @@ Listed here so this page is a complete reference rather than a selective one.
 | `timeouts.paymentRetryMs`<br />`payment_retry_timeout_ms` | `10000`         | Covers the one signature-bearing request. Minimum 1000.                                                                 |
 | `routing.preferNetworks`  | `[]`                        | **Implemented.** A tie-break preference only — it cannot make a non-viable route viable, and it ranks below viability. |
 | `routing.rpcOverrides`    | `{}`                        | Caller-supplied RPC endpoints per network, for keyed or private providers.                                                     |
-| `spendStore`              | `MemorySpendStore`          | The pluggable ledger. Its scope key is the normalized merchant host, so two processes sharing a store share a cap.              |
+| `spendStore`<br />`spend_store` | `MemorySpendStore`    | The pluggable ledger (v2 contract). Its scope key is the normalized merchant host, so two processes sharing a store share a cap. 0.2.0 ships Redis, Durable Object, and gateway reference stores — see [sharing one budget](../../guides/policy/#sharing-one-budget-across-processes). |
 | `logger`                  | no-op                       | An **object** with `debug`, `info`, `warn` and `error`, each taking one event mapping — not a single callback. Receives redacted structured events; the SDK never writes to the console itself. A value missing any of the four is rejected at construction. |
 | `clock`                   | system + monotonic          | Injectable for tests only.                                                                                                               |
 | `manifest`                | bundled signed manifest     | Signature and expiry verified synchronously at construction; a failure is a construction failure, not a warning.                         |
