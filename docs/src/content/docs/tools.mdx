@@ -1,0 +1,98 @@
+---
+title: Hosted tools
+description: Free browser and API tools for x402 endpoints — inspect what one charges, verify a challenge before signing, test a spend policy, compare endpoints, and debug a failed payment.
+tableOfContents:
+  minHeadingLevel: 2
+  maxHeadingLevel: 2
+---
+
+[**tools.tx402.io**](https://tools.tx402.io) is a set of free hosted utilities for the x402 payment
+protocol. No account, no API key, nothing to install.
+
+They are a **separate service** from this SDK. The SDK operates no backend and never contacts them —
+that separation is enforced by a test, not asserted. What the two share is code: challenge decoding
+and policy evaluation on that site run the same `decodePaymentRequired` and `PolicyEngine` you get
+from `npm i tx402`, so what a tool says about a challenge is what the SDK would do with it, rather
+than what a second parser guesses.
+
+Every page also answers `Accept: application/json` and `Accept: text/markdown` from the same URL, so
+each of these is an API as much as a page.
+
+## Inspect an endpoint
+
+**[tools.tx402.io/inspect](https://tools.tx402.io/inspect)** — paste a URL, get what it charges.
+
+Price per request, token, network and payout address, read from the endpoint's own 402 challenge.
+The probe reads the challenge and stops; it never pays. Useful before you point
+[`tx402 call`](../guides/cli/) at something for the first time.
+
+```bash
+curl -H 'Accept: application/json' 'https://tools.tx402.io/inspect?url=https://an.example/paid'
+```
+
+## Verify a challenge
+
+**[tools.tx402.io/verify](https://tools.tx402.io/verify)** — check a challenge before you sign it.
+
+Strict decoding, canonical atomic amount, recognized network and asset, and whether the resource
+origin matches the endpoint that served it. This is the question you have at the moment of signing,
+which is why it also exists offline in the CLI, where the challenge never leaves your machine.
+
+## Policy playground
+
+**[tools.tx402.io/policy](https://tools.tx402.io/policy)** — try a spend policy against a real
+challenge.
+
+Shows which rule fires, in evaluation order, with the exact typed error your own code would raise.
+`tx402 call --dry-run` answers this for your real endpoint and your real key; the playground answers
+"why would this policy reject that challenge?" without either. See [Spend policy](../guides/policy/).
+
+## Price and recipient history
+
+**[tools.tx402.io/history](https://tools.tx402.io/history)** — how an endpoint's terms have moved.
+
+Price, payout address, availability and latency over time, with every observed terms change dated.
+Worth a look before you establish a recipient pin, and again when a rotation request arrives — see
+[Pinning and rotating recipients](../operations/recipient-rotation/).
+
+## Compare endpoints
+
+**[tools.tx402.io/compare](https://tools.tx402.io/compare)** — endpoints side by side.
+
+Price per call, network, asset, observed availability and latency, across curated categories. Gaps
+are shown as gaps rather than filled in, and rows scored under different scoring versions are not
+ranked against each other.
+
+## Debug a failed payment
+
+**[tools.tx402.io/replay](https://tools.tx402.io/replay)** — reconstruct the lifecycle.
+
+Give it a trace or a typed error and it finds the phase that broke and whether retrying is safe or
+would pay twice — the distinction that matters most after
+[`TX402_PAYMENT_AMBIGUOUS`](../reference/errors/). The trace stays on your machine unless you
+explicitly share a redacted one.
+
+## Without a browser
+
+Two packages put the same tools where the work happens, both Apache-2.0, neither able to pay:
+
+```bash
+npm i -g tx402-tools          # the CLI: inspect, verify, history, compare, replay
+npx -y tx402-tools-mcp        # the MCP server, over stdio
+```
+
+The CLI reaches `localhost` and private endpoints the hosted probe is forbidden from touching, and
+its `verify` runs fully offline. The MCP server puts `inspect_endpoint` and `verify_challenge`
+inside the agent client you already run.
+
+## What a result means
+
+A result carries a `LOW` / `MEDIUM` / `HIGH` band, and it means one thing: **how much of what the
+service checks it was able to confirm.** It describes the completeness of an observation, never the
+character or intent of whoever operates an endpoint, and it should not be quoted as though it did.
+
+An endpoint nobody has probed before returns `NO_DATA` rather than a low score — unknown is not bad.
+Every signal, weight and threshold is published at
+[tools.tx402.io/methodology](https://tools.tx402.io/methodology), scoring is a versioned pure
+function in a public repository, and an operator can claim an endpoint, correct an observation, or
+opt out.

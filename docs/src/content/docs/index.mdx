@@ -105,21 +105,5 @@ the merchant's terms without touching a chain.
 - **[Spend policy](./guides/policy/)** — the guardrails, and the order they run in.
 - **[Error reference](./reference/errors/)** — all seventeen errors and the nine exit codes.
 - **[Security model](./security/)** — the threat model, and what tx402 does and does not defend.
-
-## Hosted tools
-
-This page uses `template: splash`, which hides the sidebar — so the standing sidebar entry for
-these does not appear here, on the one page a first-time reader is most likely to land on.
-
-[**tools.tx402.io**](https://tools.tx402.io) is a set of free hosted utilities for x402 endpoints.
-No account, no API key. They run the same `decodePaymentRequired` and `PolicyEngine` this SDK runs
-before it signs, so what they say about a challenge is what the SDK would do with it.
-
-- **[See what an endpoint charges](https://tools.tx402.io/inspect)** — price per request, token,
-  network and payout address, read from its own 402 challenge.
-- **[Verify a challenge before you sign it](https://tools.tx402.io/verify)** — strict decoding,
-  canonical amount, recognized network and asset, resource-origin match.
-- **[Try a spend policy against a real challenge](https://tools.tx402.io/policy)** — which rule
-  fires, in evaluation order, with the typed error your own code would raise.
-- **[Debug a payment that failed](https://tools.tx402.io/replay)** — the phase it stopped in, and
-  whether retrying is safe or would pay twice.
+- **[Hosted tools](./tools/)** — free browser tools for inspecting, verifying and debugging x402
+  endpoints, built on this SDK.
