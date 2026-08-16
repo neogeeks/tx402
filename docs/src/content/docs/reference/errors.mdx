@@ -324,3 +324,8 @@ atomic amounts, and categories, never a signature, a key, or an authorization pa
 These keys are guaranteed present in `error.details`, so a handler can read them without
 an existence check. Everything in `details` is redaction-safe by construction: identifiers,
 atomic amounts, and categories, never a signature, a key, or an authorization payload.
+
+:::tip[Debug a specific failure]
+Paste a trace or a typed error into [402 Replay](https://tools.tx402.io/replay) to reconstruct the
+lifecycle, find the phase that broke, and see whether retrying is safe or would pay twice.
+:::

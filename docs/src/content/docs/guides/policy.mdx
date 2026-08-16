@@ -369,3 +369,10 @@ it runs the whole contract — including twenty concurrent reservations against 
 cap, because the rule an adapter is most likely to break is that `reserve` must be atomic.
 TypeScript publishes the same contract as the `SpendStore` interface and a `checkSpendStore`
 twin. Both are documented in full on the type itself.
+
+
+:::tip[Try a policy without writing code]
+The [402 Policy Playground](https://tools.tx402.io/policy) runs this same `PolicyEngine` server-side
+against a real payment challenge, and shows which rule allowed or blocked it, in evaluation order, with the
+exact typed error your code would raise.
+:::

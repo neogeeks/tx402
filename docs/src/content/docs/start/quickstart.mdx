@@ -121,6 +121,11 @@ The SDK requires HTTPS everywhere except localhost, where the CLI opts in explic
 merchant on any other host must be `https://`, and there is no flag to change that.
 :::
 
+:::tip[Pointing at a real endpoint instead of the test merchant?]
+[Check what it charges first](https://tools.tx402.io/inspect) — price per request, token, network
+and payout address, read from its own 402 challenge without paying anything.
+:::
+
 ## 3. Point tx402 at your key
 
 ```bash

@@ -244,3 +244,9 @@ with `capKind: "per-hour"`. The four request-path events **0.2.0 adds** are `pay
 `spend.frozen`, `recipient.pinned`, and `recipient.rejected` (the changelog's list); `request.failed`,
 though conditional, is a pre-existing 0.1.0 event, not one of the additions.
 :::
+
+
+:::tip[See a real challenge decoded]
+The [402 Inspector](https://tools.tx402.io/inspect) probes a live x402 endpoint and shows what it charges,
+on which network, to whom — decoded by `decodePaymentRequired`, the same function this guide describes.
+:::

@@ -56,6 +56,13 @@ Route planning **does** read your payer address and balance, because a route can
 without knowing whether it is fundable. "Never invokes a signer" means never produces a
 signature.
 
+:::tip[The same evaluation, with the rules shown in order]
+[The 402 Policy Playground](https://tools.tx402.io/policy) runs this same `PolicyEngine` against a
+challenge you paste and shows which rule fired, in evaluation order, with the typed error your own
+code would raise. `--dry-run` is the answer for your real endpoint and your real key; the playground
+is the answer for "why would this policy reject that challenge?"
+:::
+
 ## stdout and stderr are a contract
 
 **stdout** carries the response body — or, with `--json`, exactly one JSON object. Nothing else,

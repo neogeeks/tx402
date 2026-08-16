@@ -278,6 +278,11 @@ pay twice.
 ## Every error in detail
 
 ${detail}
+
+:::tip[Debug a specific failure]
+Paste a trace or a typed error into [402 Replay](https://tools.tx402.io/replay) to reconstruct the
+lifecycle, find the phase that broke, and see whether retrying is safe or would pay twice.
+:::
 `;
 }
 

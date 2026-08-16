@@ -39,3 +39,4 @@
 - [GitHub repository](https://github.com/neogeeks/tx402): source, issues, and full history (Apache-2.0)
 - [npm: tx402](https://www.npmjs.com/package/tx402) · [PyPI: tx402](https://pypi.org/project/tx402/)
 - [Changelog](https://github.com/neogeeks/tx402/blob/main/CHANGELOG.md) · [Security policy](https://github.com/neogeeks/tx402/blob/main/SECURITY.md)
+- [tools.tx402.io](https://tools.tx402.io/llms.txt): free hosted utilities for x402 endpoints — inspect what one charges, verify a challenge before signing, test a spend policy, compare endpoints. Every result is available as JSON or Markdown.
