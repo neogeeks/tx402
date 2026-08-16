@@ -539,13 +539,38 @@ starlight-menu-button + .sidebar-pane,
  * button rather than a location.
  */
 
-.sidebar-content .group-label .large {
+/* The second selector is the one standalone top-level sidebar link,
+ * `tools.tx402.io` → /tools/. Starlight gives a link in that position `.large`
+ * and styles it as a section in its own right — 16px at weight 600 — which made
+ * the one leaf link the largest thing in the sidebar, above headings set at
+ * 0.7rem, and left it reading as part of whichever group it followed.
+ *
+ * It sits at the same level as these headings, so it shares their declaration
+ * rather than a copy of it: two rules that must match and are written twice
+ * drift the first time one is touched. A group heading is a `span.large` inside
+ * `.group-label` and never an anchor, so `a.large` cannot collide with it.
+ */
+.sidebar-content .group-label .large,
+.sidebar-content a.large {
   font-family: var(--sl-font-mono), monospace;
   font-size: 0.7rem;
   font-weight: 600;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--tx-text-muted);
+}
+/* A heading is inert; this one is a link, so it gets the affordances a heading
+   does not need. `summary` sets its own padding below — matched here because an
+   anchor has no summary to inherit it from. */
+.sidebar-content a.large {
+  padding-block: 0.4rem;
+}
+.sidebar-content a.large:hover,
+.sidebar-content a.large:focus-visible {
+  color: var(--tx-text);
+}
+.sidebar-content a.large[aria-current="page"] {
+  color: var(--sl-color-text-accent);
 }
 .sidebar-content summary {
   padding-block: 0.4rem;
